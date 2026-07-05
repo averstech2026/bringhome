@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().role == 'admin'
+        && userDoc().disabled != true;
+    }
+
+    function listData(listId) {
+      return get(/databases/$(database)/documents/lists/$(listId)).data;
+    }
+
+    function listAllowedUsers(list) {
+      return list.get('allowedUsers', []);
+    }
+
+    function canReadList(list) {
+      return isAdmin()
+        || list.isPublic == true
+        || list.createdBy == request.auth.uid
+        || request.auth.uid in listAllowedUsers(list);
+    }
+
+    function canAccessList(listId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/lists/$(listId))
+        && canReadList(listData(listId));
+    }
+
+    match /config/setup {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.initialized == true
+        && !exists(/databases/$(database)/documents/config/setup);
+      allow update: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isAdmin() || (
+        request.auth.uid == userId
+        && request.resource.data.role == 'admin'
+        && !exists(/databases/$(database)/documents/config/setup)
+      );
+      allow update: if (isAdmin() && userId != request.auth.uid) || (
+        request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatarUrl'])
+      );
+    }
+
+    match /lists/{listId} {
+      allow read: if isSignedIn() && canReadList(resource.data);
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.createdBy == request.auth.uid ||
+        request.auth.uid in listAllowedUsers(resource.data) ||
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['allowedUsers']) &&
+          request.auth.uid in listAllowedUsers(request.resource.data) &&
+          !(request.auth.uid in listAllowedUsers(resource.data))
+        )
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.createdBy == request.auth.uid || isAdmin()
+      );
+    }
+
+    match /items/{itemId} {
+      allow read: if isSignedIn() && canAccessList(resource.data.listId);
+      allow create: if isSignedIn() && canAccessList(request.resource.data.listId);
+      allow update, delete: if isSignedIn() && canAccessList(resource.data.listId);
+    }
+
+    match /product_history/{docId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+  }
+}
