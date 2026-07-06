@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content="0; url=./index.html" />
+    <script>
+      // GitHub Pages SPA fallback: redirect deep links to index.html with hash route
+      var path = window.location.pathname.replace(/\/$/, '');
+      var repo = path.split('/').pop() === 'bringhome' ? '/bringhome' : '';
+      var segment = window.location.pathname.replace(repo, '').replace(/^\//, '');
+      if (segment && segment !== 'index.html') {
+        window.location.replace(repo + '/index.html#/' + segment);
+      } else {
+        window.location.replace(repo + '/index.html');
+      }
+    </script>
+  </head>
+  <body></body>
+</html>
