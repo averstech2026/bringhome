@@ -62,7 +62,7 @@ export default function AiInput({
   const applyPastedText = (clip) => {
     const trimmed = (clip || '').trim();
     if (!trimmed) {
-      setPasteHint('Буфер пуст. Скопируйте текст из чата и нажмите «Вставить» ещё раз');
+      setPasteHint('Буфер пуст. Скопируйте текст в чате, затем снова нажмите «Вставить»');
       focusTextareaForManualPaste();
       return;
     }
@@ -71,24 +71,20 @@ export default function AiInput({
     setText((prev) => (prev.trim() ? `${prev.trim()}\n${trimmed}` : trimmed));
   };
 
-  const handlePasteClick = async () => {
+  const handlePasteClick = () => {
     if (disabled) return;
 
-    focusTextareaForManualPaste();
-
     if (!window.isSecureContext || !navigator.clipboard?.readText) {
-      setPasteHint('Удерживайте палец в поле и выберите «Вставить»');
+      setPasteHint('Нажмите и удерживайте поле, затем выберите «Вставить»');
+      focusTextareaForManualPaste();
       return;
     }
 
-    try {
-      // readText() must be called during the user gesture (click/tap).
-      const clip = await navigator.clipboard.readText();
-      applyPastedText(clip);
-    } catch {
-      setPasteHint('Удерживайте палец в поле и выберите «Вставить»');
+    // Android Chrome: call readText() immediately in the tap handler, before focus().
+    navigator.clipboard.readText().then(applyPastedText).catch(() => {
+      setPasteHint('Разрешите доступ к буферу в Chrome или вставьте вручную: удерживайте поле → «Вставить»');
       focusTextareaForManualPaste();
-    }
+    });
   };
 
   useEffect(() => {
