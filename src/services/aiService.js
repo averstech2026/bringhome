@@ -34,13 +34,22 @@ function normalizeYandexProduct(item) {
 export async function parseProductsWithAI(text) {
   const apiUrl = resolveYandexParseUrl();
 
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ text }),
-  });
+  let response;
+  try {
+    response = await fetch(apiUrl, {
+      method: 'POST',
+      mode: 'cors',
+      credentials: 'omit',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text }),
+    });
+  } catch {
+    throw new Error(
+      'Нет связи с сервером распознавания. Проверьте интернет. Если без VPN — используйте URL Yandex Cloud Functions.',
+    );
+  }
 
   const data = await response.json().catch(() => ({}));
 

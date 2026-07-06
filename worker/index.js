@@ -1,21 +1,27 @@
 import { callYandexGpt } from '../functions/yandexGpt.js';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+function corsHeaders(request) {
+  const requested = request.headers.get('Access-Control-Request-Headers');
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': requested || 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+  };
+}
 
 export default {
   async fetch(request, env) {
+    const headers = corsHeaders(request);
+
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders });
+      return new Response(null, { status: 204, headers });
     }
 
     if (request.method !== 'POST') {
       return Response.json(
         { error: 'Method not allowed' },
-        { status: 405, headers: corsHeaders },
+        { status: 405, headers },
       );
     }
 
@@ -26,7 +32,7 @@ export default {
       if (!text) {
         return Response.json(
           { error: 'Поле text обязательно' },
-          { status: 400, headers: corsHeaders },
+          { status: 400, headers },
         );
       }
 
@@ -35,11 +41,11 @@ export default {
         folderId: env.YANDEX_FOLDER_ID,
       });
 
-      return Response.json({ products }, { headers: corsHeaders });
+      return Response.json({ products }, { headers });
     } catch (err) {
       return Response.json(
         { error: err.message || 'Ошибка распознавания' },
-        { status: 500, headers: corsHeaders },
+        { status: 500, headers },
       );
     }
   },
