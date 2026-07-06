@@ -1,5 +1,6 @@
 import { formatQuantity } from '../utils/quantity';
 import { resolveCategory } from '../utils/productCategoryMap';
+import { resolveYandexParseUrl } from '../utils/yandexParseUrl';
 
 function normalizeYandexProduct(item) {
   const name = String(item.name || '')
@@ -31,7 +32,7 @@ function normalizeYandexProduct(item) {
 }
 
 export async function parseProductsWithAI(text) {
-  const apiUrl = import.meta.env.VITE_YANDEX_PARSE_URL || '/api/yandex/parse';
+  const apiUrl = resolveYandexParseUrl();
 
   const response = await fetch(apiUrl, {
     method: 'POST',
