@@ -125,6 +125,12 @@ export default function AddItemForm({
     requestAnimationFrame(() => commentInputRef.current?.focus());
   };
 
+  const handleCommentBlur = () => {
+    if (!comment.trim()) {
+      setShowComment(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim() || disabled) return;
@@ -209,16 +215,19 @@ export default function AddItemForm({
             showComment ? 'mt-2 max-h-16 opacity-100' : 'max-h-0 opacity-0'
           }`}
         >
-          <input
-            ref={commentInputRef}
-            type="text"
-            placeholder="Комментарий, например: 2.5%, пожирнее"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            disabled={disabled}
-            tabIndex={showComment ? 0 : -1}
-            className="w-full rounded-xl border border-gray-200 bg-gray-100/80 px-4 py-2 text-sm text-gray-600 outline-none transition-colors placeholder:text-gray-500 focus:border-emerald-400 focus:bg-white disabled:opacity-50"
-          />
+          {showComment && (
+            <input
+              ref={commentInputRef}
+              type="text"
+              autoFocus
+              placeholder="Примечание, например: 2.5%, пожирнее"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              onBlur={handleCommentBlur}
+              disabled={disabled}
+              className="w-full rounded-full border border-gray-200 bg-gray-100/80 px-5 py-2 text-sm text-gray-600 outline-none transition-colors placeholder:text-gray-500 focus:border-emerald-400 focus:bg-white disabled:opacity-50"
+            />
+          )}
         </div>
 
         <div className="mt-2 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
