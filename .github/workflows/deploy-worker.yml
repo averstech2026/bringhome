@@ -28,3 +28,6 @@ jobs:
           secrets: |
             YANDEX_API_KEY
             YANDEX_FOLDER_ID
+        env:
+          YANDEX_API_KEY: ${{ secrets.YANDEX_API_KEY }}
+          YANDEX_FOLDER_ID: ${{ secrets.YANDEX_FOLDER_ID }}
