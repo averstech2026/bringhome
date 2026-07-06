@@ -10,9 +10,10 @@ permissions:
   pages: write
   id-token: write
 
+# Do not cancel in-progress deploys — avoids "Deployment failed, try again later"
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -41,6 +42,8 @@ jobs:
           VITE_AI_API_KEY: ${{ secrets.VITE_AI_API_KEY }}
           VITE_AI_MODEL: ${{ secrets.VITE_AI_MODEL }}
 
+      - uses: actions/configure-pages@v5
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -54,3 +57,5 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          timeout: 600000
