@@ -42,46 +42,54 @@ export default function AiInput({
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [adding, setAdding] = useState(false);
   const [pasteHint, setPasteHint] = useState('');
-  const [clipboardAvailable] = useState(
-    () => Boolean(window.isSecureContext && navigator.clipboard?.readText),
-  );
 
   const sectionRef = useRef(null);
   const textareaRef = useRef(null);
-  const pasteBtnRef = useRef(null);
   const location = useLocation();
 
-  useEffect(() => {
-    const btn = pasteBtnRef.current;
-    if (!btn) return undefined;
+  const focusTextareaForManualPaste = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
 
-    const onClick = () => {
-      if (disabled) return;
+    textarea.focus();
+    try {
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    } catch {
+      // setSelectionRange may fail on some mobile browsers
+    }
+  };
 
-      if (!navigator.clipboard?.readText) {
-        textareaRef.current?.focus();
-        setPasteHint('Удерживайте палец в поле и выберите «Вставить»');
-        return;
-      }
+  const applyPastedText = (clip) => {
+    const trimmed = (clip || '').trim();
+    if (!trimmed) {
+      setPasteHint('Буфер пуст. Скопируйте текст из чата и нажмите «Вставить» ещё раз');
+      focusTextareaForManualPaste();
+      return;
+    }
 
-      // Как на insaver.to: click → readText().then() без focus/preventDefault.
-      navigator.clipboard.readText().then(
-        (clip) => {
-          const trimmed = (clip || '').trim();
-          if (!trimmed) return;
-          setPasteHint('');
-          setText((prev) => (prev.trim() ? `${prev.trim()}\n${trimmed}` : trimmed));
-        },
-        () => {
-          textareaRef.current?.focus();
-          setPasteHint('Удерживайте палец в поле и выберите «Вставить»');
-        },
-      );
-    };
+    setPasteHint('');
+    setText((prev) => (prev.trim() ? `${prev.trim()}\n${trimmed}` : trimmed));
+  };
 
-    btn.addEventListener('click', onClick);
-    return () => btn.removeEventListener('click', onClick);
-  }, [disabled]);
+  const handlePasteClick = async () => {
+    if (disabled) return;
+
+    focusTextareaForManualPaste();
+
+    if (!window.isSecureContext || !navigator.clipboard?.readText) {
+      setPasteHint('Удерживайте палец в поле и выберите «Вставить»');
+      return;
+    }
+
+    try {
+      // readText() must be called during the user gesture (click/tap).
+      const clip = await navigator.clipboard.readText();
+      applyPastedText(clip);
+    } catch {
+      setPasteHint('Удерживайте палец в поле и выберите «Вставить»');
+      focusTextareaForManualPaste();
+    }
+  };
 
   useEffect(() => {
     if (!showEntryGlow) return undefined;
@@ -204,14 +212,10 @@ export default function AiInput({
             Вставить текст из чата
           </label>
           <button
-            ref={pasteBtnRef}
             type="button"
+            onClick={handlePasteClick}
             disabled={disabled}
-            className={`flex shrink-0 touch-manipulation select-none items-center gap-1.5 rounded-full border border-violet-200 px-3 py-1.5 text-xs font-medium transition-colors duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-40 ${
-              clipboardAvailable
-                ? 'bg-violet-50 text-violet-700 hover:bg-violet-100 active:bg-violet-100'
-                : 'bg-gray-50 text-gray-400'
-            }`}
+            className="flex shrink-0 touch-manipulation select-none items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition-colors duration-200 ease-in-out hover:bg-violet-100 active:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ClipboardPaste className="h-4 w-4 shrink-0 text-violet-600 stroke-[1.75]" aria-hidden />
             Вставить
@@ -231,6 +235,7 @@ export default function AiInput({
                 if (pasteHint) setPasteHint('');
               }}
               disabled={disabled || loading}
+              onPaste={() => setPasteHint('')}
               className={`w-full resize-none bg-transparent text-left text-sm text-gray-900 outline-none disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
             />
 
