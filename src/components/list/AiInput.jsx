@@ -4,8 +4,12 @@ import { ClipboardPaste } from 'lucide-react';
 import { parseProductsWithAI } from '../../services/aiService';
 import { addItemsBatch } from '../../services/listsService';
 import AiPreviewModal from './AiPreviewModal';
-import { CARD_SURFACE, CARD_PAD_V, ZONE_TITLE, HINT_TEXT, INPUT_PLACEHOLDER } from './cardStyles';
+import BorderGapCard from './BorderGapCard';
+import { HINT_TEXT, INPUT_PLACEHOLDER } from './cardStyles';
 import { CATEGORY_ORDER } from '../../utils/categories';
+
+const AI_LEGEND_CAPSULE =
+  'inline-flex items-center rounded-full border border-violet-200 bg-white px-3 py-1 text-xs font-medium text-violet-700 shadow-[0_1px_3px_rgba(0,0,0,0.03)] sm:text-sm';
 
 function SparklesIcon({ className = 'h-4 w-4 shrink-0' }) {
   return (
@@ -62,7 +66,7 @@ export default function AiInput({
   const applyPastedText = (clip) => {
     const trimmed = (clip || '').trim();
     if (!trimmed) {
-      setPasteHint('Буфер пуст. Скопируйте текст в чате, затем снова нажмите «Вставить»');
+      setPasteHint('Буфер пуст. Скопируйте текст в чате, затем снова нажмите «Из буфера»');
       focusTextareaForManualPaste();
       return;
     }
@@ -75,14 +79,14 @@ export default function AiInput({
     if (disabled) return;
 
     if (!window.isSecureContext || !navigator.clipboard?.readText) {
-      setPasteHint('Нажмите и удерживайте поле, затем выберите «Вставить»');
+      setPasteHint('Нажмите и удерживайте поле, затем выберите «Из буфера»');
       focusTextareaForManualPaste();
       return;
     }
 
     // Android Chrome: call readText() immediately in the tap handler, before focus().
     navigator.clipboard.readText().then(applyPastedText).catch(() => {
-      setPasteHint('Разрешите доступ к буферу в Chrome или вставьте вручную: удерживайте поле → «Вставить»');
+      setPasteHint('Разрешите доступ к буферу в Chrome или вставьте вручную: удерживайте поле → «Из буфера»');
       focusTextareaForManualPaste();
     });
   };
@@ -189,7 +193,8 @@ export default function AiInput({
       setSelectedIds(new Set());
       setSuccess(`Добавлено ${products.length} позиций`);
     } catch (err) {
-      setError(err.message);
+      const message = err instanceof Error ? err.message : 'Не удалось добавить товары';
+      setError(message);
     } finally {
       setAdding(false);
     }
@@ -203,54 +208,56 @@ export default function AiInput({
   return (
     <>
       <section ref={sectionRef} className="scroll-mt-24">
-        <div className="mb-2 flex w-full items-center justify-between gap-2">
-          <label htmlFor="ai-text" className={ZONE_TITLE}>
-            Вставить текст из чата
-          </label>
+        <BorderGapCard
+          className={glow ? 'animate-ai-glow' : ''}
+          borderClassName="border-violet-200"
+          legendClassName={AI_LEGEND_CAPSULE}
+          legend={
+            <label htmlFor="ai-text" className="cursor-default">
+              Вставить текст из чата
+            </label>
+          }
+        >
+
           <button
             type="button"
             onClick={handlePasteClick}
             disabled={disabled}
-            className="flex shrink-0 touch-manipulation select-none items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition-colors duration-200 ease-in-out hover:bg-violet-100 active:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-40"
+            className="absolute right-4 top-0 z-10 flex -translate-y-1/2 shrink-0 touch-manipulation select-none items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition-colors duration-200 ease-in-out hover:bg-violet-100 active:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ClipboardPaste className="h-4 w-4 shrink-0 text-violet-600 stroke-[1.75]" aria-hidden />
-            Вставить
+            Из буфера
           </button>
-        </div>
 
-        <div className={`mt-2 rounded-2xl ${glow ? 'animate-ai-glow' : ''}`}>
-          <div className={`${CARD_SURFACE} ${CARD_PAD_V}`}>
-            <textarea
-              ref={textareaRef}
-              id="ai-text"
-              rows={4}
-              placeholder="Например: молоко 2л, хлеб, яйца 10 шт, помидоры 1 кг"
-              value={text}
-              onChange={(e) => {
-                setText(e.target.value);
-                if (pasteHint) setPasteHint('');
-              }}
-              disabled={disabled || loading}
-              onPaste={() => setPasteHint('')}
-              className={`w-full resize-none bg-transparent text-left text-sm text-gray-900 outline-none disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
-            />
+          <textarea
+            ref={textareaRef}
+            id="ai-text"
+            placeholder="Например: молоко 2л, хлеб, яйца 10 шт, помидоры 1 кг"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              if (pasteHint) setPasteHint('');
+            }}
+            disabled={disabled || loading}
+            onPaste={() => setPasteHint('')}
+            className={`min-h-[200px] w-full resize-none bg-transparent text-left text-sm text-gray-900 outline-none disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
+          />
 
-            {pasteHint && <p className={`mt-2 ${HINT_TEXT} text-violet-600`}>{pasteHint}</p>}
+          {pasteHint && <p className={`mt-2 ${HINT_TEXT} text-violet-600`}>{pasteHint}</p>}
 
-            {error && <p className={`mt-2 ${HINT_TEXT} text-red-500`}>{error}</p>}
-            {success && <p className={`mt-2 ${HINT_TEXT} text-emerald-600`}>{success}</p>}
+          {error && <p className={`mt-2 ${HINT_TEXT} text-red-500`}>{error}</p>}
+          {success && <p className={`mt-2 ${HINT_TEXT} text-emerald-600`}>{success}</p>}
 
-            <button
-              type="button"
-              onClick={handleParse}
-              disabled={loading || disabled || !text.trim()}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 py-3.5 text-sm font-semibold text-white shadow-[0_4px_16px_rgba(99,102,241,0.25)] transition-all duration-200 hover:opacity-95 hover:shadow-[0_6px_24px_rgba(99,102,241,0.35)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none disabled:hover:opacity-70 disabled:active:scale-100"
-            >
-              <SparklesIcon className={`h-4 w-4 shrink-0 ${loading ? 'animate-spin' : ''}`} />
-              <span>{loading ? 'Распознаём…' : 'Распознать ИИ'}</span>
-            </button>
-          </div>
-        </div>
+          <button
+            type="button"
+            onClick={handleParse}
+            disabled={loading || disabled || !text.trim()}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 py-3.5 text-sm font-semibold text-white shadow-[0_4px_16px_rgba(99,102,241,0.25)] transition-all duration-200 hover:opacity-95 hover:shadow-[0_6px_24px_rgba(99,102,241,0.35)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none disabled:hover:opacity-70 disabled:active:scale-100"
+          >
+            <SparklesIcon className={`h-4 w-4 shrink-0 ${loading ? 'animate-spin' : ''}`} />
+            <span>{loading ? 'Распознаём…' : 'Распознать ИИ'}</span>
+          </button>
+        </BorderGapCard>
       </section>
 
       <AiPreviewModal

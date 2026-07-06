@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import CheckToggle from './CheckToggle';
 import { getQuantityDisplay } from '../../utils/quantity';
@@ -8,6 +9,7 @@ import {
   getCategoryHeaderClass,
 } from '../../utils/categories';
 import { groupItemsByCategory } from '../../utils/groupByCategory';
+import { PRIMARY_BTN } from './cardStyles';
 
 function normalizePreviewCategory(category) {
   const value = category || 'Прочее';
@@ -124,8 +126,8 @@ export default function AiPreviewModal({
   const selectedCount = items.filter((p) => selectedIds.has(p._previewId)).length;
   const allSelected = selectedCount === items.length;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <button
         type="button"
         className="absolute inset-0 cursor-default"
@@ -133,13 +135,19 @@ export default function AiPreviewModal({
         onClick={onClose}
       />
 
-      <div className="relative flex max-h-[92vh] w-full max-w-lg flex-col rounded-t-2xl bg-white shadow-2xl sm:max-h-[85vh] sm:rounded-2xl">
+      <div
+        className="relative z-10 flex max-h-[92vh] w-full max-w-lg flex-col rounded-t-2xl bg-white shadow-2xl sm:max-h-[85vh] sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ai-preview-title"
+      >
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 pb-4 pt-5 sm:px-6 sm:pt-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
               Распознано ИИ
             </p>
-            <h2 className="mt-1 text-lg font-bold text-slate-900">
+            <h2 id="ai-preview-title" className="mt-1 text-lg font-bold text-slate-900">
               {items.length} {pluralItems(items.length)}
             </h2>
             <p className="mt-1 text-sm text-slate-400">Выберите, что добавить в список</p>
@@ -184,7 +192,7 @@ export default function AiPreviewModal({
             type="button"
             onClick={onConfirm}
             disabled={adding || selectedCount === 0}
-            className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className={`${PRIMARY_BTN} disabled:cursor-not-allowed`}
           >
             {adding
               ? 'Добавляем…'
@@ -192,6 +200,7 @@ export default function AiPreviewModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

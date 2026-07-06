@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { toggleListPublic, toggleUserListAccess } from '../../services/listsService';
 import { getFamilyMembers } from '../../services/usersService';
 import { UserAvatar } from '../profile/UserAvatar';
-import { CARD_SURFACE, CARD_PAD_V, ZONE_TITLE, HINT_TEXT } from './cardStyles';
+import BorderGapCard from './BorderGapCard';
+import { HINT_TEXT } from './cardStyles';
 
 function FamilyToggle({ enabled, onChange, disabled }) {
   return (
@@ -161,9 +162,7 @@ export default function ShareControls({ list, listId, currentUserId, currentUser
 
   return (
     <section className="pb-2">
-      <h3 className={ZONE_TITLE}>Совместный доступ</h3>
-
-      <div className={`mt-2 ${CARD_SURFACE} ${CARD_PAD_V}`}>
+      <BorderGapCard legend="Совместный доступ">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-gray-800">Для всей семьи</p>
@@ -206,7 +205,7 @@ export default function ShareControls({ list, listId, currentUserId, currentUser
             </span>
           </p>
         </div>
-      </div>
+      </BorderGapCard>
 
       {message && (
         <p className={`mt-2 ${HINT_TEXT} text-center text-emerald-600`}>{message}</p>

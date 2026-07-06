@@ -108,7 +108,7 @@ export default function ListPage() {
   const { allDone, total } = getListProgress(items);
 
   const handleDraftManualAdd = async (itemData) => {
-    await saveToProductHistory(user.uid, itemData.name);
+    await saveToProductHistory(user.uid, itemData.name, itemData.quantity);
     const newItem = toDraftItem(itemData);
     mergeDraftItems([newItem]);
   };
@@ -333,6 +333,7 @@ export default function ListPage() {
             <AddItemForm
               listId={isDraft ? null : listId}
               userId={user.uid}
+              listItems={items}
               isDraft={isDraft}
               onDraftAdd={handleDraftManualAdd}
               disabled={persisting}
@@ -359,13 +360,13 @@ export default function ListPage() {
       </main>
 
       {showFooter && (
-        <footer className={`fixed bottom-0 left-1/2 w-full max-w-lg -translate-x-1/2 border-t border-gray-200/60 bg-[#f5f5f7]/95 backdrop-blur-md ${PAGE_X} py-4`}>
+        <footer className={`fixed bottom-0 left-1/2 z-30 w-full max-w-lg -translate-x-1/2 border-t border-gray-200/60 bg-[#f5f5f7]/95 backdrop-blur-md ${PAGE_X} py-4`}>
           {isDraft ? (
             <button
               type="button"
               onClick={handleCreateList}
-              className={PRIMARY_BTN}
-              disabled={persisting}
+              className={`${PRIMARY_BTN} disabled:cursor-not-allowed`}
+              disabled={persisting || items.length === 0}
             >
               {persisting ? 'Создаём…' : 'Создать список'}
             </button>

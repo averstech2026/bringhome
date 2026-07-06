@@ -94,18 +94,18 @@ export default function ItemRow({
     <>
       <div
         className={`flex w-full items-center justify-between px-3 py-2 transition-opacity ${
-          rowMuted ? 'bg-slate-50/60 opacity-75' : ''
-        } ${item.checked ? 'opacity-60' : ''}`}
+          rowMuted ? 'bg-slate-50/60' : ''
+        }`}
       >
-        <div className="min-w-0 flex-1 pr-3">
+        <div className={`min-w-0 flex-1 pr-3 ${item.checked ? 'opacity-60' : rowMuted ? 'opacity-75' : ''}`}>
           <div className="flex items-start gap-1">
             <button
               type="button"
               disabled={disabled || (item.checked && !readOnly)}
               onClick={() => setDetailsOpen(true)}
-              className={`min-w-0 flex-1 text-left text-sm text-slate-600 ${
+              className={`min-w-0 flex-1 text-left text-sm font-medium text-slate-700 ${
                 item.checked ? 'line-through' : ''
-              } ${!item.checked || readOnly ? 'cursor-pointer hover:text-slate-800' : ''}`}
+              } ${!item.checked || readOnly ? 'cursor-pointer hover:text-slate-900' : ''}`}
             >
               {item.name}
             </button>
@@ -121,10 +121,10 @@ export default function ItemRow({
                     className="h-4 w-4 text-[8px]"
                     variant="vivid"
                   />
-                  <span>
+                  <span className="whitespace-nowrap">
                     {isMyBooking
-                      ? 'Забронировано вами'
-                      : `Забронировано · Купит ${formatBookerLabel(item.bookedBy)}`}
+                      ? '✨ Вы'
+                      : `Купит ${formatBookerLabel(item.bookedBy)}`}
                   </span>
                 </div>
               )}
@@ -140,7 +140,7 @@ export default function ItemRow({
             {quantityLabel}
           </span>
         ) : (
-          <div className={item.checked ? 'pointer-events-none opacity-60' : ''}>
+          <div className={`${item.checked ? 'pointer-events-none opacity-60' : rowMuted ? 'opacity-75' : ''}`}>
             <QuantityStepper
               quantity={item.quantity}
               disabled={disabled || item.checked}
@@ -152,7 +152,7 @@ export default function ItemRow({
         )}
 
         <ItemCheckbox
-          className="ml-3"
+          className="ml-3 shrink-0"
           checked={item.checked}
           onChange={readOnly ? undefined : handleToggle}
           checkedByName={item.checked ? item.checkedBy : undefined}

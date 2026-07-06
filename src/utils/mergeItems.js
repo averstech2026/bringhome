@@ -9,15 +9,23 @@ export function findItemByName(items, name) {
   return items.find((item) => normalizeItemName(item.name) === norm);
 }
 
+/** Совпадение по имени только среди некупленных позиций */
+export function findActiveItemByName(items, name) {
+  const norm = normalizeItemName(name);
+  return items.find(
+    (item) => normalizeItemName(item.name) === norm && !item.checked,
+  );
+}
+
 /** Схлопывает incoming в массив items; возвращает новый массив */
 export function mergeItemIntoList(items, incoming) {
-  const existing = findItemByName(items, incoming.name);
+  const existing = findActiveItemByName(items, incoming.name);
   if (!existing) {
     return [...items, incoming];
   }
 
   return items.map((item) => {
-    if (normalizeItemName(item.name) !== normalizeItemName(incoming.name)) return item;
+    if (item !== existing) return item;
     return {
       ...item,
       quantity: addQuantities(item.quantity, incoming.quantity || '1 шт'),

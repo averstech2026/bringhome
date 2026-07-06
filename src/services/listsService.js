@@ -14,8 +14,8 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '../firebase';
-import { findItemByName, normalizeItemName } from '../utils/mergeItems';
-import { addQuantities, resetBaseQuantity } from '../utils/quantity';
+import { findActiveItemByName, normalizeItemName } from '../utils/mergeItems';
+import { addQuantities, parseQuantity, resetBaseQuantity } from '../utils/quantity';
 import { computeListStatusFromItems } from '../utils/listStatus';
 import {
   LIST_TYPE_LABELS,
@@ -299,7 +299,7 @@ export async function addItem(
 ) {
   const trimmedName = name.trim();
   const existingItems = await getListItems(listId);
-  const existing = findItemByName(existingItems, trimmedName);
+  const existing = findActiveItemByName(existingItems, trimmedName);
 
   if (existing) {
     const update = {
@@ -393,58 +393,72 @@ export async function createActualList({ type, createdBy, items = [], descriptio
 
 export async function addItemsBatch(listId, items) {
   const existingItems = await getListItems(listId);
-  const merged = new Map();
-
-  for (const item of existingItems) {
-    merged.set(normalizeItemName(item.name), { ...item, _source: 'existing' });
-  }
+  const updatesById = new Map();
+  const pendingNew = [];
 
   for (const incoming of items) {
-    const key = normalizeItemName(incoming.name);
-    const found = merged.get(key);
+    const trimmedName = incoming.name.trim();
+    const key = normalizeItemName(trimmedName);
+    const quantity = incoming.quantity || '1 шт';
+    const comment = incoming.comment?.trim() || null;
 
-    if (found) {
-      found.quantity = addQuantities(found.quantity, incoming.quantity || '1 шт');
-      if (incoming.comment && !found.comment) found.comment = incoming.comment.trim();
-      found._dirty = true;
-    } else {
-      merged.set(key, {
-        name: incoming.name.trim(),
-        quantity: incoming.quantity || '1 шт',
-        category: incoming.category || 'Прочее',
-        comment: incoming.comment?.trim() || null,
-        checked: Boolean(incoming.checked),
-        checkedBy: incoming.checked ? incoming.checkedBy : null,
-        bookedBy: incoming.bookedBy || null,
-        _source: 'new',
-        _dirty: true,
-      });
+    const pending = pendingNew.find((p) => normalizeItemName(p.name) === key);
+    if (pending) {
+      pending.quantity = addQuantities(pending.quantity, quantity);
+      if (comment && !pending.comment) pending.comment = comment;
+      continue;
     }
+
+    const activeExisting = existingItems.find(
+      (item) => normalizeItemName(item.name) === key && !item.checked,
+    );
+
+    if (activeExisting) {
+      const current = updatesById.get(activeExisting.id) ?? {
+        quantity: activeExisting.quantity,
+        comment: activeExisting.comment,
+      };
+      updatesById.set(activeExisting.id, {
+        quantity: addQuantities(current.quantity, quantity),
+        comment: comment || current.comment || null,
+      });
+      continue;
+    }
+
+    pendingNew.push({
+      name: trimmedName,
+      quantity,
+      category: incoming.category || 'Прочее',
+      comment,
+      checked: Boolean(incoming.checked),
+      checkedBy: incoming.checked ? incoming.checkedBy : null,
+      bookedBy: incoming.bookedBy || null,
+    });
   }
+
+  if (updatesById.size === 0 && pendingNew.length === 0) return;
 
   const batch = writeBatch(db);
 
-  for (const item of merged.values()) {
-    if (!item._dirty) continue;
+  for (const [itemId, update] of updatesById) {
+    const payload = { quantity: update.quantity };
+    if (update.comment) payload.comment = update.comment;
+    batch.update(doc(db, COLLECTIONS.ITEMS, itemId), payload);
+  }
 
-    if (item._source === 'existing') {
-      const update = { quantity: item.quantity };
-      if (item.comment) update.comment = item.comment;
-      batch.update(doc(db, COLLECTIONS.ITEMS, item.id), update);
-    } else {
-      const ref = doc(collection(db, COLLECTIONS.ITEMS));
-      batch.set(ref, {
-        listId,
-        name: item.name,
-        quantity: item.quantity,
-        category: item.category,
-        comment: item.comment,
-        checked: item.checked,
-        checkedBy: item.checkedBy,
-        bookedBy: item.bookedBy || null,
-        checkedAt: item.checked ? serverTimestamp() : null,
-      });
-    }
+  for (const item of pendingNew) {
+    const ref = doc(collection(db, COLLECTIONS.ITEMS));
+    batch.set(ref, {
+      listId,
+      name: item.name,
+      quantity: item.quantity,
+      category: item.category,
+      comment: item.comment,
+      checked: item.checked,
+      checkedBy: item.checkedBy,
+      bookedBy: item.bookedBy || null,
+      checkedAt: item.checked ? serverTimestamp() : null,
+    });
   }
 
   await batch.commit();
@@ -500,7 +514,25 @@ export async function searchProductHistory(userId, searchText) {
     .slice(0, 8);
 }
 
-export async function saveToProductHistory(userId, name) {
+export async function getProductHistoryUnit(userId, name) {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+
+  const q = query(
+    collection(db, COLLECTIONS.PRODUCT_HISTORY),
+    where('userId', '==', userId),
+    where('name', '==', trimmed),
+  );
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return null;
+
+  const data = snapshot.docs[0].data();
+  if (!data.quantity) return null;
+
+  return parseQuantity(data.quantity).unit;
+}
+
+export async function saveToProductHistory(userId, name, quantity = null) {
   const trimmed = name.trim();
   if (!trimmed) return;
 
@@ -515,5 +547,6 @@ export async function saveToProductHistory(userId, name) {
   await addDoc(collection(db, COLLECTIONS.PRODUCT_HISTORY), {
     userId,
     name: trimmed,
+    ...(quantity ? { quantity } : {}),
   });
 }

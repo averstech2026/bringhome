@@ -3,16 +3,20 @@ import { Plus } from 'lucide-react';
 import {
   addItem,
   searchProductHistory,
+  getProductHistoryUnit,
   saveToProductHistory,
 } from '../../services/listsService';
 import { CATEGORIES, CATEGORY_EMOJI, detectCategory } from '../../utils/categories';
 import { getLearnedCategory } from '../../utils/productCategoryMap';
+import { saveLearnedUnit } from '../../utils/productUnitMap';
+import { getRecommendedUnit, hasDictionaryUnitHint } from '../../utils/recommendedUnit';
 import { mergeAutocompleteSuggestions } from '../../utils/productAutocomplete';
-import { CARD_SURFACE, CARD_PAD_V, INPUT_PLACEHOLDER, LIST_ITEM_ROW_X } from './cardStyles';
+import { formatQuantity, parseQuantity } from '../../utils/quantity';
+import { CARD_SURFACE, CARD_PAD_V, INPUT_PLACEHOLDER } from './cardStyles';
 import QuantityStepper from './QuantityStepper';
 
 const NAME_INPUT_CONTAINER =
-  'flex min-w-0 flex-1 items-center gap-1.5 rounded-xl border border-gray-200/90 bg-white px-3 py-2 transition-colors focus-within:border-emerald-400 focus-within:shadow-[0_0_0_3px_rgba(16,185,129,0.08)]';
+  'flex w-full min-w-0 items-center rounded-xl border border-gray-200/90 bg-white px-2.5 py-1 transition-colors focus-within:border-emerald-400 focus-within:shadow-[0_0_0_3px_rgba(16,185,129,0.08)]';
 
 const SUBMIT_BTN =
   'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-emerald-500 bg-emerald-500 text-white shadow-[0_2px_8px_rgba(16,185,129,0.3)] transition-all duration-200 hover:border-emerald-600 hover:bg-emerald-600 hover:shadow-[0_4px_14px_rgba(16,185,129,0.38)] active:scale-95 disabled:border-emerald-200 disabled:bg-emerald-200/60 disabled:text-white/70 disabled:shadow-none disabled:hover:bg-emerald-200/60 disabled:active:scale-100';
@@ -20,6 +24,7 @@ const SUBMIT_BTN =
 export default function AddItemForm({
   listId,
   userId,
+  listItems = [],
   isDraft = false,
   onDraftAdd,
   disabled = false,
@@ -34,6 +39,8 @@ export default function AddItemForm({
   const [submitError, setSubmitError] = useState('');
   const wrapperRef = useRef(null);
   const categoryChipRefs = useRef({});
+  const unitManualRef = useRef(false);
+  const autoUnitAppliedForRef = useRef('');
 
   useEffect(() => {
     const handlePointerDown = (e) => {
@@ -57,6 +64,33 @@ export default function AddItemForm({
     setCategoryAuto((wasAuto) => (wasAuto ? false : wasAuto));
   };
 
+  const applyRecommendedUnit = async (productName) => {
+    const trimmed = productName.trim();
+    if (!trimmed || unitManualRef.current) return;
+
+    const norm = trimmed.toLowerCase();
+    if (autoUnitAppliedForRef.current === norm) return;
+
+    let firestoreUnit = null;
+    if (!isDraft && userId) {
+      try {
+        firestoreUnit = await getProductHistoryUnit(userId, trimmed);
+      } catch {
+        firestoreUnit = null;
+      }
+    }
+
+    const unit = getRecommendedUnit(trimmed, { listItems, firestoreUnit });
+    const { count } = parseQuantity(quantity);
+    setQuantity(formatQuantity(count, unit));
+    autoUnitAppliedForRef.current = norm;
+  };
+
+  const handleQuantityChange = (nextQuantity) => {
+    unitManualRef.current = true;
+    setQuantity(nextQuantity);
+  };
+
   useEffect(() => {
     if (!categoryAuto) return;
 
@@ -73,7 +107,17 @@ export default function AddItemForm({
   const handleNameChange = async (value) => {
     setName(value);
     setSubmitError('');
+
+    if (!value.trim()) {
+      unitManualRef.current = false;
+      autoUnitAppliedForRef.current = '';
+    }
+
     applyDetectedCategory(value);
+
+    if (hasDictionaryUnitHint(value)) {
+      applyRecommendedUnit(value);
+    }
 
     if (value.length >= 2) {
       try {
@@ -96,6 +140,13 @@ export default function AddItemForm({
     setName(suggestion);
     setShowSuggestions(false);
     applyDetectedCategory(suggestion);
+    applyRecommendedUnit(suggestion);
+  };
+
+  const handleNameBlur = () => {
+    if (name.trim()) {
+      applyRecommendedUnit(name);
+    }
   };
 
   const handleCategoryChange = (value) => {
@@ -108,6 +159,8 @@ export default function AddItemForm({
     setQuantity('1 шт');
     setCategory('Прочее');
     setCategoryAuto(false);
+    unitManualRef.current = false;
+    autoUnitAppliedForRef.current = '';
   };
 
   const handleSubmit = async (e) => {
@@ -127,8 +180,10 @@ export default function AddItemForm({
         await onDraftAdd?.(itemData);
       } else {
         await addItem(listId, itemData);
-        await saveToProductHistory(userId, itemData.name);
+        await saveToProductHistory(userId, itemData.name, itemData.quantity);
       }
+
+      saveLearnedUnit(itemData.name, itemData.quantity);
 
       resetForm();
     } catch (err) {
@@ -141,18 +196,21 @@ export default function AddItemForm({
   return (
     <form onSubmit={handleSubmit}>
       <div ref={wrapperRef} className={`${CARD_SURFACE} ${CARD_PAD_V}`}>
-        <div className="flex items-center gap-2.5">
-          <div className={NAME_INPUT_CONTAINER}>
-            <div className="relative min-w-0 flex-1">
-              <input
-                type="text"
-                placeholder="Добавить продукт…"
-                value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-                disabled={disabled || loading}
-                className={`w-full bg-transparent text-left text-sm text-gray-900 outline-none disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
-              />
+        <div className="flex w-full items-center px-3 py-2">
+          <div className="min-w-0 flex-1 pr-3">
+            <div className="relative min-w-0">
+              <div className={NAME_INPUT_CONTAINER}>
+                <input
+                  type="text"
+                  placeholder="Добавить продукт…"
+                  value={name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  onBlur={handleNameBlur}
+                  onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                  disabled={disabled || loading}
+                  className={`w-full bg-transparent text-left text-sm text-gray-900 outline-none disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
+                />
+              </div>
               {showSuggestions && (
                 <ul className="absolute left-0 right-0 top-full z-50 mt-1 max-h-40 overflow-auto rounded-2xl bg-white py-1 shadow-lg ring-1 ring-black/[0.04]">
                   {suggestions.map((s) => (
@@ -170,29 +228,27 @@ export default function AddItemForm({
                 </ul>
               )}
             </div>
-
-            <QuantityStepper
-              quantity={quantity}
-              disabled={disabled || loading}
-              onChange={setQuantity}
-              variant="embedded"
-              className="mr-0"
-            />
           </div>
+
+          <QuantityStepper
+            quantity={quantity}
+            disabled={disabled || loading}
+            onChange={handleQuantityChange}
+          />
 
           <button
             type="submit"
             disabled={loading || disabled || !name.trim()}
-            className={`shrink-0 ${SUBMIT_BTN}`}
+            className={`ml-3 shrink-0 ${SUBMIT_BTN}`}
             aria-label="Добавить товар"
           >
-            <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
+            <Plus className="h-3.5 w-3.5 stroke-[2.5]" aria-hidden />
           </button>
         </div>
 
-        {submitError && <p className="mt-2 text-sm text-red-500">{submitError}</p>}
+        {submitError && <p className="px-3 text-sm text-red-500">{submitError}</p>}
 
-        <div className={`relative mt-2.5 min-w-0 ${LIST_ITEM_ROW_X}`}>
+        <div className="relative min-w-0 px-3 pb-2 pt-1">
           <div className="flex flex-row items-center gap-2 overflow-x-auto whitespace-nowrap py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {CATEGORIES.map((c) => {
               const isActive = category === c;
@@ -206,10 +262,10 @@ export default function AddItemForm({
                   onClick={() => handleCategoryChange(c)}
                   disabled={disabled || loading}
                   aria-pressed={isActive}
-                  className={`flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                  className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
                     isActive
                       ? 'bg-emerald-500 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-slate-50 text-slate-500 hover:bg-slate-100/80'
                   }`}
                 >
                   {CATEGORY_EMOJI[c]} {c}

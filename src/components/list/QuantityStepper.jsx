@@ -24,8 +24,8 @@ const STEP_BTN_BORDER = 'border border-gray-200/90';
 const MINUS_ACTIVE =
   `flex h-7 w-7 items-center justify-center rounded-lg ${STEP_BTN_BORDER} bg-transparent text-sm font-bold text-red-500 transition-all hover:border-gray-300 hover:bg-red-50/50 active:scale-95 disabled:opacity-40`;
 
-const MINUS_DISABLED =
-  `pointer-events-none flex h-7 w-7 items-center justify-center rounded-lg ${STEP_BTN_BORDER} bg-transparent text-sm font-bold text-gray-400 opacity-40`;
+const MINUS_TRASH =
+  `flex h-7 w-7 items-center justify-center rounded-lg ${STEP_BTN_BORDER} bg-transparent text-red-500 transition-all hover:border-red-200 hover:bg-red-50/60 active:scale-95 disabled:opacity-40`;
 
 const PLUS =
   `flex h-7 w-7 items-center justify-center rounded-lg ${STEP_BTN_BORDER} bg-transparent text-sm font-bold text-emerald-600 transition-all hover:border-gray-300 hover:bg-emerald-50/50 active:scale-95 disabled:opacity-40`;
@@ -96,7 +96,7 @@ export default function QuantityStepper({
       ? MINUS_EMBEDDED_DISABLED
       : MINUS_EMBEDDED
     : atMinimum
-      ? MINUS_DISABLED
+      ? MINUS_TRASH
       : MINUS_ACTIVE;
   const plusClass = isEmbedded ? PLUS_EMBEDDED : PLUS;
   const labelClass = isEmbedded ? LABEL_EMBEDDED : LABEL;
@@ -144,6 +144,7 @@ export default function QuantityStepper({
         open={editOpen}
         onClose={() => setEditOpen(false)}
         onSave={handleManualSave}
+        onRemove={onRemove}
         itemName={itemName}
       />
     </>

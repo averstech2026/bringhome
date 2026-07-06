@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Delete, X } from 'lucide-react';
+import { Delete, Trash2, X } from 'lucide-react';
 import {
   parseQuantity,
   formatQuantity,
   getQuantityStep,
   roundQuantityCount,
   abbreviateUnit,
+  getUnitPickerOptions,
+  resolvePickerUnit,
 } from '../../utils/quantity';
 import { PRIMARY_BTN } from './cardStyles';
+
+const UNIT_CHIP =
+  'shrink-0 rounded-full px-2 py-1 text-[11px] font-medium transition-colors';
+const UNIT_CHIP_ACTIVE = 'bg-emerald-500 text-white';
+const UNIT_CHIP_IDLE = 'bg-slate-50 text-slate-600 hover:bg-slate-100';
 
 const KEY_CLASS =
   'flex h-12 items-center justify-center rounded-full bg-[#f5f5f7] text-lg font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-200/70 active:scale-[0.97]';
@@ -50,33 +57,42 @@ function addStep(current, step) {
   return String(roundQuantityCount(base + step));
 }
 
-export default function QuantityEditModal({ quantity, open, onClose, onSave, itemName }) {
+export default function QuantityEditModal({ quantity, open, onClose, onSave, onRemove, itemName }) {
   const { count, unit } = parseQuantity(quantity);
-  const step = getQuantityStep(quantity);
   const [value, setValue] = useState(String(count));
+  const [selectedUnit, setSelectedUnit] = useState(unit);
   const [replaceOnInput, setReplaceOnInput] = useState(true);
 
   useEffect(() => {
     if (!open) return undefined;
-    setValue(String(count));
+    const parsed = parseQuantity(quantity);
+    setValue(String(parsed.count));
+    setSelectedUnit(resolvePickerUnit(parsed.unit));
     setReplaceOnInput(true);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [open, count]);
+  }, [open, quantity]);
 
   if (!open) return null;
 
-  const displayUnit = abbreviateUnit(unit);
+  const displayUnit = abbreviateUnit(selectedUnit);
   const normalized = normalizeInput(value);
   const parsed = parseFloat(normalized);
   const isValid = Number.isFinite(parsed) && parsed > 0;
+  const step = getQuantityStep(formatQuantity(parsed || 1, selectedUnit));
+  const unitOptions = getUnitPickerOptions(selectedUnit);
 
   const handleSave = () => {
     if (!isValid) return;
-    onSave?.(formatQuantity(roundQuantityCount(parsed), unit));
+    onSave?.(formatQuantity(roundQuantityCount(parsed), selectedUnit));
+    onClose?.();
+  };
+
+  const handleRemove = () => {
+    onRemove?.();
     onClose?.();
   };
 
@@ -170,6 +186,23 @@ export default function QuantityEditModal({ quantity, open, onClose, onSave, ite
             <div className="mt-1 text-sm font-medium text-slate-400">{displayUnit}</div>
           </div>
 
+          <div className="mt-3 flex flex-nowrap items-center justify-center gap-1">
+            {unitOptions.map((u) => {
+              const isActive = abbreviateUnit(selectedUnit) === abbreviateUnit(u);
+              return (
+                <button
+                  key={abbreviateUnit(u)}
+                  type="button"
+                  onClick={() => setSelectedUnit(u)}
+                  aria-pressed={isActive}
+                  className={`${UNIT_CHIP} ${isActive ? UNIT_CHIP_ACTIVE : UNIT_CHIP_IDLE}`}
+                >
+                  {abbreviateUnit(u)}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="mt-3 flex gap-2">
             {quickSteps.map(({ label, delta }) => (
               <button
@@ -228,7 +261,17 @@ export default function QuantityEditModal({ quantity, open, onClose, onSave, ite
           </div>
         </div>
 
-        <div className="mt-4 border-t border-slate-100 p-4">
+        <div className="mt-4 space-y-2 border-t border-slate-100 p-4">
+          {onRemove && (
+            <button
+              type="button"
+              onClick={handleRemove}
+              className="flex w-full items-center justify-center gap-2 rounded-full border border-red-200 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50 active:scale-[0.98]"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+              Удалить
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}

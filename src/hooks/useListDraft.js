@@ -4,9 +4,16 @@ import { createActualList, formatListTitle } from '../services/listsService';
 import { mergeItemsBatch } from '../utils/mergeItems';
 import { peekRepeatDraft, clearRepeatDraft } from '../utils/repeatDraftStorage';
 
+function createDraftId() {
+  if (globalThis.crypto?.randomUUID) {
+    return `draft-${globalThis.crypto.randomUUID()}`;
+  }
+  return `draft-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function toDraftItem(item) {
   return {
-    id: `draft-${crypto.randomUUID()}`,
+    id: createDraftId(),
     name: item.name,
     quantity: item.quantity || '1 шт',
     category: item.category || 'Прочее',

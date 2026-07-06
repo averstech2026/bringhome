@@ -1,3 +1,6 @@
+/** Единицы для выбора в калькуляторе количества */
+export const QUANTITY_UNITS = ['шт', 'кг', 'л', 'г', 'уп', 'пуч.', 'пак.', 'бан.'];
+
 /** Сокращения единиц для компактного отображения */
 const UNIT_ABBREVIATIONS = {
   пучок: 'пуч.',
@@ -29,6 +32,33 @@ const UNIT_ABBREVIATIONS = {
 export function abbreviateUnit(unit) {
   const normalized = (unit || 'шт').trim().toLowerCase();
   return UNIT_ABBREVIATIONS[normalized] || normalized;
+}
+
+/** Приводит единицу к значению из списка выбора (бан → бан.) */
+export function resolvePickerUnit(unit) {
+  const raw = (unit || 'шт').trim().toLowerCase();
+  const short = abbreviateUnit(raw);
+  const found = QUANTITY_UNITS.find(
+    (q) => q.toLowerCase() === raw || abbreviateUnit(q) === short,
+  );
+  return found || unit || 'шт';
+}
+
+/** Список единиц для пикера без дублей по отображаемому ярлыку */
+export function getUnitPickerOptions(currentUnit) {
+  const resolved = resolvePickerUnit(currentUnit);
+  const extras = resolved
+    && !QUANTITY_UNITS.some((q) => abbreviateUnit(q) === abbreviateUnit(resolved))
+    ? [resolved]
+    : [];
+
+  const seen = new Set();
+  return [...QUANTITY_UNITS, ...extras].filter((u) => {
+    const key = abbreviateUnit(u);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 const WEIGHT_VOLUME_UNITS = new Set([
