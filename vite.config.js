@@ -4,7 +4,10 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: process.env.GITHUB_PAGES === 'true' ? '/bringhome/' : '/',
+  base:
+    process.env.GITHUB_PAGES === 'true' || process.env.CI === 'true'
+      ? '/bringhome/'
+      : '/',
   server: {
     host: '0.0.0.0',
     port: 5173,

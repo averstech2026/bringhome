@@ -57,14 +57,20 @@ npm run dev
 
 ## Деплой на GitHub Pages
 
+**Автоматически:** при пуше в `main` срабатывает GitHub Actions (`.github/workflows/deploy.yml`).
+
+1. В репозитории: **Settings → Pages → Build and deployment → Source: GitHub Actions**
+2. Добавьте секреты **Settings → Secrets and variables → Actions** (имена как в `.env.example`: `VITE_FIREBASE_*`, `VITE_AI_*`)
+
+**Вручную:**
+
 ```bash
-GITHUB_PAGES=true npm run build
 npm run deploy
 ```
 
-Роутинг через **HashRouter** — ссылки вида `https://user.github.io/bringhome/#/list/abc123`.
+Затем в **Settings → Pages** выберите ветку `gh-pages` / папку `/ (root)`.
 
-Также добавлен `public/404.html` как fallback для BrowserRouter (если переключитесь).
+Роутинг через **HashRouter** — ссылки вида `https://user.github.io/bringhome/#/list/abc123`.
 
 ## Firebase Security Rules
 
