@@ -1,3 +1,65 @@
+/** Сокращения единиц для компактного отображения */
+const UNIT_ABBREVIATIONS = {
+  пучок: 'пуч.',
+  пуч: 'пуч.',
+  бутылка: 'бут.',
+  бут: 'бут.',
+  десяток: 'дес.',
+  дес: 'дес.',
+  пачка: 'пч.',
+  пч: 'пч.',
+  килограмм: 'кг',
+  кг: 'кг',
+  грамм: 'г',
+  г: 'г',
+  литр: 'л',
+  л: 'л',
+  штука: 'шт',
+  шт: 'шт',
+  упаковка: 'уп',
+  уп: 'уп',
+  банка: 'бан.',
+  бан: 'бан.',
+  пакет: 'пак.',
+  пак: 'пак.',
+  батон: 'бат.',
+  бат: 'бат.',
+};
+
+export function abbreviateUnit(unit) {
+  const normalized = (unit || 'шт').trim().toLowerCase();
+  return UNIT_ABBREVIATIONS[normalized] || normalized;
+}
+
+const WEIGHT_VOLUME_UNITS = new Set([
+  'кг',
+  'килограмм',
+  'г',
+  'грамм',
+  'л',
+  'литр',
+  'ml',
+  'мл',
+]);
+
+export function isFractionalQuantity(qtyStr) {
+  const { count, unit } = parseQuantity(qtyStr);
+  if (!Number.isInteger(count)) return true;
+  return WEIGHT_VOLUME_UNITS.has(unit.trim().toLowerCase());
+}
+
+export function getQuantityStep(qtyStr) {
+  return isFractionalQuantity(qtyStr) ? 0.5 : 1;
+}
+
+export function getMinimumCount(qtyStr) {
+  return getQuantityStep(qtyStr);
+}
+
+export function roundQuantityCount(count) {
+  return Number(count.toFixed(1));
+}
+
 /** Разбирает строку количества вида "2 шт", "1.5 кг", "3л" */
 export function parseQuantity(qtyStr) {
   const str = (qtyStr || '1 шт').trim();
@@ -26,8 +88,11 @@ export function addQuantities(a, b) {
 
 export function incrementQuantity(qtyStr, delta = 1) {
   const { count, unit } = parseQuantity(qtyStr);
-  const newCount = count + delta;
-  if (newCount <= 0) return null;
+  const direction = delta < 0 ? -1 : 1;
+  const step = Math.abs(delta) === 1 ? getQuantityStep(qtyStr) : Math.abs(delta);
+  const newCount = roundQuantityCount(count + direction * step);
+  const min = getMinimumCount(qtyStr);
+  if (newCount < min) return null;
   return formatQuantity(newCount, unit);
 }
 
@@ -38,5 +103,7 @@ export function resetBaseQuantity(qtyStr) {
 
 export function getQuantityDisplay(qtyStr) {
   const { count, unit } = parseQuantity(qtyStr);
-  return { count, unit, label: formatQuantity(count, unit) };
+  const shortUnit = abbreviateUnit(unit);
+  const n = Number.isInteger(count) ? count : roundQuantityCount(count);
+  return { count, unit, label: `${n} ${shortUnit}`.trim() };
 }

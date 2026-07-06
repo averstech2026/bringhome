@@ -13,6 +13,7 @@ export function toDraftItem(item) {
     comment: item.comment?.trim() || null,
     checked: false,
     checkedBy: null,
+    bookedBy: item.bookedBy || null,
   };
 }
 
@@ -25,6 +26,7 @@ export function useListDraft(listType) {
     }
     return [];
   });
+  const [draftDescription, setDraftDescription] = useState('');
   const [persisting, setPersisting] = useState(false);
   const persistingRef = useRef(false);
   const draftItemsRef = useRef(draftItems);
@@ -47,13 +49,14 @@ export function useListDraft(listType) {
       setPersisting(true);
       try {
         const payload = itemsToSave.map(
-          ({ name, quantity, category, comment, checked, checkedBy }) => ({
+          ({ name, quantity, category, comment, checked, checkedBy, bookedBy }) => ({
             name,
             quantity,
             category,
             comment,
             checked,
             checkedBy,
+            bookedBy: bookedBy || null,
           }),
         );
 
@@ -61,6 +64,7 @@ export function useListDraft(listType) {
           type: listType,
           createdBy: userId,
           items: payload,
+          description: draftDescription,
         });
 
         clearRepeatDraft();
@@ -71,7 +75,7 @@ export function useListDraft(listType) {
         setPersisting(false);
       }
     },
-    [listType, navigate],
+    [listType, navigate, draftDescription],
   );
 
   const persistDraft = useCallback(
@@ -96,6 +100,7 @@ export function useListDraft(listType) {
           ...item,
           checked,
           checkedBy: checked ? displayName : null,
+          bookedBy: checked ? null : item.bookedBy,
         };
       }),
     );
@@ -111,13 +116,67 @@ export function useListDraft(listType) {
     setDraftItems((prev) => prev.filter((item) => item.id !== itemId));
   }, []);
 
+  const mergeDraftItems = useCallback((additionalItems = []) => {
+    const normalized = additionalItems.map((item) => (item.id ? item : toDraftItem(item)));
+    setDraftItems((prev) => mergeItemsBatch(prev, normalized));
+  }, []);
+
+  const updateDraftItemCategory = useCallback((itemId, category) => {
+    setDraftItems((prev) =>
+      prev.map((item) => (item.id === itemId ? { ...item, category } : item)),
+    );
+  }, []);
+
+  const updateDraftItemComment = useCallback((itemId, comment) => {
+    setDraftItems((prev) =>
+      prev.map((item) => (item.id === itemId ? { ...item, comment } : item)),
+    );
+  }, []);
+
+  const updateDraftItemBooking = useCallback((itemId, bookedBy) => {
+    setDraftItems((prev) =>
+      prev.map((item) => (item.id === itemId ? { ...item, bookedBy } : item)),
+    );
+  }, []);
+
+  const updateDraftCategoryBooking = useCallback((category, bookedBy, displayName) => {
+    setDraftItems((prev) =>
+      prev.map((item) => {
+        if (item.category !== category || item.checked) return item;
+
+        if (bookedBy) {
+          if (item.bookedBy && item.bookedBy !== displayName) return item;
+          return { ...item, bookedBy };
+        }
+
+        if (item.bookedBy === displayName) {
+          return { ...item, bookedBy: null };
+        }
+
+        return item;
+      }),
+    );
+  }, []);
+
+  const clearDraftItems = useCallback(() => {
+    setDraftItems([]);
+  }, []);
+
   return {
     draftList,
     draftItems,
+    draftDescription,
+    setDraftDescription,
     persisting,
     toggleDraftItem,
     updateDraftItemQuantity,
     removeDraftItem,
+    mergeDraftItems,
+    updateDraftItemCategory,
+    updateDraftItemComment,
+    updateDraftItemBooking,
+    updateDraftCategoryBooking,
+    clearDraftItems,
     persistDraft,
     persistWithItems,
   };

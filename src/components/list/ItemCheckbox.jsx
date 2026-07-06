@@ -8,12 +8,21 @@ function CheckMicroIcon() {
   );
 }
 
+function CheckIcon() {
+  return (
+    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  );
+}
+
 export default function ItemCheckbox({
   checked,
   onChange,
   disabled,
   checkedByName,
   checkedByPhotoUrl,
+  className = '',
 }) {
   return (
     <button
@@ -23,10 +32,10 @@ export default function ItemCheckbox({
       aria-label={checked && checkedByName ? `Отмечено: ${checkedByName}` : 'Отметить товар'}
       disabled={disabled}
       onClick={onChange}
-      className={`relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full transition-all duration-200 disabled:opacity-50 ${
+      className={`group relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full transition-all duration-200 active:scale-95 disabled:opacity-50 ${className} ${
         checked
-          ? 'border-2 border-slate-300 bg-white shadow-sm'
-          : 'border-2 border-gray-200 bg-white hover:border-gray-300'
+          ? 'border-2 border-emerald-400 bg-white shadow-[0_2px_10px_rgba(16,185,129,0.35)] ring-2 ring-emerald-100'
+          : 'border-2 border-emerald-200/80 bg-gradient-to-br from-white to-emerald-50/40 shadow-[0_2px_8px_rgba(16,185,129,0.12)] hover:border-emerald-400 hover:shadow-[0_4px_14px_rgba(16,185,129,0.22)] hover:ring-2 hover:ring-emerald-100'
       }`}
     >
       {checked && checkedByName ? (
@@ -43,12 +52,14 @@ export default function ItemCheckbox({
           </span>
         </>
       ) : checked ? (
-        <span className="flex h-full w-full items-center justify-center bg-emerald-500 text-white">
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+        <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-400 to-emerald-600 text-white">
+          <CheckIcon />
         </span>
-      ) : null}
+      ) : (
+        <span className="flex h-full w-full items-center justify-center text-emerald-300/0 transition-colors group-hover:text-emerald-400/70">
+          <CheckIcon />
+        </span>
+      )}
     </button>
   );
 }

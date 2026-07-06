@@ -16,6 +16,10 @@ service cloud.firestore {
         && userDoc().disabled != true;
     }
 
+    function isOwnerAccount(userData) {
+      return userData.email == 'inert@mail.ru';
+    }
+
     function listData(listId) {
       return get(/databases/$(database)/documents/lists/$(listId)).data;
     }
@@ -53,7 +57,7 @@ service cloud.firestore {
         && request.resource.data.role == 'admin'
         && !exists(/databases/$(database)/documents/config/setup)
       );
-      allow update: if (isAdmin() && userId != request.auth.uid) || (
+      allow update: if (isAdmin() && userId != request.auth.uid && !isOwnerAccount(resource.data)) || (
         request.auth.uid == userId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatarUrl'])
       );

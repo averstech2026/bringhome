@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';import { useAuth } from '../hooks/useAuth';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { getUserPhotoUrl } from '../utils/userPhoto';
 import { useList } from '../hooks/useList';
 import { useItems } from '../hooks/useItems';
 import { useListDraft, toDraftItem } from '../hooks/useListDraft';
 import { decodeListTypeFromUrl, encodeListTypeForUrl } from '../services/listsService';
-import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat } from '../services/listsService';
+import ListDescriptionModal, { ListDescriptionButton } from '../components/list/ListDescriptionModal';
+import ScreenTopPanel, { ScreenTopBar } from '../components/layout/ScreenTopPanel';
+import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, syncListStatus, clearAllListItems, updateList, updateItemsBookingBatch } from '../services/listsService';
 import { groupItemsByCategory, getListProgress } from '../utils/groupByCategory';
 import StatusBar from '../components/list/StatusBar';
 import CategoryGroup from '../components/list/CategoryGroup';
@@ -15,7 +16,7 @@ import AddItemForm from '../components/list/AddItemForm';
 import AiInput from '../components/list/AiInput';
 import ShareControls from '../components/list/ShareControls';
 import ListTypeBadge from '../components/list/ListTypeBadge';
-import DraftTypeSwitcher from '../components/list/DraftTypeSwitcher';
+import ListAccessIcon from '../components/home/ListAccessIcon';
 import RepeatListModal from '../components/home/RepeatListModal';
 import { saveRepeatDraft } from '../utils/repeatDraftStorage';
 import {
@@ -24,13 +25,12 @@ import {
   HINT_TEXT,
   APP_BACKGROUND,
   PAGE_X,
-  STICKY_TOP,
   PRIMARY_BTN,
 } from '../components/list/cardStyles';
 
 export default function ListPage() {
   const { listId } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user, displayName } = useAuth();
   const { profile } = useUserProfile(user);
@@ -47,6 +47,14 @@ export default function ListPage() {
     toggleDraftItem,
     updateDraftItemQuantity,
     removeDraftItem,
+    mergeDraftItems,
+    updateDraftItemCategory,
+    updateDraftItemComment,
+    updateDraftItemBooking,
+    updateDraftCategoryBooking,
+    clearDraftItems,
+    draftDescription,
+    setDraftDescription,
     persistDraft,
     persistWithItems,
   } = useListDraft(listType);
@@ -55,11 +63,9 @@ export default function ListPage() {
   const [accessChecked, setAccessChecked] = useState(isDraft);
   const [repeatOpen, setRepeatOpen] = useState(false);
   const [repeatBusy, setRepeatBusy] = useState(false);
-
-  const handleDraftTypeChange = (newType) => {
-    if (newType === listType) return;
-    setSearchParams({ type: encodeListTypeForUrl(newType) }, { replace: true });
-  };
+  const [completing, setCompleting] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
 
   const canLoadList = !isDraft && accessChecked && !accessError;
 
@@ -104,12 +110,40 @@ export default function ListPage() {
   const handleDraftManualAdd = async (itemData) => {
     await saveToProductHistory(user.uid, itemData.name);
     const newItem = toDraftItem(itemData);
-    await persistDraft(user.uid, [newItem]);
+    mergeDraftItems([newItem]);
+  };
+
+  const handleCategoryBooking = async (category, itemIds, bookedBy) => {
+    if (isDraft) {
+      updateDraftCategoryBooking(category, bookedBy, displayName);
+      return;
+    }
+
+    await updateItemsBookingBatch(
+      itemIds.map((itemId) => ({ itemId, bookedBy })),
+    );
   };
 
   const handleDraftAiAdd = async (products) => {
     const newItems = products.map((p) => toDraftItem(p));
-    await persistDraft(user.uid, newItems);
+    mergeDraftItems(newItems);
+  };
+
+  const handleClearList = async () => {
+    if (!window.confirm('Очистить весь список?')) return;
+
+    setClearing(true);
+    try {
+      if (isDraft) {
+        clearDraftItems();
+      } else {
+        await clearAllListItems(listId);
+      }
+    } catch (err) {
+      window.alert(err?.message || 'Не удалось очистить список');
+    } finally {
+      setClearing(false);
+    }
   };
 
   const handleCreateList = async () => {
@@ -131,6 +165,39 @@ export default function ListPage() {
       setRepeatOpen(false);
     }
   };
+
+  const handleComplete = async () => {
+    if (!listId || isDraft || isArchivedView || !allDone || total === 0) return;
+
+    setCompleting(true);
+    try {
+      await syncListStatus(listId);
+      navigate('/');
+    } catch {
+      navigate('/');
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  const handleSaveDescription = async (description) => {
+    if (isDraft) {
+      setDraftDescription(description);
+      return;
+    }
+    if (!listId) return;
+    const trimmed = description.trim();
+    if (trimmed === (list?.description || '').trim()) return;
+    try {
+      await updateList(listId, { description: trimmed });
+    } catch (err) {
+      window.alert(err?.message || 'Не удалось сохранить заметку');
+    }
+  };
+
+  const listDescription = isDraft ? draftDescription : list?.description || '';
+
+  const showFooter = isDraft || isArchivedView;
 
   if (loading) {
     return (
@@ -164,60 +231,74 @@ export default function ListPage() {
 
   return (
     <div className={`flex min-h-full flex-col ${APP_BACKGROUND}`}>
-      <header className={`${STICKY_TOP} ${PAGE_X} pb-3 pt-2`}>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => navigate(isArchivedView ? '/settings' : '/')}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-800 transition hover:bg-black/[0.04] active:bg-black/[0.06]"
-            aria-label="Назад"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <h1 className="truncate text-[20px] font-bold tracking-tight text-slate-900">
-              {activeList.title}
-            </h1>
-            {!isDraft && <ListTypeBadge type={activeList.type} />}
-            {isArchivedView && (
-              <span className="inline-flex shrink-0 items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-                В архиве
-              </span>
-            )}
-            {!isDraft && !isArchivedView && activeList.isPublic && (
-              <span className="inline-flex shrink-0 items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600">
-                Общий
-              </span>
-            )}
-          </div>
-        </div>
+      <div className={`${PAGE_X} pt-0`}>
+        <ScreenTopPanel>
+          <ScreenTopBar>
+            <button
+              type="button"
+              onClick={() => navigate(isArchivedView ? '/settings' : '/')}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-800 transition hover:bg-black/[0.04] active:bg-black/[0.06]"
+              aria-label="Назад"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
 
-        {isDraft && (
-          <div className="mt-3">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
-              Тип списка
-            </p>
-            <DraftTypeSwitcher
-              value={listType}
-              onChange={handleDraftTypeChange}
-              disabled={persisting}
-            />
-          </div>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <div className="flex min-w-0 shrink items-center gap-2">
+                <h1 className="min-w-0 truncate text-lg font-bold leading-none tracking-tight text-slate-900">
+                  {activeList.title}
+                </h1>
+                <ListDescriptionButton
+                  hasDescription={Boolean(listDescription?.trim())}
+                  onClick={() => setDescriptionOpen(true)}
+                  disabled={persisting}
+                />
+              </div>
+
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                {!isDraft && !isArchivedView && <ListAccessIcon list={activeList} />}
+                <ListTypeBadge type={activeList.type} />
+
+                {isArchivedView && (
+                  <span className="inline-flex shrink-0 items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                    В архиве
+                  </span>
+                )}
+
+                {!isDraft && !isArchivedView && allDone && total > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleComplete}
+                    disabled={completing}
+                    className="shrink-0 rounded-full bg-emerald-500 px-3.5 py-1.5 text-sm font-semibold text-white shadow-md transition hover:bg-emerald-600 active:scale-[0.98] disabled:opacity-60"
+                  >
+                    {completing ? '…' : 'Готово!'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </ScreenTopBar>
+        </ScreenTopPanel>
+
+        {listDescription?.trim() && (
+          <p className="mt-1 truncate text-xs text-slate-400">{listDescription}</p>
         )}
+      </div>
 
-        <div className="mt-3">
-          <StatusBar items={items} />
-        </div>
-      </header>
+      <main className={`${PAGE_X} flex flex-1 flex-col gap-3 pt-3 ${showFooter ? 'pb-28' : 'pb-10'}`}>
+        <StatusBar
+          items={items}
+          onClear={!isArchivedView ? handleClearList : undefined}
+          clearing={clearing || persisting}
+        />
 
-      <main className={`${PAGE_X} flex flex-1 flex-col gap-3 pb-28 pt-3`}>
         <div className={`${CARD_SURFACE} ${CARD_PAD_V}`}>
           {grouped.length === 0 ? (
             <p className={HINT_TEXT}>
               {isDraft
-                ? 'Добавьте продукты или нажмите «Создать список»'
+                ? 'Список пуст — добавьте продукты ниже'
                 : isArchivedView
                   ? 'В архивном списке нет товаров'
                   : 'Список пуст — добавьте продукты ниже'}
@@ -236,6 +317,10 @@ export default function ListPage() {
                   onToggle={isDraft ? toggleDraftItem : undefined}
                   onQuantityChange={isDraft ? updateDraftItemQuantity : undefined}
                   onRemove={isDraft ? removeDraftItem : undefined}
+                  onCategoryChange={isDraft ? updateDraftItemCategory : undefined}
+                  onCommentChange={isDraft ? updateDraftItemComment : undefined}
+                  onBookingToggle={isDraft ? updateDraftItemBooking : undefined}
+                  onCategoryBooking={!isArchivedView ? handleCategoryBooking : undefined}
                   disabled={persisting}
                 />
               ))}
@@ -252,12 +337,15 @@ export default function ListPage() {
               onDraftAdd={handleDraftManualAdd}
               disabled={persisting}
             />
+
             <AiInput
               listId={isDraft ? null : listId}
               isDraft={isDraft}
               onDraftAdd={handleDraftAiAdd}
               disabled={persisting}
+              showEntryGlow
             />
+
             {!isDraft && (
               <ShareControls
                 list={list}
@@ -270,37 +358,29 @@ export default function ListPage() {
         )}
       </main>
 
-      <footer className={`fixed bottom-0 left-1/2 w-full max-w-lg -translate-x-1/2 border-t border-gray-200/60 bg-[#f5f5f7]/95 backdrop-blur-md ${PAGE_X} py-4`}>
-        {isDraft ? (
-          <button
-            type="button"
-            onClick={handleCreateList}
-            className={PRIMARY_BTN}
-            disabled={persisting}
-          >
-            {persisting ? 'Создаём…' : 'Создать список'}
-          </button>
-        ) : isArchivedView ? (
-          <button
-            type="button"
-            onClick={() => setRepeatOpen(true)}
-            className={PRIMARY_BTN}
-            disabled={repeatBusy}
-          >
-            Повторить список
-          </button>
-        ) : (
-          <button
-            type="button"
-            disabled={!allDone || total === 0}
-            className={`${PRIMARY_BTN} ${
-              !(allDone && total > 0) ? '!bg-gray-100 !text-slate-400 !shadow-none hover:!bg-gray-100 hover:!shadow-none active:!scale-100' : ''
-            }`}
-          >
-            {allDone && total > 0 ? 'Готово!' : total === 0 ? 'Добавьте товары' : 'Соберите все товары'}
-          </button>
-        )}
-      </footer>
+      {showFooter && (
+        <footer className={`fixed bottom-0 left-1/2 w-full max-w-lg -translate-x-1/2 border-t border-gray-200/60 bg-[#f5f5f7]/95 backdrop-blur-md ${PAGE_X} py-4`}>
+          {isDraft ? (
+            <button
+              type="button"
+              onClick={handleCreateList}
+              className={PRIMARY_BTN}
+              disabled={persisting}
+            >
+              {persisting ? 'Создаём…' : 'Создать список'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setRepeatOpen(true)}
+              className={PRIMARY_BTN}
+              disabled={repeatBusy}
+            >
+              Повторить список
+            </button>
+          )}
+        </footer>
+      )}
 
       {isArchivedView && list && (
         <RepeatListModal
@@ -311,6 +391,16 @@ export default function ListPage() {
           onConfirm={handleRepeatConfirm}
         />
       )}
+
+      <ListDescriptionModal
+        open={descriptionOpen}
+        listTitle={activeList.title}
+        value={listDescription}
+        readOnly={isArchivedView}
+        disabled={persisting}
+        onClose={() => setDescriptionOpen(false)}
+        onSave={handleSaveDescription}
+      />
     </div>
   );
 }

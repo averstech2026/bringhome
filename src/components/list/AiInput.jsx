@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { ClipboardPaste } from 'lucide-react';
 import { parseProductsWithAI } from '../../services/aiService';
 import { addItemsBatch } from '../../services/listsService';
+import AiPreviewModal from './AiPreviewModal';
 import { CARD_SURFACE, CARD_PAD_V, ZONE_TITLE, HINT_TEXT, INPUT_PLACEHOLDER } from './cardStyles';
+import { CATEGORY_ORDER } from '../../utils/categories';
 
 function SparklesIcon({ className = 'h-4 w-4 shrink-0' }) {
   return (
@@ -27,11 +31,74 @@ export default function AiInput({
   isDraft = false,
   onDraftAdd,
   disabled = false,
+  showEntryGlow = false,
 }) {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [glow, setGlow] = useState(showEntryGlow);
+  const [previewItems, setPreviewItems] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [adding, setAdding] = useState(false);
+  const [pasteHint, setPasteHint] = useState('');
+  const [clipboardAvailable] = useState(
+    () => Boolean(window.isSecureContext && navigator.clipboard?.readText),
+  );
+
+  const sectionRef = useRef(null);
+  const textareaRef = useRef(null);
+  const pasteBtnRef = useRef(null);
+  const location = useLocation();
+
+  useEffect(() => {
+    const btn = pasteBtnRef.current;
+    if (!btn) return undefined;
+
+    const onClick = () => {
+      if (disabled) return;
+
+      if (!navigator.clipboard?.readText) {
+        textareaRef.current?.focus();
+        setPasteHint('Удерживайте палец в поле и выберите «Вставить»');
+        return;
+      }
+
+      // Как на insaver.to: click → readText().then() без focus/preventDefault.
+      navigator.clipboard.readText().then(
+        (clip) => {
+          const trimmed = (clip || '').trim();
+          if (!trimmed) return;
+          setPasteHint('');
+          setText((prev) => (prev.trim() ? `${prev.trim()}\n${trimmed}` : trimmed));
+        },
+        () => {
+          textareaRef.current?.focus();
+          setPasteHint('Удерживайте палец в поле и выберите «Вставить»');
+        },
+      );
+    };
+
+    btn.addEventListener('click', onClick);
+    return () => btn.removeEventListener('click', onClick);
+  }, [disabled]);
+
+  useEffect(() => {
+    if (!showEntryGlow) return undefined;
+
+    setGlow(true);
+
+    const scrollTimer = window.setTimeout(() => {
+      sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 350);
+
+    const glowTimer = window.setTimeout(() => setGlow(false), 3600);
+
+    return () => {
+      window.clearTimeout(scrollTimer);
+      window.clearTimeout(glowTimer);
+    };
+  }, [showEntryGlow, listId, isDraft, location.key]);
 
   const handleParse = async () => {
     if (!text.trim() || disabled) return;
@@ -39,6 +106,7 @@ export default function AiInput({
     setLoading(true);
     setError('');
     setSuccess('');
+    setPreviewItems([]);
 
     try {
       const products = await parseProductsWithAI(text);
@@ -47,13 +115,10 @@ export default function AiInput({
         return;
       }
 
-      if (isDraft) {
-        await onDraftAdd?.(products);
-      } else {
-        await addItemsBatch(listId, products);
-        setSuccess(`Добавлено ${products.length} позиций`);
-        setText('');
-      }
+      const withIds = products.map((p, i) => ({ ...p, _previewId: `preview-${i}` }));
+      setPreviewItems(withIds);
+      setSelectedIds(new Set(withIds.map((p) => p._previewId)));
+      setText('');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -61,35 +126,143 @@ export default function AiInput({
     }
   };
 
+  const togglePreviewItem = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllPreview = (selectAll) => {
+    if (selectAll) {
+      setSelectedIds(new Set(previewItems.map((p) => p._previewId)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const toggleCategoryPreview = (category, selectAll) => {
+    const ids = previewItems
+      .filter((p) => {
+        const cat = p.category && CATEGORY_ORDER.includes(p.category) ? p.category : 'Прочее';
+        return cat === category;
+      })
+      .map((p) => p._previewId);
+
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => {
+        if (selectAll) next.add(id);
+        else next.delete(id);
+      });
+      return next;
+    });
+  };
+
+  const handleConfirmAdd = async () => {
+    const selected = previewItems.filter((p) => selectedIds.has(p._previewId));
+    if (selected.length === 0 || disabled) return;
+
+    setAdding(true);
+    setError('');
+
+    try {
+      const products = selected.map(({ name, quantity, category }) => ({
+        name,
+        quantity,
+        category,
+      }));
+
+      if (isDraft) {
+        await onDraftAdd?.(products);
+      } else {
+        await addItemsBatch(listId, products);
+      }
+
+      setPreviewItems([]);
+      setSelectedIds(new Set());
+      setSuccess(`Добавлено ${products.length} позиций`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleDismissPreview = () => {
+    setPreviewItems([]);
+    setSelectedIds(new Set());
+  };
+
   return (
-    <section>
-      <label htmlFor="ai-text" className={`block ${ZONE_TITLE}`}>
-        Вставить текст из чата
-      </label>
-      <div className={`mt-2 ${CARD_SURFACE} ${CARD_PAD_V}`}>
-        <textarea
-          id="ai-text"
-          rows={3}
-          placeholder="Например: молоко 2л, хлеб, яйца 10 шт, помидоры 1 кг"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          disabled={disabled}
-          className={`w-full resize-none bg-transparent text-left text-sm text-gray-900 outline-none disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
-        />
+    <>
+      <section ref={sectionRef} className="scroll-mt-24">
+        <div className="mb-2 flex w-full items-center justify-between gap-2">
+          <label htmlFor="ai-text" className={ZONE_TITLE}>
+            Вставить текст из чата
+          </label>
+          <button
+            ref={pasteBtnRef}
+            type="button"
+            disabled={disabled}
+            className={`flex shrink-0 touch-manipulation select-none items-center gap-1.5 rounded-full border border-violet-200 px-3 py-1.5 text-xs font-medium transition-colors duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-40 ${
+              clipboardAvailable
+                ? 'bg-violet-50 text-violet-700 hover:bg-violet-100 active:bg-violet-100'
+                : 'bg-gray-50 text-gray-400'
+            }`}
+          >
+            <ClipboardPaste className="h-4 w-4 shrink-0 text-violet-600 stroke-[1.75]" aria-hidden />
+            Вставить
+          </button>
+        </div>
 
-        {error && <p className={`mt-2 ${HINT_TEXT} text-red-500`}>{error}</p>}
-        {success && <p className={`mt-2 ${HINT_TEXT} text-emerald-600`}>{success}</p>}
+        <div className={`mt-2 rounded-2xl ${glow ? 'animate-ai-glow' : ''}`}>
+          <div className={`${CARD_SURFACE} ${CARD_PAD_V}`}>
+            <textarea
+              ref={textareaRef}
+              id="ai-text"
+              rows={4}
+              placeholder="Например: молоко 2л, хлеб, яйца 10 шт, помидоры 1 кг"
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value);
+                if (pasteHint) setPasteHint('');
+              }}
+              disabled={disabled || loading}
+              className={`w-full resize-none bg-transparent text-left text-sm text-gray-900 outline-none disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
+            />
 
-        <button
-          type="button"
-          onClick={handleParse}
-          disabled={loading || disabled || !text.trim()}
-          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 py-3.5 text-sm font-semibold text-white shadow-[0_4px_16px_rgba(99,102,241,0.25)] transition-all duration-200 hover:opacity-95 hover:shadow-[0_6px_24px_rgba(99,102,241,0.35)] active:scale-[0.98] disabled:opacity-40 disabled:shadow-none disabled:hover:opacity-40 disabled:active:scale-100"
-        >
-          <SparklesIcon className={loading ? 'animate-pulse' : undefined} />
-          <span>{loading ? 'Распознаём…' : 'Распознать ИИ'}</span>
-        </button>
-      </div>
-    </section>
+            {pasteHint && <p className={`mt-2 ${HINT_TEXT} text-violet-600`}>{pasteHint}</p>}
+
+            {error && <p className={`mt-2 ${HINT_TEXT} text-red-500`}>{error}</p>}
+            {success && <p className={`mt-2 ${HINT_TEXT} text-emerald-600`}>{success}</p>}
+
+            <button
+              type="button"
+              onClick={handleParse}
+              disabled={loading || disabled || !text.trim()}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 py-3.5 text-sm font-semibold text-white shadow-[0_4px_16px_rgba(99,102,241,0.25)] transition-all duration-200 hover:opacity-95 hover:shadow-[0_6px_24px_rgba(99,102,241,0.35)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none disabled:hover:opacity-70 disabled:active:scale-100"
+            >
+              <SparklesIcon className={`h-4 w-4 shrink-0 ${loading ? 'animate-spin' : ''}`} />
+              <span>{loading ? 'Распознаём…' : 'Распознать ИИ'}</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <AiPreviewModal
+        open={previewItems.length > 0}
+        items={previewItems}
+        selectedIds={selectedIds}
+        onToggleItem={togglePreviewItem}
+        onToggleAll={toggleAllPreview}
+        onToggleCategory={toggleCategoryPreview}
+        onConfirm={handleConfirmAdd}
+        onClose={handleDismissPreview}
+        adding={adding}
+      />
+    </>
   );
 }

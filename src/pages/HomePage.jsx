@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUserProfile } from '../hooks/useUserProfile';
 import {
@@ -7,18 +7,18 @@ import {
   getAllLists,
   getItemsProgressByListIds,
   archiveList,
-  deleteList,
   updateList,
-  getListItemsForRepeat,
 } from '../services/listsService';
 import { getFamilyMembers } from '../services/usersService';
 import QuickCreateButtons from '../components/home/QuickCreateButtons';
+import AppHeader from '../components/layout/AppHeader';
+import ScreenTopPanel from '../components/layout/ScreenTopPanel';
 import ListCard from '../components/home/ListCard';
-import RepeatListModal from '../components/home/RepeatListModal';
+import CompletedListsSection from '../components/home/CompletedListsSection';
 import RequestCustomTypeModal from '../components/home/RequestCustomTypeModal';
 import { HINT_TEXT, PAGE_SECTION_TITLE } from '../components/list/cardStyles';
 import { resolveListStatus } from '../utils/listStatus';
-import { saveRepeatDraft, clearRepeatDraft } from '../utils/repeatDraftStorage';
+import { clearRepeatDraft } from '../utils/repeatDraftStorage';
 import { encodeListTypeForUrl } from '../utils/listTypes';
 
 export default function HomePage() {
@@ -30,9 +30,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [busyId, setBusyId] = useState(null);
-  const [repeatTarget, setRepeatTarget] = useState(null);
   const [requestCustomOpen, setRequestCustomOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const canManageList = useCallback(
     (list) => isAdmin || list.createdBy === user?.uid,
@@ -75,7 +75,7 @@ export default function HomePage() {
 
   useEffect(() => {
     loadLists();
-  }, [loadLists]);
+  }, [loadLists, location.key]);
 
   const handleCreate = (type) => {
     clearRepeatDraft();
@@ -108,47 +108,6 @@ export default function HomePage() {
     }
   };
 
-  const handleDelete = async (listId, title) => {
-    if (!window.confirm(`Удалить «${title}» навсегда? Это действие нельзя отменить.`)) return;
-
-    setBusyId(listId);
-    setLists((prev) => prev.filter((list) => list.id !== listId));
-    setListProgress((prev) => {
-      const next = { ...prev };
-      delete next[listId];
-      return next;
-    });
-
-    try {
-      await deleteList(listId);
-    } catch (err) {
-      window.alert(err?.message || 'Не удалось удалить список');
-      await loadLists();
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const handleRepeat = (list) => {
-    setRepeatTarget(list);
-  };
-
-  const handleRepeatConfirm = async (type) => {
-    if (!repeatTarget) return;
-
-    setBusyId(repeatTarget.id);
-    try {
-      const repeatItems = await getListItemsForRepeat(repeatTarget.id);
-      saveRepeatDraft({ repeatItems, repeatFrom: repeatTarget.id, type });
-      navigate(`/list/new?type=${encodeListTypeForUrl(type)}`);
-      setRepeatTarget(null);
-    } catch (err) {
-      window.alert(err?.message || 'Не удалось загрузить товары списка');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   const activeLists = lists.filter(
     (list) => resolveListStatus(list, listProgress[list.id]) === 'active',
   );
@@ -156,7 +115,7 @@ export default function HomePage() {
     (list) => resolveListStatus(list, listProgress[list.id]) === 'completed',
   );
 
-  const renderListCard = (list, { dimmed = false, repeatable = false } = {}) => {
+  const renderListCard = (list, { dimmed = false } = {}) => {
     const manageable = canManageList(list);
     const listWithAuthor = {
       ...list,
@@ -167,28 +126,30 @@ export default function HomePage() {
       <ListCard
         list={listWithAuthor}
         progress={listProgress[list.id]}
+        authorsById={authorsById}
         busy={busyId === list.id}
         dimmed={dimmed}
         onArchive={manageable ? handleArchive : undefined}
-        onDelete={manageable ? handleDelete : undefined}
-        onRepeat={repeatable ? handleRepeat : undefined}
       />
     );
   };
 
   return (
-    <div className="flex min-h-full flex-col px-4 pb-10 pt-2">
+    <div className="flex min-h-full flex-col px-4 pb-10 pt-0">
+      <ScreenTopPanel>
+        <AppHeader variant="embedded" />
+      </ScreenTopPanel>
+
       <QuickCreateButtons
+        variant="toolbar"
         onCreate={handleCreate}
         onCreateCustom={handleCreateCustom}
         canCreateCustom={isAdmin}
         onRequestCustom={() => setRequestCustomOpen(true)}
       />
 
-      <section className="mt-10">
-        <h2 className={PAGE_SECTION_TITLE}>
-          {isAdmin ? 'Все списки' : 'Мои списки'}
-        </h2>
+      <section className="mt-6">
+        <h2 className={PAGE_SECTION_TITLE}>Актуальные</h2>
 
         {loadError && (
           <p className={`mt-2 ${HINT_TEXT} text-red-500`}>{loadError}</p>
@@ -213,28 +174,15 @@ export default function HomePage() {
             )}
 
             {completedLists.length > 0 && (
-              <>
-                <h3 className="mt-8 text-[13px] font-semibold uppercase tracking-wide text-slate-400">
-                  Готовые
-                </h3>
-                <ul className="mt-3 space-y-2.5">
-                  {completedLists.map((list) => (
-                    <li key={list.id}>{renderListCard(list, { dimmed: true, repeatable: true })}</li>
-                  ))}
-                </ul>
-              </>
+              <CompletedListsSection
+                key={location.key}
+                lists={completedLists}
+                renderListCard={(list) => renderListCard(list, { dimmed: true })}
+              />
             )}
           </>
         )}
       </section>
-
-      <RepeatListModal
-        list={repeatTarget}
-        open={Boolean(repeatTarget)}
-        loading={Boolean(repeatTarget && busyId === repeatTarget.id)}
-        onClose={() => !busyId && setRepeatTarget(null)}
-        onConfirm={handleRepeatConfirm}
-      />
 
       <RequestCustomTypeModal
         open={requestCustomOpen}

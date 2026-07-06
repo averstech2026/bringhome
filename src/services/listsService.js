@@ -26,10 +26,11 @@ import {
 export { LIST_TYPE_LABELS, formatListTitle, normalizeListTypeForCreate as normalizeListType };
 export { decodeListTypeFromUrl, encodeListTypeForUrl, getListTypeLabel } from '../utils/listTypes';
 
-export async function createList({ type = 'home', createdBy, isPublic = false }) {
+export async function createList({ type = 'home', createdBy, isPublic = false, description = '' }) {
   const resolvedType = normalizeListTypeForCreate(type);
   const ref = await addDoc(collection(db, COLLECTIONS.LISTS), {
     title: formatListTitle(resolvedType),
+    description: description.trim() || '',
     type: resolvedType,
     isPublic,
     createdBy,
@@ -315,7 +316,7 @@ export async function addItem(
       comment: comment.trim() || null,
       checked: false,
       checkedBy: null,
-      checkedAt: null,
+      bookedBy: null,
     });
   }
 
@@ -328,6 +329,44 @@ export async function updateItemQuantity(itemId, quantity) {
   await updateDoc(doc(db, COLLECTIONS.ITEMS, itemId), { quantity });
 }
 
+export async function updateItemCategory(itemId, category) {
+  await updateDoc(doc(db, COLLECTIONS.ITEMS, itemId), { category });
+}
+
+export async function updateItemComment(itemId, comment) {
+  await updateDoc(doc(db, COLLECTIONS.ITEMS, itemId), {
+    comment: comment?.trim() || null,
+  });
+}
+
+export async function updateItemBooking(itemId, bookedBy) {
+  await updateDoc(doc(db, COLLECTIONS.ITEMS, itemId), {
+    bookedBy: bookedBy || null,
+  });
+}
+
+export async function updateItemsBookingBatch(updates) {
+  if (!updates?.length) return;
+
+  const batch = writeBatch(db);
+  for (const { itemId, bookedBy } of updates) {
+    batch.update(doc(db, COLLECTIONS.ITEMS, itemId), {
+      bookedBy: bookedBy || null,
+    });
+  }
+  await batch.commit();
+}
+
+export async function clearAllListItems(listId) {
+  const items = await getListItems(listId);
+  if (items.length === 0) return;
+
+  const batch = writeBatch(db);
+  items.forEach((item) => batch.delete(doc(db, COLLECTIONS.ITEMS, item.id)));
+  await batch.commit();
+  await syncListStatus(listId);
+}
+
 export async function deleteItem(itemId) {
   const itemRef = doc(db, COLLECTIONS.ITEMS, itemId);
   const itemSnap = await getDoc(itemRef);
@@ -338,8 +377,12 @@ export async function deleteItem(itemId) {
   if (listId) await syncListStatus(listId);
 }
 
-export async function createActualList({ type, createdBy, items = [] }) {
-  const listId = await createList({ type: normalizeListTypeForCreate(type), createdBy });
+export async function createActualList({ type, createdBy, items = [], description = '' }) {
+  const listId = await createList({
+    type: normalizeListTypeForCreate(type),
+    createdBy,
+    description,
+  });
   if (items.length > 0) {
     await addItemsBatch(listId, items);
   } else {
@@ -372,6 +415,7 @@ export async function addItemsBatch(listId, items) {
         comment: incoming.comment?.trim() || null,
         checked: Boolean(incoming.checked),
         checkedBy: incoming.checked ? incoming.checkedBy : null,
+        bookedBy: incoming.bookedBy || null,
         _source: 'new',
         _dirty: true,
       });
@@ -397,6 +441,7 @@ export async function addItemsBatch(listId, items) {
         comment: item.comment,
         checked: item.checked,
         checkedBy: item.checkedBy,
+        bookedBy: item.bookedBy || null,
         checkedAt: item.checked ? serverTimestamp() : null,
       });
     }
@@ -431,6 +476,7 @@ export async function toggleItem(itemId, { checked, checkedBy }) {
     checked,
     checkedBy: checked ? checkedBy : null,
     checkedAt: checked ? serverTimestamp() : null,
+    ...(checked ? { bookedBy: null } : {}),
   });
 
   if (listId) await syncListStatus(listId);

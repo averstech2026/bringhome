@@ -16,15 +16,24 @@ export const CARD_PAD = 'px-3 py-2';
 /** Чуть просторнее — для блоков с формой */
 export const CARD_PAD_V = 'px-3 py-3';
 
+/** Горизонтальный отступ строки товара внутри карточки списка (дублирует CARD_PAD_V) */
+export const LIST_ITEM_ROW_X = 'px-3';
+
+/** Горизонтальный отступ контролов в шапке — совпадает с CARD_PAD_V (px-3) */
+export const HEADER_CONTROL_INSET = 'right-3';
+
 export const CARD_INNER = 'px-1 py-1.5';
 
-export const CARD_TITLE = 'truncate font-medium text-slate-800';
+export const CARD_TITLE = 'truncate text-sm font-medium text-slate-800';
 
 export const CARD_BADGE = 'shrink-0 text-xs font-medium';
 
 export const PAGE_SECTION_TITLE = 'text-[17px] font-bold text-slate-900';
 
 export const PAGE_X = 'px-4';
+
+/** Внутренние отступы верхней плашки — одинаковые на всех экранах */
+export const SCREEN_TOP_INNER = 'px-4 pt-3 pb-4';
 
 export const STICKY_TOP =
   'sticky top-0 z-50 border-b border-gray-200/40 bg-white/90 backdrop-blur-md';

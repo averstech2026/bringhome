@@ -1,54 +1,59 @@
-const SYSTEM_PROMPT = `Ты помощник для семейного списка покупок. Из текста пользователя извлеки продукты.
-Верни ТОЛЬКО валидный JSON-массив без markdown и пояснений:
-[{"name": "название", "quantity": "количество или вес", "category": "категория"}]
+import { formatQuantity } from '../utils/quantity';
+import { resolveCategory } from '../utils/productCategoryMap';
 
-Категории: "Овощи и фрукты", "Молочные продукты", "Мясо и рыба", "Бакалея", "Напитки", "Заморозка", "К чаю / Сладости", "Бытовая химия", "Прочее".
-Если количество не указано — "1 шт".`;
+function normalizeYandexProduct(item) {
+  const name = String(item.name || '')
+    .trim()
+    .toLowerCase();
+
+  let quantity = '1 шт';
+
+  if (item.quantity != null && item.quantity !== '') {
+    const unit = String(item.unit || 'шт').trim() || 'шт';
+    const rawQty = item.quantity;
+    const count =
+      typeof rawQty === 'number'
+        ? rawQty
+        : parseFloat(String(rawQty).replace(',', '.'));
+
+    if (Number.isFinite(count)) {
+      quantity = formatQuantity(count, unit);
+    } else {
+      quantity = `${rawQty} ${unit}`.trim();
+    }
+  }
+
+  return {
+    name,
+    quantity,
+    category: resolveCategory({ aiCategory: item.category, productName: name }),
+  };
+}
 
 export async function parseProductsWithAI(text) {
-  const apiKey = import.meta.env.VITE_AI_API_KEY;
-  const apiUrl = import.meta.env.VITE_AI_API_URL || 'https://api.openai.com/v1/chat/completions';
-  const model = import.meta.env.VITE_AI_MODEL || 'gpt-4o-mini';
-
-  if (!apiKey) {
-    throw new Error('Не задан VITE_AI_API_KEY в .env');
-  }
+  const apiUrl = import.meta.env.VITE_YANDEX_PARSE_URL || '/api/yandex/parse';
 
   const response = await fetch(apiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: text },
-      ],
-      temperature: 0.2,
-    }),
+    body: JSON.stringify({ text }),
   });
 
+  const data = await response.json().catch(() => ({}));
+
   if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`AI API error: ${response.status} — ${err}`);
+    throw new Error(data.error || `Ошибка распознавания: ${response.status}`);
   }
 
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content?.trim();
-  if (!content) throw new Error('Пустой ответ от AI');
-
-  const jsonMatch = content.match(/\[[\s\S]*\]/);
-  const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+  const parsed = data.products;
 
   if (!Array.isArray(parsed)) {
-    throw new Error('AI вернул не массив');
+    throw new Error('Некорректный ответ сервера');
   }
 
-  return parsed.map((item) => ({
-    name: String(item.name || '').trim(),
-    quantity: String(item.quantity || '1 шт').trim(),
-    category: String(item.category || 'Прочее').trim(),
-  })).filter((item) => item.name);
+  return parsed
+    .map(normalizeYandexProduct)
+    .filter((item) => item.name);
 }

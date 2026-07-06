@@ -56,19 +56,19 @@ const CUSTOM_PALETTES = [
 const BUILTIN_CARD_BADGE = {
   home: 'text-emerald-600/80',
   cottage: 'text-amber-700/80',
-  trip: 'text-violet-600/80',
+  trip: 'text-sky-600/80',
 };
 
 const BUILTIN_PROGRESS = {
   home: 'bg-emerald-500',
   cottage: 'bg-amber-500',
-  trip: 'bg-violet-500',
+  trip: 'bg-sky-500',
 };
 
 const BUILTIN_BADGE = {
   home: { label: 'Домашний', className: 'bg-blue-50 text-blue-600' },
   cottage: { label: 'Дачный', className: 'bg-amber-50 text-amber-700' },
-  trip: { label: 'Дорожный', className: 'bg-violet-50 text-violet-600' },
+  trip: { label: 'Дорожный', className: 'bg-sky-50 text-sky-600' },
 };
 
 function hashString(str) {
@@ -164,8 +164,8 @@ export function getDraftTypeClasses(type, active) {
         ? 'border-amber-300 bg-amber-50 text-amber-800'
         : 'border-amber-200/80 text-amber-800 hover:bg-amber-50/60',
       trip: active
-        ? 'border-violet-300 bg-violet-50 text-violet-700'
-        : 'border-violet-200/80 text-violet-700 hover:bg-violet-50/60',
+        ? 'border-sky-300 bg-sky-50 text-sky-700'
+        : 'border-sky-200/80 text-sky-700 hover:bg-sky-50/60',
     };
     return map[type] || map.home;
   }

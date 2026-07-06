@@ -70,6 +70,7 @@ function AppRoutes() {
 function AppShell() {
   const location = useLocation();
   const hideHeader =
+    location.pathname === '/' ||
     location.pathname.startsWith('/list/') ||
     location.pathname.startsWith('/settings') ||
     location.pathname.startsWith('/admin/');

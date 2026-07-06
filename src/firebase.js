@@ -7,13 +7,13 @@ import { getStorage } from 'firebase/storage';
  * Firestore collections:
  *
  * lists: {
- *   id, title, type ("home" | "cottage"), isPublic, createdBy,
+ *   id, title, description?, type ("home" | "cottage"), isPublic, createdBy,
  *   allowedUsers: string[], createdAt
  * }
  *
  * items: {
- *   id, listId, name, quantity, category, checked,
- *   checkedBy, checkedAt
+ *   id, listId, name, quantity, category, comment?, checked,
+ *   checkedBy, checkedAt, bookedBy?
  * }
  *
  * product_history: {

@@ -19,6 +19,19 @@ import {
 import { db, COLLECTIONS, firebaseConfig, auth } from '../firebase';
 import { compressImageToDataUrl } from '../utils/compressImage';
 
+export const OWNER_EMAIL = 'inert@mail.ru';
+
+export function isOwnerEmail(email) {
+  return email === OWNER_EMAIL;
+}
+
+async function assertNotOwner(userId) {
+  const profile = await getUserProfile(userId);
+  if (profile && isOwnerEmail(profile.email)) {
+    throw new Error('Нельзя изменить аккаунт владельца');
+  }
+}
+
 export async function isAppInitialized() {
   const snapshot = await getDoc(doc(db, COLLECTIONS.CONFIG, 'setup'));
   return snapshot.exists() && snapshot.data().initialized === true;
@@ -103,6 +116,7 @@ export async function createUserAsAdmin({ email, password, displayName, createdB
 }
 
 export async function setUserDisabled(userId, disabled) {
+  await assertNotOwner(userId);
   await updateDoc(doc(db, COLLECTIONS.USERS, userId), { disabled });
 }
 
@@ -110,6 +124,7 @@ export async function setUserRole(userId, role) {
   if (role !== 'admin' && role !== 'user') {
     throw new Error('Недопустимая роль');
   }
+  await assertNotOwner(userId);
   await updateDoc(doc(db, COLLECTIONS.USERS, userId), { role });
 }
 

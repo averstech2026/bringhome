@@ -179,31 +179,35 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex min-h-full flex-col pb-10">
+    <div className="flex min-h-full flex-col px-4 pb-10 pt-0">
       <PageHeader title="Профиль" backTo="/" />
 
-      <div className="px-4 pt-4">
-        <section className="mt-4">
-          <button
-            type="button"
-            disabled={uploading}
-            onClick={() => fileInputRef.current?.click()}
-            className="group relative disabled:opacity-50"
-          >
-            <UserAvatar photoUrl={displayPhotoUrl} name={name} className="h-[72px] w-[72px] text-2xl" />
-            <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/30 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
-              Изменить
-            </span>
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleFileSelect}
-          />
-          <p className="mt-4 text-[22px] font-bold tracking-tight text-slate-900">{name}</p>
-          <p className="mt-0.5 text-sm text-slate-400">{user?.email}</p>
+      <div className="pt-4">
+        <section>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="group relative shrink-0 disabled:opacity-50"
+            >
+              <UserAvatar photoUrl={displayPhotoUrl} name={name} className="h-[72px] w-[72px] text-2xl" />
+              <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/30 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
+                Изменить
+              </span>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-[22px] font-bold tracking-tight text-slate-900">{name}</p>
+              <p className="mt-0.5 text-sm text-slate-400">{user?.email}</p>
+            </div>
+          </div>
 
           {hasChanges && (
             <div className="mt-4 flex gap-2">

@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import {
   createUserAsAdmin,
   getAllUsers,
+  isOwnerEmail,
   setUserDisabled,
   setUserRole,
 } from '../services/usersService';
@@ -16,8 +17,16 @@ function formatDate(timestamp) {
 
 function UserActions({ user: u, currentUserId, onToggleDisabled, onToggleRole, busy }) {
   const isSelf = u.id === currentUserId;
+  const isOwner = isOwnerEmail(u.email);
+
+  if (isOwner) return null;
+
   const btnBase =
-    'rounded-full px-3 py-1.5 text-xs font-semibold transition active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100';
+    'rounded-lg border text-xs font-medium px-2.5 py-1 transition-all duration-200 disabled:opacity-40';
+  const btnNeutral =
+    'border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300';
+  const btnDestructive =
+    'border-red-100 text-red-600 hover:bg-red-50 hover:border-red-200';
 
   return (
     <div className="flex shrink-0 flex-col items-stretch gap-1.5">
@@ -26,11 +35,7 @@ function UserActions({ user: u, currentUserId, onToggleDisabled, onToggleRole, b
           type="button"
           disabled={busy}
           onClick={() => onToggleRole(u.id, u.role)}
-          className={`${btnBase} ${
-            u.role === 'admin'
-              ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              : 'bg-violet-50 text-violet-700 hover:bg-violet-100'
-          }`}
+          className={`${btnBase} ${btnNeutral}`}
         >
           {u.role === 'admin' ? 'Снять админа' : 'Сделать админом'}
         </button>
@@ -40,11 +45,7 @@ function UserActions({ user: u, currentUserId, onToggleDisabled, onToggleRole, b
           type="button"
           disabled={busy}
           onClick={() => onToggleDisabled(u.id, u.disabled)}
-          className={`${btnBase} ${
-            u.disabled
-              ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-              : 'bg-red-50 text-red-600 hover:bg-red-100'
-          }`}
+          className={`${btnBase} ${u.disabled ? btnNeutral : btnDestructive}`}
         >
           {u.disabled ? 'Разблокировать' : 'Заблокировать'}
         </button>
@@ -134,10 +135,10 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <div className="flex min-h-full flex-col pb-8">
+    <div className="flex min-h-full flex-col px-4 pb-8 pt-0">
       <PageHeader title="Пользователи" backTo="/settings" />
 
-      <div className="px-4 pt-4">
+      <div className="pt-4">
         <p className="text-sm text-slate-500">Создание и управление аккаунтами</p>
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -202,10 +203,16 @@ export default function AdminUsersPage() {
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-slate-800">
                       {u.displayName}
-                      {u.role === 'admin' && (
-                        <span className="ml-2 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">
-                          Админ
+                      {isOwnerEmail(u.email) ? (
+                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                          Владелец
                         </span>
+                      ) : (
+                        u.role === 'admin' && (
+                          <span className="ml-2 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">
+                            Админ
+                          </span>
+                        )
                       )}
                       {u.disabled && (
                         <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-600">

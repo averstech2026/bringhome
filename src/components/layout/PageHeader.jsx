@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import ScreenTopPanel, { ScreenTopBar } from './ScreenTopPanel';
 
 function ChevronLeftIcon() {
   return (
@@ -27,25 +28,23 @@ export default function PageHeader({ title, backTo, rightAction = null }) {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-gray-100/60 bg-white/95 px-4 py-3 backdrop-blur-md">
-      <div className="grid grid-cols-3 items-center">
-        <div className="flex justify-start">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-gray-900 transition hover:bg-black/[0.04] active:bg-black/[0.06]"
-            aria-label="Назад"
-          >
-            <ChevronLeftIcon />
-          </button>
-        </div>
+    <ScreenTopPanel>
+      <ScreenTopBar>
+        <button
+          type="button"
+          onClick={handleBack}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-900 transition hover:bg-black/[0.04] active:bg-black/[0.06]"
+          aria-label="Назад"
+        >
+          <ChevronLeftIcon />
+        </button>
 
-        <h1 className="truncate text-center text-lg font-bold text-gray-900">{title}</h1>
+        <h1 className="min-w-0 flex-1 truncate text-lg font-bold text-slate-900">{title}</h1>
 
-        <div className="flex justify-end">
-          {rightAction ?? <div className="h-10 w-10" aria-hidden />}
+        <div className="flex h-10 w-10 shrink-0 items-center justify-end">
+          {rightAction ?? <span className="block h-10 w-10 shrink-0" aria-hidden />}
         </div>
-      </div>
-    </header>
+      </ScreenTopBar>
+    </ScreenTopPanel>
   );
 }

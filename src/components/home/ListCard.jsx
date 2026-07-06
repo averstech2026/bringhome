@@ -7,20 +7,15 @@ import {
   CARD_PRESS,
 } from '../list/cardStyles';
 import { getListProgressClass, getListTypeBadgeProps, isBuiltinListType } from '../../utils/listTypes';
-
-const TYPE_BADGE = {
-  home: 'text-emerald-600/80',
-  cottage: 'text-amber-700/80',
-  trip: 'text-violet-600/80',
-};
+import ListAccessIcon from './ListAccessIcon';
 
 const TYPE_PROGRESS = {
   home: 'bg-emerald-500',
   cottage: 'bg-amber-500',
-  trip: 'bg-violet-500',
+  trip: 'bg-sky-500',
 };
 
-function ListAuthorAvatar({ author }) {
+function ListAuthorAvatar({ author, className = 'h-5 w-5' }) {
   if (!author) return null;
 
   const name = author.displayName || author.email?.split('@')[0] || 'Пользователь';
@@ -31,7 +26,7 @@ function ListAuthorAvatar({ author }) {
         src={author.avatarUrl}
         alt={name}
         title={name}
-        className="h-5 w-5 shrink-0 rounded-full object-cover"
+        className={`${className} shrink-0 rounded-full border border-white object-cover`}
       />
     );
   }
@@ -39,27 +34,67 @@ function ListAuthorAvatar({ author }) {
   return (
     <span
       title={name}
-      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-bold text-gray-600"
+      className={`flex ${className} shrink-0 items-center justify-center rounded-full border border-white bg-gray-100 text-[10px] font-bold text-gray-600`}
     >
       {name.charAt(0).toUpperCase()}
     </span>
   );
 }
 
-function ListStatusMeta({ list, progress, badgeClass, customBadge }) {
+function getListParticipants(list, authorsById = {}) {
+  if (list.isPublic) {
+    const familyMembers = Object.values(authorsById);
+    if (familyMembers.length > 0) return familyMembers;
+  }
+
+  const ids = [...new Set(list.allowedUsers || [list.createdBy])];
+  const participants = ids.map((id) => authorsById[id]).filter(Boolean);
+
+  if (participants.length <= 1) return participants;
+
+  const owner = authorsById[list.createdBy];
+  if (!owner) return participants;
+
+  const others = participants.filter((p) => p.id !== list.createdBy);
+  return [owner, ...others];
+}
+
+function ListParticipantsAvatars({ list, authorsById }) {
+  const participants = getListParticipants(list, authorsById);
+
+  if (participants.length === 0) return null;
+
+  if (participants.length === 1) {
+    return <ListAuthorAvatar author={participants[0]} />;
+  }
+
   return (
-    <div className="flex shrink-0 items-center gap-2">
-      <ListProgress progress={progress} listType={list.type} showLabel />
-      <div className="flex items-center gap-1.5">
-        <ListAuthorAvatar author={list.author} />
+    <div className="flex shrink-0 -space-x-1.5">
+      {participants.slice(0, 4).map((participant) => (
+        <ListAuthorAvatar key={participant.id} author={participant} />
+      ))}
+    </div>
+  );
+}
+
+function ListStatusMeta({ list, progress, customBadge, authorsById }) {
+  const { total = 0, checked = 0 } = progress || {};
+
+  return (
+    <div className="flex shrink-0 items-center justify-end gap-2">
+      {total > 0 && (
+        <span className="shrink-0 whitespace-nowrap text-[11px] font-medium tabular-nums text-slate-400">
+          {checked}/{total}
+        </span>
+      )}
+      <div className="flex shrink-0 items-center gap-2">
+        <ListParticipantsAvatars list={list} authorsById={authorsById} />
         {customBadge ? (
-          <span className={`${CARD_BADGE} rounded-md px-2 py-0.5 ${customBadge.className}`}>
+          <span className={`${CARD_BADGE} shrink-0 rounded-md px-2 py-0.5 ${customBadge.className}`}>
             {customBadge.label}
           </span>
         ) : (
-          <span className={`${CARD_BADGE} ${badgeClass}`}>
-            {list.isPublic ? 'Общий' : 'Приватный'}
-          </span>
+          <ListAccessIcon list={list} />
         )}
       </div>
     </div>
@@ -98,28 +133,36 @@ function RestoreIcon() {
   );
 }
 
-function ListProgress({ progress, listType, showLabel = false }) {
+function ListSubtitle({ description }) {
+  if (!description?.trim()) return null;
+
+  return (
+    <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-400">
+      {description}
+    </p>
+  );
+}
+
+function ListProgress({ progress, listType, className = '' }) {
   const { total = 0, checked = 0, percent = 0 } = progress || {};
   const fillClass = isBuiltinListType(listType)
     ? TYPE_PROGRESS[listType] || TYPE_PROGRESS.home
     : getListProgressClass(listType);
-
-  if (showLabel) {
-    return total > 0 ? (
-      <span className="text-[11px] font-medium tabular-nums text-slate-400">
-        {checked}/{total}
-      </span>
-    ) : null;
-  }
+  const fillPercent = total > 0 ? percent : 0;
 
   return (
-    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-gray-100">
-      {total > 0 && (
-        <div
-          className={`h-full rounded-full transition-all duration-500 ease-out ${fillClass}`}
-          style={{ width: `${percent}%` }}
-        />
-      )}
+    <div
+      className={`h-1.5 w-full min-w-[5rem] overflow-hidden rounded-full bg-gray-100 ${className}`}
+      role="progressbar"
+      aria-valuenow={checked}
+      aria-valuemin={0}
+      aria-valuemax={total}
+      aria-label={`Куплено ${checked} из ${total}`}
+    >
+      <div
+        className={`h-full rounded-full transition-all duration-500 ease-out ${fillClass}`}
+        style={{ width: `${fillPercent}%` }}
+      />
     </div>
   );
 }
@@ -131,7 +174,7 @@ function ActionButton({ title, disabled, onClick, className, children }) {
       disabled={disabled}
       onClick={onClick}
       title={title}
-      className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:opacity-40 ${className}`}
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition disabled:opacity-40 ${className}`}
     >
       {children}
     </button>
@@ -141,6 +184,7 @@ function ActionButton({ title, disabled, onClick, className, children }) {
 export default function ListCard({
   list,
   progress,
+  authorsById,
   archived = false,
   dimmed = false,
   onArchive,
@@ -149,51 +193,54 @@ export default function ListCard({
   onRepeat,
   busy = false,
 }) {
-  const badgeClass = isBuiltinListType(list.type)
-    ? TYPE_BADGE[list.type] || 'text-slate-400'
-    : 'text-slate-400';
   const customBadge = !isBuiltinListType(list.type) ? getListTypeBadgeProps(list.type) : null;
   const hasActions = onRepeat || onArchive || onRestore || onDelete;
 
   return (
     <div
-      className={`flex items-center gap-2 ${CARD_SURFACE} ${CARD_PAD} ${
+      className={`flex min-w-0 items-stretch gap-2 ${CARD_SURFACE} ${CARD_PAD} ${
         archived ? 'opacity-70' : ''
       } ${dimmed ? 'opacity-60' : ''}`}
     >
       {archived ? (
         <Link
           to={`/list/${list.id}?archived=1`}
-          className={`min-w-0 flex-1 px-1 py-1.5 ${CARD_PRESS} ${hasActions ? 'pr-1' : ''}`}
+          className={`min-w-0 flex-1 px-1 py-1.5 ${CARD_PRESS}`}
         >
-          <div className="flex items-center justify-between gap-2">
-            <span className={`${CARD_TITLE} min-w-0 text-slate-600`}>{list.title}</span>
-            <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="min-w-0 flex-1 shrink">
+              <span className={`${CARD_TITLE} block truncate text-slate-600`}>{list.title}</span>
+              <ListSubtitle description={list.description} />
+            </div>
+            <div className="flex shrink-0 items-center justify-end gap-1.5">
               <ListAuthorAvatar author={list.author} />
-              <span className={`${CARD_BADGE} text-slate-400`}>В архиве</span>
+              <span className={`${CARD_BADGE} shrink-0 text-slate-400`}>В архиве</span>
             </div>
           </div>
         </Link>
       ) : (
         <Link
           to={`/list/${list.id}`}
-          className={`min-w-0 flex-1 px-1 py-1.5 ${CARD_PRESS} ${hasActions ? 'pr-1' : ''}`}
+          className={`min-w-0 flex-1 px-1 py-1.5 ${CARD_PRESS}`}
         >
           <div className="flex items-start justify-between gap-2">
-            <span className={`${CARD_TITLE} min-w-0`}>{list.title}</span>
+            <div className="min-w-0 flex-1">
+              <span className={`${CARD_TITLE} block truncate`}>{list.title}</span>
+              <ListSubtitle description={list.description} />
+            </div>
             <ListStatusMeta
               list={list}
               progress={progress}
-              badgeClass={badgeClass}
               customBadge={customBadge}
+              authorsById={authorsById}
             />
           </div>
-          <ListProgress progress={progress} listType={list.type} />
+          <ListProgress progress={progress} listType={list.type} className="mt-1.5" />
         </Link>
       )}
 
       {hasActions && (
-        <div className="flex shrink-0 items-center gap-1 border-l border-gray-100 pl-2.5">
+        <div className="flex shrink-0 items-center justify-end gap-1 self-center border-l border-gray-100 pl-2.5">
           {onRepeat && (
             <ActionButton
               title="Повторить список"

@@ -35,16 +35,16 @@ function AccessDot() {
   );
 }
 
-function MemberAvatar({ member, hasAccess, isOwner, onToggle, loading, dimmed = false }) {
+function MemberAvatar({ member, hasAccess, isOwner, onToggle, loading, locked = false }) {
   const name = member.displayName || member.email?.split('@')[0] || '?';
 
   return (
     <button
       type="button"
-      disabled={loading || isOwner || dimmed}
+      disabled={loading || isOwner || locked}
       onClick={() => onToggle(member.id, hasAccess)}
       title={
-        dimmed
+        locked
           ? `${name} — доступ для всех`
           : isOwner
             ? `${name} (создатель)`
@@ -53,16 +53,16 @@ function MemberAvatar({ member, hasAccess, isOwner, onToggle, loading, dimmed = 
               : `${name} — дать доступ`
       }
       className={`group flex shrink-0 flex-col items-center gap-1 disabled:cursor-default ${
-        isOwner || dimmed ? 'cursor-default' : 'cursor-pointer'
+        isOwner || locked ? 'cursor-default' : 'cursor-pointer'
       }`}
     >
       <div
         className={`relative transition-opacity duration-200 ${
-          hasAccess || dimmed ? 'opacity-100' : 'opacity-40'
+          hasAccess ? 'opacity-100' : 'opacity-40'
         }`}
       >
         <UserAvatar photoUrl={member.avatarUrl} name={name} className="h-9 w-9 text-xs" />
-        {hasAccess && !isOwner && !dimmed && <AccessDot />}
+        {hasAccess && !isOwner && !locked && <AccessDot />}
         {isOwner && (
           <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-400 text-[7px] font-bold text-white ring-2 ring-white">
             ★
@@ -71,7 +71,7 @@ function MemberAvatar({ member, hasAccess, isOwner, onToggle, loading, dimmed = 
       </div>
       <span
         className={`max-w-[48px] truncate text-[10px] font-medium ${
-          hasAccess || dimmed ? 'text-slate-600' : 'text-slate-300'
+          hasAccess ? 'text-slate-600' : 'text-slate-300'
         }`}
       >
         {name.split(' ')[0]}
@@ -174,9 +174,7 @@ export default function ShareControls({ list, listId, currentUserId, currentUser
 
         <div className="mt-4 border-t border-gray-100 pt-3">
           <div className="flex gap-3 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div
-              className={`flex gap-3 ${isPublic ? 'opacity-45' : ''}`}
-            >
+            <div className="flex gap-3">
               {members.map((member) => {
                 const isOwnerMember = member.id === list.createdBy;
                 const hasAccess = isPublic || isOwnerMember || allowedUsers.includes(member.id);
@@ -192,7 +190,7 @@ export default function ShareControls({ list, listId, currentUserId, currentUser
                     hasAccess={hasAccess}
                     isOwner={isOwnerMember}
                     loading={loading}
-                    dimmed={isPublic}
+                    locked={isPublic}
                     onToggle={handleToggleMember}
                   />
                 );
