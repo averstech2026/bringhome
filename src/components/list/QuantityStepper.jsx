@@ -12,9 +12,28 @@ function TrashIcon() {
   );
 }
 
-export default function QuantityStepper({ quantity, disabled, onChange, onRemove }) {
+const MINUS_ACTIVE =
+  'flex h-7 w-7 items-center justify-center rounded-full border border-red-200 bg-white text-sm font-bold text-red-500 shadow-sm transition-all hover:border-red-300 hover:bg-red-50 active:scale-95 disabled:opacity-40';
+
+const MINUS_DISABLED =
+  'pointer-events-none flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-sm font-bold text-gray-400 opacity-40';
+
+const PLUS =
+  'flex h-7 w-7 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-50 active:scale-95 disabled:opacity-40';
+
+const LABEL = 'min-w-[32px] text-center text-xs font-semibold text-gray-700';
+
+export default function QuantityStepper({
+  quantity,
+  disabled,
+  onChange,
+  onRemove,
+  className = 'mr-4',
+  variant = 'default',
+}) {
   const { count, label } = getQuantityDisplay(quantity);
   const atMinimum = count <= 1;
+  const isEmbedded = variant === 'embedded';
 
   const handleMinus = () => {
     if (atMinimum) {
@@ -30,32 +49,31 @@ export default function QuantityStepper({ quantity, disabled, onChange, onRemove
     if (next) onChange?.(next);
   };
 
+  const minusClass = isEmbedded && atMinimum ? MINUS_DISABLED : MINUS_ACTIVE;
+  const minusDisabled = disabled || (isEmbedded && atMinimum);
+
   return (
-    <div className="mr-4 flex shrink-0 items-center">
+    <div className={`flex shrink-0 items-center gap-2.5 ${className}`}>
       <button
         type="button"
-        disabled={disabled}
+        disabled={minusDisabled}
         onClick={handleMinus}
-        aria-label={atMinimum ? 'Удалить' : 'Уменьшить'}
-        className={`flex h-6 w-6 items-center justify-center rounded-full font-bold text-sm transition-colors disabled:opacity-40 ${
-          atMinimum
-            ? 'bg-red-50 text-red-400 hover:bg-red-100'
-            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-        }`}
+        aria-label={
+          isEmbedded && atMinimum ? 'Минимальное количество' : atMinimum ? 'Удалить' : 'Уменьшить'
+        }
+        className={minusClass}
       >
-        {atMinimum ? <TrashIcon /> : '−'}
+        {isEmbedded || !atMinimum ? '−' : <TrashIcon />}
       </button>
 
-      <span className="mx-2 min-w-[24px] text-center text-sm font-semibold text-gray-700">
-        {label}
-      </span>
+      <span className={LABEL}>{label}</span>
 
       <button
         type="button"
         disabled={disabled}
         onClick={handlePlus}
         aria-label="Увеличить"
-        className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-50 text-sm font-bold text-emerald-600 transition-colors hover:bg-emerald-100 disabled:opacity-40"
+        className={PLUS}
       >
         +
       </button>

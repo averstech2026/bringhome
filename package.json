@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:pages": "GITHUB_PAGES=true vite build",
     "preview": "vite preview",
-    "deploy": "npm run build:pages && gh-pages -d dist"
+    "deploy": "npm run build:pages && gh-pages -d dist",
+    "secrets:github": "node scripts/set-github-secrets.mjs"
   },
   "dependencies": {
     "firebase": "^11.6.0",
@@ -21,6 +22,7 @@
     "@vitejs/plugin-react": "^4.4.1",
     "gh-pages": "^6.3.0",
     "tailwindcss": "^4.1.4",
+    "tweetsodium": "^0.0.5",
     "vite": "^6.3.2"
   }
 }
