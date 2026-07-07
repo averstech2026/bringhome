@@ -102,7 +102,6 @@ export default function ListPage() {
   // не выглядело противоречиво (все выделены при выключенном тумблере).
   const [draftIsPublic, setDraftIsPublic] = useState(true);
   const [draftSharedWith, setDraftSharedWith] = useState([]);
-  const draftAccessPrefilled = useRef(false);
   const [accessError, setAccessError] = useState(null);
   const [accessChecked, setAccessChecked] = useState(false);
   const [accessForListId, setAccessForListId] = useState(null);
@@ -170,24 +169,20 @@ export default function ListPage() {
     resetPendingItems();
     resetPendingAccess();
     // Сбрасываем выбор доступа, чтобы следующий черновик начинался с чистого листа.
-    draftAccessPrefilled.current = false;
     setDraftSharedWith([]);
     setDraftIsPublic(true);
   }, [listId, resetPendingItems, resetPendingAccess]);
 
-  // Черновик: подтягиваем членов семьи и по умолчанию открываем список всем.
+  // Черновик: подтягиваем членов семьи. По умолчанию тумблер «Для всей семьи»
+  // включён (список общий), поэтому индивидуальный выбор не предзаполняем —
+  // иначе при выключенном тумблере все выглядели бы выбранными.
   useEffect(() => {
     if (!isDraft || !user) return undefined;
 
     let cancelled = false;
     getFamilyMembers()
       .then((members) => {
-        if (cancelled) return;
-        setFamilyMembers(members);
-        if (!draftAccessPrefilled.current) {
-          setDraftSharedWith(members.map((member) => member.id));
-          draftAccessPrefilled.current = true;
-        }
+        if (!cancelled) setFamilyMembers(members);
       })
       .catch(() => {
         if (!cancelled) setFamilyMembers([]);
