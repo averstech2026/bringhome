@@ -353,7 +353,7 @@ export default function AddItemForm({
         </div>
       </div>
 
-      <ThemeToast message={themeToast} onClose={() => setThemeToast('')} />
+      <ThemeToast message={themeToast} themed onClose={() => setThemeToast('')} />
     </form>
   );
 }

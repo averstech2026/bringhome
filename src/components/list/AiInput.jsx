@@ -385,7 +385,7 @@ export default function AiInput({
         onClose={() => setLimitPhrase(null)}
       />
 
-      <ThemeToast message={themeToast} onClose={() => setThemeToast('')} />
+      <ThemeToast message={themeToast} themed onClose={() => setThemeToast('')} />
     </>
   );
 }
