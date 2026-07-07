@@ -188,13 +188,16 @@ export default function ListCard({
   archived = false,
   dimmed = false,
   onArchive,
+  canArchive = true,
+  onArchiveDenied,
   onDelete,
   onRestore,
   onRepeat,
   busy = false,
 }) {
   const customBadge = !isBuiltinListType(list.type) ? getListTypeBadgeProps(list.type) : null;
-  const hasActions = onRepeat || onArchive || onRestore || onDelete;
+  const showArchive = onArchive || onArchiveDenied;
+  const hasActions = onRepeat || showArchive || onRestore || onDelete;
 
   return (
     <div
@@ -255,12 +258,21 @@ export default function ListCard({
               <RepeatIcon />
             </ActionButton>
           )}
-          {onArchive && (
+          {showArchive && (
             <ActionButton
-              title="В архив"
+              title={canArchive ? 'В архив' : 'Нет прав на архивацию'}
               disabled={busy}
-              onClick={() => onArchive(list.id, list.title)}
-              className="text-slate-400 hover:bg-amber-50 hover:text-amber-600"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (canArchive) onArchive?.(list.id, list.title);
+                else onArchiveDenied?.(list);
+              }}
+              className={
+                canArchive
+                  ? 'text-slate-400 hover:bg-amber-50 hover:text-amber-600'
+                  : 'text-slate-400 opacity-40 hover:opacity-50'
+              }
             >
               <ArchiveIcon />
             </ActionButton>

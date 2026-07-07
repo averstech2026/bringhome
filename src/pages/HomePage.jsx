@@ -16,9 +16,11 @@ import AppHeader from '../components/layout/AppHeader';
 import ScreenTopPanel from '../components/layout/ScreenTopPanel';
 import ListCard from '../components/home/ListCard';
 import CompletedListsSection from '../components/home/CompletedListsSection';
+import ArchiveAccessModal from '../components/home/ArchiveAccessModal';
 import RequestCustomTypeModal from '../components/home/RequestCustomTypeModal';
 import { HINT_TEXT, PAGE_SECTION_TITLE } from '../components/list/cardStyles';
 import { resolveListStatus } from '../utils/listStatus';
+import { canArchiveList, getListArchiveAdmins } from '../utils/listPermissions';
 import { clearRepeatDraft } from '../utils/repeatDraftStorage';
 import { encodeListTypeForUrl } from '../utils/listTypes';
 
@@ -33,11 +35,12 @@ export default function HomePage() {
   const [loadError, setLoadError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [requestCustomOpen, setRequestCustomOpen] = useState(false);
+  const [archiveAccessList, setArchiveAccessList] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
 
   const canManageList = useCallback(
-    (list) => isAdmin || list.createdBy === user?.uid,
+    (list) => canArchiveList(list, user?.uid, isAdmin),
     [isAdmin, user?.uid],
   );
 
@@ -131,7 +134,9 @@ export default function HomePage() {
         authorsById={authorsById}
         busy={busyId === list.id}
         dimmed={dimmed}
-        onArchive={manageable ? handleArchive : undefined}
+        canArchive={manageable}
+        onArchive={handleArchive}
+        onArchiveDenied={manageable ? undefined : () => setArchiveAccessList(list)}
       />
     );
   };
@@ -190,6 +195,12 @@ export default function HomePage() {
       <RequestCustomTypeModal
         open={requestCustomOpen}
         onClose={() => setRequestCustomOpen(false)}
+      />
+
+      <ArchiveAccessModal
+        open={Boolean(archiveAccessList)}
+        admins={archiveAccessList ? getListArchiveAdmins(archiveAccessList, authorsById) : []}
+        onClose={() => setArchiveAccessList(null)}
       />
     </div>
   );

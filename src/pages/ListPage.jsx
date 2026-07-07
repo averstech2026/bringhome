@@ -228,10 +228,9 @@ export default function ListPage() {
   }
 
   return (
-    <div className={`flex min-h-full flex-col ${APP_BACKGROUND}`}>
-      <div className={`${PAGE_X} pt-0`}>
-        <ScreenTopPanel>
-          <ScreenTopBar>
+    <div className={`flex min-h-full flex-col ${APP_BACKGROUND} ${PAGE_X} pt-0`}>
+      <ScreenTopPanel>
+        <ScreenTopBar>
             <button
               type="button"
               onClick={() => navigate(isArchivedView ? '/settings' : '/')}
@@ -280,12 +279,11 @@ export default function ListPage() {
           </ScreenTopBar>
         </ScreenTopPanel>
 
-        {listDescription?.trim() && (
-          <p className="mt-1 truncate text-xs text-slate-400">{listDescription}</p>
-        )}
-      </div>
+      {listDescription?.trim() && (
+        <p className="mt-1 truncate text-xs text-slate-400">{listDescription}</p>
+      )}
 
-      <main className={`${PAGE_X} flex flex-1 flex-col gap-3 pt-3 ${showFooter ? 'pb-28' : 'pb-10'}`}>
+      <main className={`flex flex-1 flex-col gap-3 pt-3 ${showFooter ? 'pb-28' : 'pb-10'}`}>
         <StatusBar
           items={items}
           onClear={!isArchivedView ? handleClearList : undefined}

@@ -61,32 +61,28 @@ export function getUnitPickerOptions(currentUnit) {
   });
 }
 
-const WEIGHT_VOLUME_UNITS = new Set([
-  'кг',
-  'килограмм',
-  'г',
-  'грамм',
-  'л',
-  'литр',
-  'ml',
-  'мл',
-]);
-
-export function isFractionalQuantity(qtyStr) {
-  const { count, unit } = parseQuantity(qtyStr);
-  if (!Number.isInteger(count)) return true;
-  return WEIGHT_VOLUME_UNITS.has(unit.trim().toLowerCase());
+export function getStepByUnit(unit) {
+  const normalized = abbreviateUnit((unit || 'шт').trim().toLowerCase());
+  if (normalized === 'г') return 100;
+  return 1;
 }
 
 export function getQuantityStep(qtyStr) {
-  return isFractionalQuantity(qtyStr) ? 0.5 : 1;
+  const { count, unit } = parseQuantity(qtyStr);
+  if (abbreviateUnit(unit) === 'г') return 100;
+  if (!Number.isInteger(count)) return 0.5;
+  return 1;
 }
 
 export function getMinimumCount(qtyStr) {
   return getQuantityStep(qtyStr);
 }
 
-export function roundQuantityCount(count) {
+export function roundQuantityCount(count, unit = null) {
+  if (unit && getStepByUnit(unit) === 100) {
+    return Math.round(count);
+  }
+  if (Number.isInteger(count)) return count;
   return Number(count.toFixed(1));
 }
 
@@ -120,7 +116,12 @@ export function incrementQuantity(qtyStr, delta = 1) {
   const { count, unit } = parseQuantity(qtyStr);
   const direction = delta < 0 ? -1 : 1;
   const step = Math.abs(delta) === 1 ? getQuantityStep(qtyStr) : Math.abs(delta);
-  const newCount = roundQuantityCount(count + direction * step);
+  let newCount = count + direction * step;
+  if (getStepByUnit(unit) === 100) {
+    newCount = Math.round(newCount / 100) * 100;
+  } else {
+    newCount = roundQuantityCount(newCount, unit);
+  }
   const min = getMinimumCount(qtyStr);
   if (newCount < min) return null;
   return formatQuantity(newCount, unit);

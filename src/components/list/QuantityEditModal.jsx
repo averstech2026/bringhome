@@ -50,11 +50,11 @@ function backspace(current) {
   return normalized.slice(0, -1);
 }
 
-function addStep(current, step) {
+function addStep(current, step, unit) {
   const normalized = normalizeInput(current);
   const base = normalized ? parseFloat(normalized) : 0;
   if (!Number.isFinite(base)) return current;
-  return String(roundQuantityCount(base + step));
+  return String(roundQuantityCount(base + step, unit));
 }
 
 export default function QuantityEditModal({ quantity, open, onClose, onSave, onRemove, itemName }) {
@@ -87,7 +87,7 @@ export default function QuantityEditModal({ quantity, open, onClose, onSave, onR
 
   const handleSave = () => {
     if (!isValid) return;
-    onSave?.(formatQuantity(roundQuantityCount(parsed), selectedUnit));
+    onSave?.(formatQuantity(roundQuantityCount(parsed, selectedUnit), selectedUnit));
     onClose?.();
   };
 
@@ -121,17 +121,23 @@ export default function QuantityEditModal({ quantity, open, onClose, onSave, onR
   };
 
   const quickSteps =
-    step === 0.5
+    step === 100
       ? [
-          { label: '+0.5', delta: 0.5 },
-          { label: '+1', delta: 1 },
-          { label: '+5', delta: 5 },
+          { label: '+100', delta: 100 },
+          { label: '+500', delta: 500 },
+          { label: '+1000', delta: 1000 },
         ]
-      : [
-          { label: '+1', delta: 1 },
-          { label: '+5', delta: 5 },
-          { label: '+10', delta: 10 },
-        ];
+      : step === 0.5
+        ? [
+            { label: '+0.5', delta: 0.5 },
+            { label: '+1', delta: 1 },
+            { label: '+5', delta: 5 },
+          ]
+        : [
+            { label: '+1', delta: 1 },
+            { label: '+5', delta: 5 },
+            { label: '+10', delta: 10 },
+          ];
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
@@ -210,7 +216,7 @@ export default function QuantityEditModal({ quantity, open, onClose, onSave, onR
                 type="button"
                 onClick={() => {
                   clearReplaceMode();
-                  setValue((v) => addStep(v, delta));
+                  setValue((v) => addStep(v, delta, selectedUnit));
                 }}
                 className={QUICK_STEP_CLASS}
               >

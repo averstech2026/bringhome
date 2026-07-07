@@ -3,7 +3,7 @@ import { SCREEN_TOP_INNER } from '../list/cardStyles';
 export default function ScreenTopPanel({ children, className = '' }) {
   return (
     <div
-      className={`-mx-4 sticky top-0 z-30 rounded-b-2xl border border-t-0 border-gray-50/80 bg-white pt-[env(safe-area-inset-top,0px)] shadow-sm ${className}`}
+      className={`-mx-4 sticky top-0 z-40 rounded-b-2xl border border-t-0 border-gray-50/80 bg-white/95 pt-[env(safe-area-inset-top,0px)] shadow-sm backdrop-blur-md ${className}`}
     >
       {children}
     </div>

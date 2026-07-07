@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useUserProfile } from '../hooks/useUserProfile';
@@ -61,6 +63,61 @@ function getAvatarErrorMessage(err) {
   return message || 'Не удалось сохранить фото';
 }
 
+function SignOutConfirmModal({ open, onConfirm, onCancel }) {
+  useEffect(() => {
+    if (!open) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center">
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default"
+        aria-label="Закрыть"
+        onClick={onCancel}
+      />
+
+      <div
+        className="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sign-out-title"
+      >
+        <h2 id="sign-out-title" className="text-base font-semibold text-slate-900">
+          Выйти из аккаунта?
+        </h2>
+        <p className="mt-1.5 text-sm text-slate-500">Вы уверены, что хотите выйти?</p>
+
+        <div className="mt-5 space-y-2">
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={`${PRIMARY_BTN} !bg-red-500 !py-3 text-sm hover:!bg-red-600`}
+          >
+            Да, выйти
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-full rounded-full border border-gray-200 py-3 text-sm font-medium text-slate-600 transition hover:bg-gray-50"
+          >
+            Отмена
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export default function SettingsPage() {
   const { user, signOut, reloadUser } = useAuth();
   const { settings, updateSetting } = useAppSettings();
@@ -77,11 +134,15 @@ export default function SettingsPage() {
   const [archiveLoading, setArchiveLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [repeatTarget, setRepeatTarget] = useState(null);
+  const [visibleArchiveCount, setVisibleArchiveCount] = useState(10);
+  const [signOutOpen, setSignOutOpen] = useState(false);
 
   const name = profile?.displayName || user?.displayName || 'Пользователь';
   const savedPhotoUrl = getUserPhotoUrl(user, profile);
   const displayPhotoUrl = previewUrl || savedPhotoUrl;
   const hasChanges = Boolean(pendingFile);
+  const visibleArchivedLists = archivedLists.slice(0, visibleArchiveCount);
+  const hasMoreArchived = archivedLists.length > visibleArchiveCount;
 
   useEffect(() => {
     return () => {
@@ -203,7 +264,21 @@ export default function SettingsPage() {
 
   return (
     <div className="flex min-h-full flex-col px-4 pb-10 pt-0">
-      <PageHeader title="Профиль" backTo="/" />
+      <PageHeader
+        title="Профиль"
+        backTo="/"
+        rightAction={
+          <button
+            type="button"
+            onClick={() => setSignOutOpen(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-red-500 transition hover:bg-red-50 active:bg-red-50/80"
+            aria-label="Выйти"
+            title="Выйти"
+          >
+            <LogOut className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+          </button>
+        }
+      />
 
       <div className="pt-4">
         <section>
@@ -272,6 +347,18 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {isAdmin && (
+          <section className="mt-6 overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <Link
+              to="/admin/users"
+              className="flex items-center justify-between px-4 py-4 transition hover:bg-black/[0.02] active:bg-black/[0.04]"
+            >
+              <span className="text-[15px] text-slate-800">Управление пользователями</span>
+              <ChevronRightIcon />
+            </Link>
+          </section>
+        )}
+
         <section className="mt-10">
           <h2 className={PAGE_SECTION_TITLE}>Архив списков</h2>
 
@@ -282,42 +369,34 @@ export default function SettingsPage() {
           ) : archivedLists.length === 0 ? (
             <p className={`mt-4 ${HINT_TEXT}`}>Архив пуст</p>
           ) : (
-            <ul className="mt-4 space-y-2.5">
-              {archivedLists.map((list) => (
-                <li key={list.id}>
-                  <ListCard
-                    list={list}
-                    archived
-                    busy={busyId === list.id}
-                    onRepeat={handleRepeatArchived}
-                    onDelete={handleDeleteArchived}
-                  />
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="mt-4 space-y-2.5">
+                {visibleArchivedLists.map((list) => (
+                  <li key={list.id}>
+                    <ListCard
+                      list={list}
+                      archived
+                      busy={busyId === list.id}
+                      onRepeat={handleRepeatArchived}
+                      onDelete={handleDeleteArchived}
+                    />
+                  </li>
+                ))}
+              </ul>
+
+              {hasMoreArchived && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleArchiveCount((prev) => prev + 10)}
+                    className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
+                  >
+                    Показать еще
+                  </button>
+                </div>
+              )}
+            </>
           )}
-        </section>
-
-        <section className="mt-10 overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-          {isAdmin && (
-            <Link
-              to="/admin/users"
-              className="flex items-center justify-between px-4 py-4 transition hover:bg-black/[0.02] active:bg-black/[0.04]"
-            >
-              <span className="text-[15px] text-slate-800">Управление пользователями</span>
-              <ChevronRightIcon />
-            </Link>
-          )}
-
-          {isAdmin && <div className="mx-4 border-t border-gray-100" />}
-
-          <button
-            type="button"
-            onClick={signOut}
-            className="flex w-full items-center px-4 py-4 text-left text-[15px] text-red-500 transition hover:bg-red-50/50 active:bg-red-50"
-          >
-            Выйти
-          </button>
         </section>
       </div>
 
@@ -327,6 +406,15 @@ export default function SettingsPage() {
         loading={Boolean(repeatTarget && busyId === repeatTarget.id)}
         onClose={() => !busyId && setRepeatTarget(null)}
         onConfirm={handleRepeatConfirm}
+      />
+
+      <SignOutConfirmModal
+        open={signOutOpen}
+        onConfirm={() => {
+          setSignOutOpen(false);
+          signOut();
+        }}
+        onCancel={() => setSignOutOpen(false)}
       />
     </div>
   );
