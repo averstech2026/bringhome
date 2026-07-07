@@ -22,6 +22,20 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/*
+ * Tailwind v4 changed the default cursor for buttons and role="button"
+ * elements from `pointer` back to `default`. Restore the expected pointer
+ * cursor globally for all enabled interactive controls.
+ */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not(:disabled),
+  label[for],
+  summary {
+    cursor: pointer;
+  }
+}
+
 @utility thin-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: rgb(203 213 225 / 0.8) transparent;
