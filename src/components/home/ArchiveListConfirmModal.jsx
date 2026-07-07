@@ -6,7 +6,6 @@ export default function ArchiveListConfirmModal({
   open,
   listTitle,
   archiving,
-  confirmClassName,
   onConfirm,
   onCancel,
 }) {
@@ -20,8 +19,6 @@ export default function ArchiveListConfirmModal({
   }, [open]);
 
   if (!open) return null;
-
-  const confirmBtnClass = confirmClassName || PRIMARY_BTN;
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center">
@@ -54,7 +51,7 @@ export default function ArchiveListConfirmModal({
             type="button"
             onClick={onConfirm}
             disabled={archiving}
-            className={`${confirmBtnClass} !py-3 text-sm disabled:opacity-50`}
+            className={`${PRIMARY_BTN} !bg-amber-500 !py-3 text-sm shadow-[0_4px_14px_rgba(245,158,11,0.28)] hover:!bg-amber-600 hover:shadow-[0_6px_20px_rgba(245,158,11,0.34)] disabled:opacity-50`}
           >
             {archiving ? 'Архивируем…' : 'В архив'}
           </button>

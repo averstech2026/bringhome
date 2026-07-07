@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -24,7 +24,6 @@ import { resolveListStatus } from '../utils/listStatus';
 import { canArchiveList } from '../utils/listPermissions';
 import { clearRepeatDraft } from '../utils/repeatDraftStorage';
 import { encodeListTypeForUrl } from '../utils/listTypes';
-import { getAiInputTheme, resolveUiTheme } from '../utils/uiThemes';
 
 const ARCHIVE_DENIED_TOAST =
   'Чтобы поместить список в архив, обратитесь к владельцу списка.';
@@ -32,7 +31,7 @@ const ARCHIVE_DENIED_TOAST =
 export default function HomePage() {
   const { user } = useAuth();
   const { settings } = useAppSettings();
-  const { isAdmin, profile, loading: profileLoading } = useUserProfile(user);
+  const { isAdmin, loading: profileLoading } = useUserProfile(user);
   const [lists, setLists] = useState([]);
   const [authorsById, setAuthorsById] = useState({});
   const [listProgress, setListProgress] = useState({});
@@ -44,11 +43,6 @@ export default function HomePage() {
   const [archiveDeniedToast, setArchiveDeniedToast] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
-
-  const archiveConfirmClassName = useMemo(
-    () => getAiInputTheme(resolveUiTheme(profile)).buttonClass,
-    [profile],
-  );
 
   const canManageList = useCallback(
     (list) => canArchiveList(list, user?.uid, isAdmin),
@@ -245,7 +239,6 @@ export default function HomePage() {
         open={Boolean(archiveConfirmTarget)}
         listTitle={archiveConfirmTarget?.title}
         archiving={Boolean(archiveConfirmTarget && busyId === archiveConfirmTarget.id)}
-        confirmClassName={archiveConfirmClassName}
         onConfirm={handleConfirmArchive}
         onCancel={() => !busyId && setArchiveConfirmTarget(null)}
       />

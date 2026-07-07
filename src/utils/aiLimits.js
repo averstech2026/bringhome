@@ -90,3 +90,16 @@ export function buildNextAiUsage(currentUsage, date = new Date()) {
     total: current.total + 1,
   };
 }
+
+/** Сбрасывает только дневной счётчик; недельный, месячный и total не трогаем. */
+export function buildResetDailyAiUsage(currentUsage, date = new Date()) {
+  const keys = getPeriodKeys(date);
+  const current = normalizeAiUsage(currentUsage, date);
+
+  return {
+    daily: { periodKey: keys.daily, count: 0 },
+    weekly: current.weekly,
+    monthly: current.monthly,
+    total: current.total,
+  };
+}

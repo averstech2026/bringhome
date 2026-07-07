@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { DEFAULT_AI_LIMITS, resolveAiLimits } from '../../utils/aiLimits';
+import { RotateCcw } from 'lucide-react';
+import { DEFAULT_AI_LIMITS, normalizeAiUsage, resolveAiLimits } from '../../utils/aiLimits';
 import { resolveUiTheme } from '../../utils/uiThemes';
 import { PRIMARY_BTN } from '../list/cardStyles';
 import { IsChildToggle, UiThemeSelect } from './UiProfileFields';
@@ -56,6 +57,9 @@ export default function UserFormModal({
   user = null,
   currentUserId,
   saving = false,
+  canResetTodayLimit = false,
+  resettingToday = false,
+  onResetTodayLimit,
   onSubmit,
   onClose,
 }) {
@@ -63,6 +67,8 @@ export default function UserFormModal({
   const [error, setError] = useState('');
   const isEdit = mode === 'edit';
   const isSelf = isEdit && user?.id === currentUserId;
+  const todayUsage = user ? normalizeAiUsage(user.aiUsage) : null;
+  const todayLimit = user ? resolveAiLimits(user).daily : DEFAULT_AI_LIMITS.daily;
 
   useEffect(() => {
     if (!open) return;
@@ -143,7 +149,7 @@ export default function UserFormModal({
         className="absolute inset-0 cursor-default"
         aria-label="Закрыть"
         onClick={onClose}
-        disabled={saving}
+        disabled={saving || resettingToday}
       />
 
       <div
@@ -262,6 +268,32 @@ export default function UserFormModal({
                   />
                 </label>
               </div>
+
+              {canResetTodayLimit && (
+                <div className="mt-3 rounded-xl border border-orange-100 bg-orange-50/50 px-3 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-slate-600">Использовано сегодня</span>
+                    <span className="text-xs font-medium tabular-nums text-slate-800">
+                      {todayUsage?.daily.count ?? 0} / {todayLimit}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={saving || resettingToday}
+                    onClick={() => onResetTodayLimit?.()}
+                    className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-orange-200 bg-white px-3 py-2.5 text-sm font-medium text-orange-700 transition hover:border-orange-300 hover:bg-orange-50 active:bg-orange-100/80 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <RotateCcw
+                      className={`h-4 w-4 shrink-0 ${resettingToday ? 'animate-spin' : ''}`}
+                      aria-hidden
+                    />
+                    {resettingToday ? 'Сбрасываем…' : 'Сбросить лимиты на сегодня'}
+                  </button>
+                  <p className="mt-2 text-[11px] leading-relaxed text-orange-800/80">
+                    Обнуляет только дневной счётчик. Лимиты 5/20/50 останутся без изменений.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -286,7 +318,7 @@ export default function UserFormModal({
             <button
               type="button"
               onClick={onClose}
-              disabled={saving}
+              disabled={saving || resettingToday}
               className="w-full rounded-full border border-gray-200 py-3 text-sm font-medium text-slate-600 transition hover:bg-gray-50 disabled:opacity-50"
             >
               Отмена

@@ -4,9 +4,11 @@ import { useAuth } from '../hooks/useAuth';
 import {
   createUserAsAdmin,
   getAllUsers,
+  isOwnerEmail,
   setUserDisabled,
   updateUserAsAdmin,
 } from '../services/usersService';
+import { resetTodayAiUsage } from '../services/aiUsageService';
 import UserFormModal from '../components/admin/UserFormModal';
 import { AdminUserCard } from '../components/admin/AdminUserCard';
 import PageHeader from '../components/layout/PageHeader';
@@ -19,6 +21,7 @@ export default function AdminUsersPage() {
   const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState(null);
   const [busyUserId, setBusyUserId] = useState(null);
+  const [resettingToday, setResettingToday] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -35,7 +38,37 @@ export default function AdminUsersPage() {
   }, []);
 
   const closeModal = () => {
-    if (!saving) setModal(null);
+    if (!saving && !resettingToday) setModal(null);
+  };
+
+  const canResetTodayLimit =
+    modal?.mode === 'edit' &&
+    modal?.user?.id !== user?.uid &&
+    modal?.user?.role !== 'admin' &&
+    !isOwnerEmail(modal?.user?.email);
+
+  const handleResetTodayLimit = async () => {
+    if (!modal?.user || resettingToday || saving) return;
+
+    setError('');
+    setResettingToday(true);
+
+    try {
+      const newUsage = await resetTodayAiUsage(modal.user.id);
+      const updatedUser = { ...modal.user, aiUsage: newUsage };
+
+      setModal((current) =>
+        current?.user?.id === updatedUser.id ? { ...current, user: updatedUser } : current,
+      );
+      setUsers((prev) =>
+        prev.map((item) => (item.id === updatedUser.id ? { ...item, aiUsage: newUsage } : item)),
+      );
+      setSuccess(`Дневной лимит ИИ для ${updatedUser.displayName || 'пользователя'} сброшен.`);
+    } catch (err) {
+      setError(err?.message || 'Не удалось сбросить дневной лимит ИИ');
+    } finally {
+      setResettingToday(false);
+    }
   };
 
   const handleCreateUser = async (formData) => {
@@ -157,6 +190,9 @@ export default function AdminUsersPage() {
         user={modal?.user || null}
         currentUserId={user.uid}
         saving={saving}
+        canResetTodayLimit={canResetTodayLimit}
+        resettingToday={resettingToday}
+        onResetTodayLimit={handleResetTodayLimit}
         onSubmit={modal?.mode === 'edit' ? handleUpdateUser : handleCreateUser}
         onClose={closeModal}
       />

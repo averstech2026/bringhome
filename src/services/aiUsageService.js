@@ -2,6 +2,7 @@ import { doc, getDoc, runTransaction, updateDoc } from 'firebase/firestore';
 import { db, COLLECTIONS } from '../firebase';
 import {
   buildNextAiUsage,
+  buildResetDailyAiUsage,
   checkAiUsageAllowed,
   isUnlimitedAiUser,
   normalizeAiUsage,
@@ -51,4 +52,17 @@ export async function setUserAiLimits(userId, limits) {
       monthly: Math.max(0, Number(limits.monthly)),
     },
   });
+}
+
+export async function resetTodayAiUsage(userId) {
+  const userRef = doc(db, COLLECTIONS.USERS, userId);
+  const snapshot = await getDoc(userRef);
+
+  if (!snapshot.exists()) {
+    throw new Error('Пользователь не найден');
+  }
+
+  const aiUsage = buildResetDailyAiUsage(snapshot.data().aiUsage);
+  await updateDoc(userRef, { aiUsage });
+  return aiUsage;
 }
