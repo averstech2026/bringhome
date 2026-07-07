@@ -5,6 +5,8 @@ import { AiStatsUserCard } from '../components/admin/AiStatsUserCard';
 import PageHeader from '../components/layout/PageHeader';
 import { normalizeAiUsage, resolveAiLimits } from '../utils/aiLimits';
 
+const MIN_REFRESH_SPIN_MS = 750;
+
 function enrichUserProfile(user) {
   return {
     ...user,
@@ -39,7 +41,14 @@ export default function AdminAiStatsPage() {
     setError('');
 
     try {
-      const list = await getAllUsers();
+      const listPromise = getAllUsers();
+      const list = manual
+        ? (await Promise.all([
+            listPromise,
+            new Promise((resolve) => { setTimeout(resolve, MIN_REFRESH_SPIN_MS); }),
+          ]))[0]
+        : await listPromise;
+
       setUsers(sortUsersForStats(list.map(enrichUserProfile)));
     } catch (err) {
       setError(err?.message || 'Не удалось загрузить статистику');
@@ -75,12 +84,13 @@ export default function AdminAiStatsPage() {
           <button
             type="button"
             onClick={handleRefresh}
-            disabled={loading || isRefreshing}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-900 transition hover:bg-black/[0.04] active:bg-black/[0.06] disabled:opacity-40"
+            disabled={loading}
+            aria-busy={isRefreshing || undefined}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-900 transition hover:bg-black/[0.04] active:bg-black/[0.06] disabled:opacity-40 ${isRefreshing ? 'pointer-events-none' : ''}`}
             aria-label="Обновить статистику"
           >
             <RotateCw
-              className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`}
+              className={`h-5 w-5 origin-center ${isRefreshing ? 'animate-[spin_0.75s_linear_infinite]' : ''}`}
               strokeWidth={2}
               aria-hidden
             />
