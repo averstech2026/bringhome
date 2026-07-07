@@ -4,7 +4,7 @@ import ItemDetailsModal from './ItemDetailsModal';
 import QuantityStepper from './QuantityStepper';
 import { UserAvatar } from '../profile/UserAvatar';
 import { getQuantityDisplay } from '../../utils/quantity';
-import { saveLearnedCategory } from '../../utils/productCategoryMap';
+import { learnProducts } from '../../utils/productLearning';
 import { formatBookerLabel } from '../../utils/booking';
 import {
   toggleItem,
@@ -74,7 +74,7 @@ export default function ItemRow({
     }
 
     if (category && category !== item.category) {
-      saveLearnedCategory(item.name, category);
+      learnProducts([{ name: item.name, category, quantity: item.quantity }]).catch(() => {});
       if (onCategoryChange) {
         onCategoryChange(item.id, category);
       } else {

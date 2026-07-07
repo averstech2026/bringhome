@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUserProfile } from '../hooks/useUserProfile';
@@ -6,10 +6,12 @@ import { getUserPhotoUrl } from '../utils/userPhoto';
 import { useList } from '../hooks/useList';
 import { useItems } from '../hooks/useItems';
 import { useListDraft, toDraftItem } from '../hooks/useListDraft';
+import { usePendingListItems, isPendingListItem } from '../hooks/usePendingListItems';
+import { mergeItemsBatch } from '../utils/mergeItems';
 import { decodeListTypeFromUrl, encodeListTypeForUrl } from '../services/listsService';
 import ListDescriptionModal, { ListDescriptionButton } from '../components/list/ListDescriptionModal';
 import ScreenTopPanel, { ScreenTopBar } from '../components/layout/ScreenTopPanel';
-import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, syncListStatus, clearAllListItems, updateList, updateItemsBookingBatch } from '../services/listsService';
+import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, syncListStatus, clearAllListItems, updateList, updateItemsBookingBatch, addItemsBatch, toggleItem, updateItemQuantity, updateItemCategory, updateItemComment, updateItemBooking, deleteItem } from '../services/listsService';
 import { groupItemsByCategory, getListProgress } from '../utils/groupByCategory';
 import StatusBar from '../components/list/StatusBar';
 import CategoryGroup from '../components/list/CategoryGroup';
@@ -61,6 +63,20 @@ export default function ListPage() {
     persistWithItems,
   } = useListDraft(listType);
 
+  const {
+    pendingItems,
+    resetPendingItems,
+    mergePendingItems,
+    togglePendingItem,
+    updatePendingItemQuantity,
+    removePendingItem,
+    updatePendingItemCategory,
+    updatePendingItemComment,
+    updatePendingItemBooking,
+    updatePendingCategoryBooking,
+  } = usePendingListItems();
+
+  const [savingChanges, setSavingChanges] = useState(false);
   const [accessError, setAccessError] = useState(null);
   const [accessChecked, setAccessChecked] = useState(false);
   const [accessForListId, setAccessForListId] = useState(null);
@@ -122,14 +138,40 @@ export default function ListPage() {
     };
   }, [listId, user, isDraft, isArchivedView]);
 
+  useEffect(() => {
+    resetPendingItems();
+  }, [listId, resetPendingItems]);
+
+  const deferAdds = !isDraft && !isArchivedView;
+  const isEditMode = deferAdds;
+
   const activeList = isDraft ? draftList : list;
-  const items = isDraft ? draftItems : liveItems;
+  const displayItems = useMemo(() => {
+    if (isDraft) return draftItems;
+    if (deferAdds) return mergeItemsBatch(liveItems, pendingItems);
+    return liveItems;
+  }, [isDraft, deferAdds, draftItems, liveItems, pendingItems]);
+
+  const items = displayItems;
   const loading = isDraft ? false : !accessChecked || listLoading || itemsLoading;
 
-  if (location.state?.highlightShareLink) {
-    shareHighlightPendingRef.current = true;
-    suppressAiEntryGlowRef.current = true;
-  }
+  const isDirty = isDraft
+    ? draftItems.length > 0
+    : isEditMode && pendingItems.length > 0;
+
+  const scrollToShareAndHighlight = useCallback(() => {
+    window.setTimeout(() => {
+      shareLinkRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setIsHighlighting(true);
+    }, 200);
+  }, []);
+
+  useEffect(() => {
+    if (location.state?.highlightShareLink) {
+      shareHighlightPendingRef.current = true;
+      suppressAiEntryGlowRef.current = true;
+    }
+  }, [location.state?.highlightShareLink]);
 
   const grouped = groupItemsByCategory(items);
   const { allDone, total } = getListProgress(items);
@@ -138,8 +180,7 @@ export default function ListPage() {
     if (isDraft || loading || !list || !shareHighlightPendingRef.current) return undefined;
 
     const scrollTimer = setTimeout(() => {
-      shareLinkRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setIsHighlighting(true);
+      scrollToShareAndHighlight();
       shareHighlightPendingRef.current = false;
       if (location.state?.highlightShareLink) {
         navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
@@ -147,7 +188,7 @@ export default function ListPage() {
     }, 200);
 
     return () => clearTimeout(scrollTimer);
-  }, [isDraft, loading, list, location.pathname, location.search, location.state, navigate]);
+  }, [isDraft, loading, list, location.pathname, location.search, location.state, navigate, scrollToShareAndHighlight]);
 
   useEffect(() => {
     if (!isHighlighting) return undefined;
@@ -155,8 +196,25 @@ export default function ListPage() {
     return () => clearTimeout(timer);
   }, [isHighlighting]);
 
+  const handlePendingManualAdd = async (itemData) => {
+    try {
+      await saveToProductHistory(user.uid, itemData.name, itemData.quantity);
+    } catch {
+      // История продуктов — вспомогательная, не блокирует добавление
+    }
+    mergePendingItems([toDraftItem(itemData)]);
+  };
+
+  const handlePendingAiAdd = async (products) => {
+    mergePendingItems(products.map((product) => toDraftItem(product)));
+  };
+
   const handleDraftManualAdd = async (itemData) => {
-    await saveToProductHistory(user.uid, itemData.name, itemData.quantity);
+    try {
+      await saveToProductHistory(user.uid, itemData.name, itemData.quantity);
+    } catch {
+      // История продуктов — вспомогательная, не блокирует добавление
+    }
     const newItem = toDraftItem(itemData);
     mergeDraftItems([newItem]);
   };
@@ -167,9 +225,78 @@ export default function ListPage() {
       return;
     }
 
+    if (deferAdds) {
+      const pendingIds = itemIds.filter(isPendingListItem);
+      const liveIds = itemIds.filter((id) => !isPendingListItem(id));
+
+      if (pendingIds.length > 0) {
+        updatePendingCategoryBooking(category, bookedBy, displayName);
+      }
+
+      if (liveIds.length > 0) {
+        await updateItemsBookingBatch(liveIds.map((itemId) => ({ itemId, bookedBy })));
+      }
+      return;
+    }
+
     await updateItemsBookingBatch(
       itemIds.map((itemId) => ({ itemId, bookedBy })),
     );
+  };
+
+  const handleDeferredToggle = async (itemId, name) => {
+    if (isPendingListItem(itemId)) {
+      togglePendingItem(itemId, name);
+      return;
+    }
+
+    const item = items.find((entry) => entry.id === itemId);
+    if (!item) return;
+
+    await toggleItem(itemId, {
+      checked: !item.checked,
+      checkedBy: name,
+    });
+  };
+
+  const handleDeferredQuantityChange = async (itemId, quantity) => {
+    if (isPendingListItem(itemId)) {
+      updatePendingItemQuantity(itemId, quantity);
+      return;
+    }
+    await updateItemQuantity(itemId, quantity);
+  };
+
+  const handleDeferredRemove = async (itemId) => {
+    if (isPendingListItem(itemId)) {
+      removePendingItem(itemId);
+      return;
+    }
+    await deleteItem(itemId);
+  };
+
+  const handleDeferredCategoryChange = async (itemId, category) => {
+    if (isPendingListItem(itemId)) {
+      updatePendingItemCategory(itemId, category);
+      return;
+    }
+    await updateItemCategory(itemId, category);
+  };
+
+  const handleDeferredCommentChange = async (itemId, comment) => {
+    if (isPendingListItem(itemId)) {
+      updatePendingItemComment(itemId, comment);
+      return;
+    }
+    await updateItemComment(itemId, comment);
+  };
+
+  const handleDeferredBookingToggle = async (itemId, bookedBy) => {
+    if (isPendingListItem(itemId)) {
+      updatePendingItemBooking(itemId, bookedBy);
+      return;
+    }
+    await updateItemBooking(itemId, bookedBy);
   };
 
   const handleDraftAiAdd = async (products) => {
@@ -183,6 +310,9 @@ export default function ListPage() {
       if (isDraft) {
         clearDraftItems();
       } else {
+        if (deferAdds) {
+          resetPendingItems();
+        }
         await clearAllListItems(listId);
       }
     } catch (err) {
@@ -194,6 +324,40 @@ export default function ListPage() {
 
   const handleCreateList = async () => {
     await persistWithItems(user.uid, draftItems);
+  };
+
+  const handleSaveChanges = async () => {
+    if (!listId || pendingItems.length === 0) return;
+
+    setSavingChanges(true);
+    try {
+      await addItemsBatch(
+        listId,
+        pendingItems.map(({ name, quantity, category, comment, checked, checkedBy, bookedBy }) => ({
+          name,
+          quantity,
+          category,
+          comment,
+          checked,
+          checkedBy,
+          bookedBy,
+        })),
+      );
+      resetPendingItems();
+      scrollToShareAndHighlight();
+    } catch (err) {
+      window.alert(err?.message || 'Не удалось сохранить изменения');
+    } finally {
+      setSavingChanges(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (isDraft) {
+      await handleCreateList();
+      return;
+    }
+    await handleSaveChanges();
   };
 
   const handleRepeatConfirm = async (type) => {
@@ -243,7 +407,31 @@ export default function ListPage() {
 
   const listDescription = isDraft ? draftDescription : list?.description || '';
 
-  const showFooter = isDraft || isArchivedView;
+  const showFooter = isDraft || isArchivedView || isEditMode;
+  const saveBusy = persisting || savingChanges;
+  const saveLabel = isDraft
+    ? (persisting ? 'Создаём…' : 'Создать список')
+    : (savingChanges ? 'Сохраняем…' : 'Сохранить изменения');
+
+  const itemHandlers = isDraft
+    ? {
+        onToggle: toggleDraftItem,
+        onQuantityChange: updateDraftItemQuantity,
+        onRemove: removeDraftItem,
+        onCategoryChange: updateDraftItemCategory,
+        onCommentChange: updateDraftItemComment,
+        onBookingToggle: updateDraftItemBooking,
+      }
+    : deferAdds
+      ? {
+          onToggle: handleDeferredToggle,
+          onQuantityChange: handleDeferredQuantityChange,
+          onRemove: handleDeferredRemove,
+          onCategoryChange: handleDeferredCategoryChange,
+          onCommentChange: handleDeferredCommentChange,
+          onBookingToggle: handleDeferredBookingToggle,
+        }
+      : {};
 
   if (loading) {
     return (
@@ -335,7 +523,7 @@ export default function ListPage() {
         <StatusBar
           items={items}
           onClear={!isArchivedView ? handleClearList : undefined}
-          clearing={clearing || persisting}
+          clearing={clearing || persisting || savingChanges}
         />
 
         <div className={`${CARD_SURFACE} ${CARD_PAD_V}`}>
@@ -358,14 +546,14 @@ export default function ListPage() {
                   userPhotoUrl={userPhotoUrl}
                   isFirst={index === 0}
                   readOnly={isArchivedView}
-                  onToggle={isDraft ? toggleDraftItem : undefined}
-                  onQuantityChange={isDraft ? updateDraftItemQuantity : undefined}
-                  onRemove={isDraft ? removeDraftItem : undefined}
-                  onCategoryChange={isDraft ? updateDraftItemCategory : undefined}
-                  onCommentChange={isDraft ? updateDraftItemComment : undefined}
-                  onBookingToggle={isDraft ? updateDraftItemBooking : undefined}
+                  onToggle={itemHandlers.onToggle}
+                  onQuantityChange={itemHandlers.onQuantityChange}
+                  onRemove={itemHandlers.onRemove}
+                  onCategoryChange={itemHandlers.onCategoryChange}
+                  onCommentChange={itemHandlers.onCommentChange}
+                  onBookingToggle={itemHandlers.onBookingToggle}
                   onCategoryBooking={!isArchivedView ? handleCategoryBooking : undefined}
-                  disabled={persisting}
+                  disabled={persisting || savingChanges}
                 />
               ))}
             </div>
@@ -375,19 +563,19 @@ export default function ListPage() {
         {!isArchivedView && (
           <>
             <AddItemForm
-              listId={isDraft ? null : listId}
+              listId={isDraft || deferAdds ? null : listId}
               userId={user.uid}
               listItems={items}
-              isDraft={isDraft}
-              onDraftAdd={handleDraftManualAdd}
-              disabled={persisting}
+              isDraft={isDraft || deferAdds}
+              onDraftAdd={isDraft ? handleDraftManualAdd : handlePendingManualAdd}
+              disabled={persisting || savingChanges}
             />
 
             <AiInput
-              listId={isDraft ? null : listId}
-              isDraft={isDraft}
-              onDraftAdd={handleDraftAiAdd}
-              disabled={persisting}
+              listId={isDraft || deferAdds ? null : listId}
+              isDraft={isDraft || deferAdds}
+              onDraftAdd={isDraft ? handleDraftAiAdd : handlePendingAiAdd}
+              disabled={persisting || savingChanges}
               showEntryGlow={!suppressAiEntryGlowRef.current}
             />
 
@@ -407,16 +595,7 @@ export default function ListPage() {
 
       {showFooter && (
         <footer className={`fixed bottom-0 left-1/2 z-30 w-full max-w-lg -translate-x-1/2 border-t border-gray-200/60 bg-[#f5f5f7]/95 backdrop-blur-md ${PAGE_X} py-4`}>
-          {isDraft ? (
-            <button
-              type="button"
-              onClick={handleCreateList}
-              className={`${PRIMARY_BTN} disabled:cursor-not-allowed`}
-              disabled={persisting || items.length === 0}
-            >
-              {persisting ? 'Создаём…' : 'Создать список'}
-            </button>
-          ) : (
+          {isArchivedView ? (
             <button
               type="button"
               onClick={() => setRepeatOpen(true)}
@@ -424,6 +603,15 @@ export default function ListPage() {
               disabled={repeatBusy}
             >
               Повторить список
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSave}
+              className={`${PRIMARY_BTN} disabled:cursor-not-allowed`}
+              disabled={saveBusy || !isDirty}
+            >
+              {saveLabel}
             </button>
           )}
         </footer>

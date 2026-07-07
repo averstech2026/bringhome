@@ -7,6 +7,8 @@ export function UserAvatar({ photoUrl, name, className = 'h-9 w-9 text-sm', vari
     'bg-gradient-to-br from-slate-500 to-slate-700 font-bold text-white shadow-md ring-1 ring-white/50';
   const defaultInitial =
     'bg-gradient-to-br from-slate-600 to-slate-800 font-semibold text-white';
+  const softInitial =
+    'bg-slate-100 font-bold text-slate-600';
 
   const photoFilter =
     variant === 'checkbox'
@@ -26,7 +28,13 @@ export function UserAvatar({ photoUrl, name, className = 'h-9 w-9 text-sm', vari
   }
 
   const initialClass =
-    variant === 'checkbox' ? checkboxInitial : variant === 'vivid' ? vividInitial : defaultInitial;
+    variant === 'checkbox'
+      ? checkboxInitial
+      : variant === 'vivid'
+        ? vividInitial
+        : variant === 'soft'
+          ? softInitial
+          : defaultInitial;
 
   return (
     <div

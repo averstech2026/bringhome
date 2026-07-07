@@ -92,5 +92,14 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
+
+    match /custom_products_dictionary/{productId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn()
+        && request.resource.data.keys().hasAll(['name', 'category', 'unit'])
+        && request.resource.data.name is string
+        && request.resource.data.category is string
+        && request.resource.data.unit is string;
+    }
   }
 }

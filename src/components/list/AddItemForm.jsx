@@ -6,12 +6,18 @@ import {
   getProductHistoryUnit,
   saveToProductHistory,
 } from '../../services/listsService';
+import {
+  lookupCustomProduct,
+  findPartialCustomProductMatch,
+} from '../../services/customProductsDictionaryService';
+import { useCustomProductsDictionary } from '../../hooks/useCustomProductsDictionary';
 import { CATEGORIES, CATEGORY_EMOJI, detectCategory } from '../../utils/categories';
 import { getLearnedCategory } from '../../utils/productCategoryMap';
-import { saveLearnedUnit } from '../../utils/productUnitMap';
+import { learnProducts } from '../../utils/productLearning';
 import { getRecommendedUnit, hasDictionaryUnitHint } from '../../utils/recommendedUnit';
 import { mergeAutocompleteSuggestions } from '../../utils/productAutocomplete';
 import { formatQuantity, parseQuantity } from '../../utils/quantity';
+import { normalizeItemName } from '../../utils/mergeItems';
 import { CARD_SURFACE, CARD_PAD_V, INPUT_PLACEHOLDER } from './cardStyles';
 import QuantityStepper from './QuantityStepper';
 
@@ -19,7 +25,7 @@ const NAME_INPUT_CONTAINER =
   'flex w-full min-w-0 items-center rounded-xl border border-gray-200/90 bg-white px-2.5 py-1 transition-colors focus-within:border-emerald-400 focus-within:shadow-[0_0_0_3px_rgba(16,185,129,0.08)]';
 
 const SUBMIT_BTN =
-  'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-emerald-500 bg-emerald-500 text-white shadow-[0_2px_8px_rgba(16,185,129,0.3)] transition-all duration-200 hover:border-emerald-600 hover:bg-emerald-600 hover:shadow-[0_4px_14px_rgba(16,185,129,0.38)] active:scale-95 disabled:border-emerald-200 disabled:bg-emerald-200/60 disabled:text-white/70 disabled:shadow-none disabled:hover:bg-emerald-200/60 disabled:active:scale-100';
+  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-100 bg-emerald-100/50 text-emerald-600 shadow-none transition-all duration-150 enabled:border-transparent enabled:bg-emerald-500 enabled:text-white enabled:shadow-[0_4px_14px_rgba(16,185,129,0.3)] enabled:hover:bg-emerald-600 enabled:hover:shadow-[0_6px_20px_rgba(16,185,129,0.38)] active:scale-95 enabled:active:scale-[0.95] disabled:border-transparent disabled:bg-emerald-50/60 disabled:text-emerald-300 disabled:shadow-none disabled:hover:bg-emerald-50/60 disabled:active:scale-100';
 
 export default function AddItemForm({
   listId,
@@ -41,6 +47,18 @@ export default function AddItemForm({
   const categoryChipRefs = useRef({});
   const unitManualRef = useRef(false);
   const autoUnitAppliedForRef = useRef('');
+  const categoryRef = useRef(category);
+  const categoryAutoRef = useRef(categoryAuto);
+
+  useCustomProductsDictionary();
+
+  useEffect(() => {
+    categoryRef.current = category;
+  }, [category]);
+
+  useEffect(() => {
+    categoryAutoRef.current = categoryAuto;
+  }, [categoryAuto]);
 
   useEffect(() => {
     const handlePointerDown = (e) => {
@@ -52,16 +70,50 @@ export default function AddItemForm({
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, []);
 
-  const resolveCategory = (productName) => getLearnedCategory(productName) || detectCategory(productName);
+  const shouldApplyDictionaryCategory = (exact) => {
+    if (exact) return true;
+    return categoryAutoRef.current || categoryRef.current === 'Прочее';
+  };
 
-  const applyDetectedCategory = (productName) => {
-    const detected = resolveCategory(productName);
+  const applyDictionaryUnit = (productName, entry) => {
+    if (!entry?.unit || unitManualRef.current) return;
+
+    const trimmed = productName.trim();
+    const { count } = parseQuantity(quantity);
+    setQuantity(formatQuantity(count, entry.unit));
+    autoUnitAppliedForRef.current = normalizeItemName(trimmed);
+  };
+
+  const applySmartDefaults = (productName, { forceCategory = false } = {}) => {
+    const trimmed = productName.trim();
+    if (!trimmed) return;
+
+    const exact = lookupCustomProduct(trimmed);
+    const partial = exact ? null : findPartialCustomProductMatch(trimmed);
+    const dictEntry = exact || partial;
+
+    if (dictEntry?.category && (forceCategory || shouldApplyDictionaryCategory(Boolean(exact)))) {
+      setCategory(dictEntry.category);
+      setCategoryAuto(true);
+      applyDictionaryUnit(trimmed, dictEntry);
+      return;
+    }
+
+    if (!forceCategory && !categoryAutoRef.current && categoryRef.current !== 'Прочее') {
+      if (dictEntry) applyDictionaryUnit(trimmed, dictEntry);
+      return;
+    }
+
+    const detected = getLearnedCategory(trimmed) || detectCategory(trimmed);
     if (detected) {
       setCategory(detected);
       setCategoryAuto(true);
-      return;
+    } else if (forceCategory) {
+      setCategory('Прочее');
+      setCategoryAuto(false);
+    } else {
+      setCategoryAuto((wasAuto) => (wasAuto ? false : wasAuto));
     }
-    setCategoryAuto((wasAuto) => (wasAuto ? false : wasAuto));
   };
 
   const applyRecommendedUnit = async (productName) => {
@@ -113,7 +165,7 @@ export default function AddItemForm({
       autoUnitAppliedForRef.current = '';
     }
 
-    applyDetectedCategory(value);
+    applySmartDefaults(value);
 
     if (hasDictionaryUnitHint(value)) {
       applyRecommendedUnit(value);
@@ -137,15 +189,19 @@ export default function AddItemForm({
   };
 
   const selectSuggestion = (suggestion) => {
-    setName(suggestion);
+    const normalized = normalizeItemName(suggestion);
+    setName(normalized);
     setShowSuggestions(false);
-    applyDetectedCategory(suggestion);
-    applyRecommendedUnit(suggestion);
+    applySmartDefaults(normalized, { forceCategory: true });
+    applyRecommendedUnit(normalized);
   };
 
   const handleNameBlur = () => {
     if (name.trim()) {
-      applyRecommendedUnit(name);
+      const normalized = normalizeItemName(name);
+      if (normalized !== name) setName(normalized);
+      applySmartDefaults(normalized);
+      applyRecommendedUnit(normalized);
     }
   };
 
@@ -171,7 +227,7 @@ export default function AddItemForm({
     setSubmitError('');
     try {
       const itemData = {
-        name: name.trim(),
+        name: normalizeItemName(name),
         quantity,
         category,
       };
@@ -180,12 +236,15 @@ export default function AddItemForm({
         await onDraftAdd?.(itemData);
       } else {
         await addItem(listId, itemData);
-        await saveToProductHistory(userId, itemData.name, itemData.quantity);
+        try {
+          await saveToProductHistory(userId, itemData.name, itemData.quantity);
+        } catch {
+          // не блокируем добавление
+        }
       }
 
-      saveLearnedUnit(itemData.name, itemData.quantity);
-
       resetForm();
+      learnProducts([itemData]).catch(() => {});
     } catch (err) {
       setSubmitError(err?.message || 'Не удалось добавить товар');
     } finally {
@@ -196,9 +255,9 @@ export default function AddItemForm({
   return (
     <form onSubmit={handleSubmit}>
       <div ref={wrapperRef} className={`${CARD_SURFACE} ${CARD_PAD_V}`}>
-        <div className="flex w-full items-center px-3 py-2">
-          <div className="min-w-0 flex-1 pr-3">
-            <div className="relative min-w-0">
+        <div className="flex flex-col gap-3 px-3 py-2">
+          <div className="flex w-full min-w-0 items-center gap-2">
+            <div className="relative min-w-0 flex-1">
               <div className={NAME_INPUT_CONTAINER}>
                 <input
                   type="text"
@@ -208,7 +267,7 @@ export default function AddItemForm({
                   onBlur={handleNameBlur}
                   onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
                   disabled={disabled || loading}
-                  className={`w-full bg-transparent text-left text-sm text-gray-900 outline-none disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
+                  className={`w-full min-w-0 bg-transparent text-left text-sm text-gray-900 outline-none disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
                 />
               </div>
               {showSuggestions && (
@@ -219,61 +278,64 @@ export default function AddItemForm({
                         type="button"
                         onPointerDown={(e) => e.preventDefault()}
                         onClick={() => selectSuggestion(s)}
-                        className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-gray-50 active:bg-gray-100"
+                        className="w-full px-4 py-2.5 text-left text-sm lowercase text-slate-700 hover:bg-gray-50 active:bg-gray-100"
                       >
-                        {s}
+                        {normalizeItemName(s)}
                       </button>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
+
+            <button
+              type="submit"
+              disabled={loading || disabled || !name.trim()}
+              className={SUBMIT_BTN}
+              aria-label="Добавить товар"
+            >
+              <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
+            </button>
           </div>
 
-          <QuantityStepper
-            quantity={quantity}
-            disabled={disabled || loading}
-            onChange={handleQuantityChange}
-          />
+          {submitError && <p className="text-sm text-red-500">{submitError}</p>}
 
-          <button
-            type="submit"
-            disabled={loading || disabled || !name.trim()}
-            className={`ml-3 shrink-0 ${SUBMIT_BTN}`}
-            aria-label="Добавить товар"
-          >
-            <Plus className="h-3.5 w-3.5 stroke-[2.5]" aria-hidden />
-          </button>
-        </div>
+          <div className="flex min-w-0 items-center gap-2">
+            <QuantityStepper
+              quantity={quantity}
+              disabled={disabled || loading}
+              onChange={handleQuantityChange}
+              className="!ml-0 shrink-0"
+            />
 
-        {submitError && <p className="px-3 text-sm text-red-500">{submitError}</p>}
-
-        <div className="relative min-w-0 px-3 pb-2 pt-1">
-          <div className="flex flex-row items-center gap-2 overflow-x-auto whitespace-nowrap py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {CATEGORIES.map((c) => {
-              const isActive = category === c;
-              return (
-                <button
-                  key={c}
-                  ref={(el) => {
-                    categoryChipRefs.current[c] = el;
-                  }}
-                  type="button"
-                  onClick={() => handleCategoryChange(c)}
-                  disabled={disabled || loading}
-                  aria-pressed={isActive}
-                  className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
-                    isActive
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-slate-50 text-slate-500 hover:bg-slate-100/80'
-                  }`}
-                >
-                  {CATEGORY_EMOJI[c]} {c}
-                </button>
-              );
-            })}
+            <div className="relative min-w-0 flex-1">
+              <div className="flex flex-row items-center gap-2 overflow-x-auto whitespace-nowrap py-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {CATEGORIES.map((c) => {
+                  const isActive = category === c;
+                  return (
+                    <button
+                      key={c}
+                      ref={(el) => {
+                        categoryChipRefs.current[c] = el;
+                      }}
+                      type="button"
+                      onClick={() => handleCategoryChange(c)}
+                      disabled={disabled || loading}
+                      aria-pressed={isActive}
+                      className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+                        isActive
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-slate-50 text-slate-500 hover:bg-slate-100/80'
+                      }`}
+                    >
+                      {CATEGORY_EMOJI[c]} {c}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="pointer-events-none absolute bottom-0 right-0 top-0 w-6 bg-gradient-to-r from-transparent to-white" />
+            </div>
           </div>
-          <div className="pointer-events-none absolute bottom-0 right-0 top-0 w-8 bg-gradient-to-r from-transparent to-white" />
         </div>
       </div>
     </form>

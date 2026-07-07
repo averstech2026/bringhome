@@ -28,6 +28,7 @@ export default {
     try {
       const body = await request.json();
       const text = String(body.text || '').trim();
+      const customDictionary = Array.isArray(body.customDictionary) ? body.customDictionary : [];
 
       if (!text) {
         return Response.json(
@@ -39,6 +40,7 @@ export default {
       const products = await callYandexGpt(text, {
         apiKey: env.YANDEX_API_KEY,
         folderId: env.YANDEX_FOLDER_ID,
+        customDictionary,
       });
 
       return Response.json({ products }, { headers });

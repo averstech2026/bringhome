@@ -1,6 +1,7 @@
 import { normalizeItemName } from './mergeItems';
 import { parseQuantity } from './quantity';
 import { getLearnedUnit } from './productUnitMap';
+import { lookupCustomProduct } from '../services/customProductsDictionaryService';
 
 const HERB_ROOTS = [
   'петруш', 'укроп', 'кинз', 'базилик', 'сельдер', 'шпинат', 'руккол', 'салат',
@@ -57,6 +58,9 @@ export function getRecommendedUnit(name, { listItems = [], firestoreUnit = null 
 
   const fromList = findUnitInListItems(listItems, trimmed);
   if (fromList) return fromList;
+
+  const fromDictionary = lookupCustomProduct(trimmed);
+  if (fromDictionary?.unit) return fromDictionary.unit;
 
   if (firestoreUnit) return firestoreUnit;
 

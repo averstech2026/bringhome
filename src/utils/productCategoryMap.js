@@ -1,5 +1,6 @@
 import { normalizeItemName } from './mergeItems';
 import { CATEGORY_ORDER, detectCategory } from './categories';
+import { lookupCustomProduct } from '../services/customProductsDictionaryService';
 
 const STORAGE_KEY = 'bringhome_product_categories';
 
@@ -12,9 +13,16 @@ function loadMap() {
   }
 }
 
-export function getLearnedCategory(productName) {
+export function getLocalLearnedCategory(productName) {
   const map = loadMap();
   return map[normalizeItemName(productName)] || null;
+}
+
+export function getLearnedCategory(productName) {
+  const fromDictionary = lookupCustomProduct(productName);
+  if (fromDictionary?.category) return fromDictionary.category;
+
+  return getLocalLearnedCategory(productName);
 }
 
 export function saveLearnedCategory(productName, category) {

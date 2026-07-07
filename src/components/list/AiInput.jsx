@@ -3,6 +3,12 @@ import { useLocation } from 'react-router-dom';
 import { ClipboardPaste } from 'lucide-react';
 import { parseProductsWithAI } from '../../services/aiService';
 import { addItemsBatch } from '../../services/listsService';
+import {
+  ensureDictionaryLoaded,
+  getDictionaryCache,
+} from '../../services/customProductsDictionaryService';
+import { useCustomProductsDictionary } from '../../hooks/useCustomProductsDictionary';
+import { learnProducts } from '../../utils/productLearning';
 import AiPreviewModal from './AiPreviewModal';
 import BorderGapCard from './BorderGapCard';
 import { HINT_TEXT, INPUT_PLACEHOLDER } from './cardStyles';
@@ -50,6 +56,12 @@ export default function AiInput({
   const sectionRef = useRef(null);
   const textareaRef = useRef(null);
   const location = useLocation();
+
+  useCustomProductsDictionary();
+
+  useEffect(() => {
+    ensureDictionaryLoaded().catch(() => {});
+  }, []);
 
   const focusTextareaForManualPaste = () => {
     const textarea = textareaRef.current;
@@ -117,7 +129,9 @@ export default function AiInput({
     setPreviewItems([]);
 
     try {
-      const products = await parseProductsWithAI(text);
+      await ensureDictionaryLoaded();
+      const customDictionary = Object.values(getDictionaryCache());
+      const products = await parseProductsWithAI(text, { customDictionary });
       if (products.length === 0) {
         setError('Не удалось распознать продукты');
         return;
@@ -188,6 +202,8 @@ export default function AiInput({
       } else {
         await addItemsBatch(listId, products);
       }
+
+      await learnProducts(products, { respectExisting: true });
 
       setPreviewItems([]);
       setSelectedIds(new Set());

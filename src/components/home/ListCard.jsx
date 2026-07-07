@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { CheckCircle2 } from 'lucide-react';
 import {
   CARD_SURFACE,
   CARD_PAD,
@@ -117,10 +118,22 @@ function ListStatusMeta({ list, progress, customBadge, authorsById, showCompleti
   return (
     <div className="flex shrink-0 items-center justify-end gap-2">
       {(completionDateLabel || total > 0) && (
-        <span className="shrink-0 whitespace-nowrap text-xs font-medium tabular-nums text-slate-400">
-          {completionDateLabel}
+        <span className="flex shrink-0 items-center justify-end gap-2 whitespace-nowrap text-xs font-medium tabular-nums text-slate-400">
+          {completionDateLabel && (
+            <span
+              className="inline-flex items-center gap-1"
+              title={`Завершено ${completionDateLabel}`}
+            >
+              <CheckCircle2
+                className="h-3.5 w-3.5 shrink-0 text-slate-400"
+                strokeWidth={2}
+                aria-hidden
+              />
+              <span>{completionDateLabel}</span>
+            </span>
+          )}
           {completionDateLabel && total > 0 && (
-            <span className="mx-1.5 text-slate-300" aria-hidden>
+            <span className="text-slate-300" aria-hidden>
               •
             </span>
           )}

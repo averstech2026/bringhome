@@ -136,3 +136,7 @@ export async function updateUserAvatar(user, file) {
   // Auth photoURL ограничен ~2048 символов — data URL обычно длиннее, храним только в Firestore
   return avatarUrl;
 }
+
+export async function removeUserAvatar(user) {
+  await updateDoc(doc(db, COLLECTIONS.USERS, user.uid), { avatarUrl: null });
+}

@@ -42,6 +42,7 @@ export async function handler(event) {
   try {
     const body = parseBody(event);
     const text = String(body.text || '').trim();
+    const customDictionary = Array.isArray(body.customDictionary) ? body.customDictionary : [];
 
     if (!text) {
       return {
@@ -54,6 +55,7 @@ export async function handler(event) {
     const products = await callYandexGpt(text, {
       apiKey: process.env.YANDEX_API_KEY,
       folderId: process.env.YANDEX_FOLDER_ID,
+      customDictionary,
     });
 
     return {

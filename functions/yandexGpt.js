@@ -10,8 +10,28 @@ const AI_CATEGORIES = [
   'Прочее',
 ];
 
-export const YANDEX_SYSTEM_PROMPT =
+export const YANDEX_SYSTEM_PROMPT_BASE =
   `Ты — строгое API для парсинга списка покупок. Извлеки продукты из текста сообщения и верни ответ СТРОГО в формате JSON-массива объектов. Каждая покупка должна быть объектом со следующими ключами: 'name' (название продукта, строка, с маленькой буквы), 'quantity' (число или строка, если указано количество), 'unit' (единица измерения: шт, кг, л, уп, пачка, пучок, бутылка, десяток, или пустая строка ''), 'category' (строго одно из значений: ${AI_CATEGORIES.join(', ')}). Зелень (укроп, петрушка, салат) — категория «Овощи и фрукты». Яйца — «Бакалея». Квас, сок, вода — «Напитки». Если количество не указано, запиши в quantity значение null. Выводи только чистый JSON-массив, без markdown-разметки, без пояснений и лишних символов.`;
+
+/** @deprecated используйте buildYandexSystemPrompt */
+export const YANDEX_SYSTEM_PROMPT = YANDEX_SYSTEM_PROMPT_BASE;
+
+export function buildYandexSystemPrompt(customDictionary = []) {
+  const entries = Array.isArray(customDictionary) ? customDictionary : [];
+  if (entries.length === 0) return YANDEX_SYSTEM_PROMPT_BASE;
+
+  const lines = entries
+    .filter((entry) => entry?.name && entry?.category)
+    .map((entry) => `${entry.name} → ${entry.category}${entry.unit ? ` (${entry.unit})` : ''}`)
+    .join('\n');
+
+  if (!lines) return YANDEX_SYSTEM_PROMPT_BASE;
+
+  return `${YANDEX_SYSTEM_PROMPT_BASE}
+
+Пользовательские соответствия (высший приоритет при выборе category и unit):
+${lines}`;
+}
 
 const YANDEX_COMPLETION_URL =
   'https://llm.api.cloud.yandex.net/foundationModels/v1/completion';
@@ -27,13 +47,15 @@ export function parseYandexJsonResponse(text) {
   return parsed;
 }
 
-export async function callYandexGpt(userText, { apiKey, folderId }) {
+export async function callYandexGpt(userText, { apiKey, folderId, customDictionary = [] } = {}) {
   if (!apiKey) {
     throw new Error('YANDEX_API_KEY не задан в .env');
   }
   if (!folderId) {
     throw new Error('YANDEX_FOLDER_ID не задан в .env');
   }
+
+  const systemPrompt = buildYandexSystemPrompt(customDictionary);
 
   const response = await fetch(YANDEX_COMPLETION_URL, {
     method: 'POST',
@@ -50,7 +72,7 @@ export async function callYandexGpt(userText, { apiKey, folderId }) {
         maxTokens: '2000',
       },
       messages: [
-        { role: 'system', text: YANDEX_SYSTEM_PROMPT },
+        { role: 'system', text: systemPrompt },
         { role: 'user', text: userText },
       ],
     }),
@@ -109,6 +131,7 @@ export function createYandexParseHandler(getConfig) {
           ? req.body
           : await readJsonBody(req);
       const text = String(body.text || '').trim();
+      const customDictionary = Array.isArray(body.customDictionary) ? body.customDictionary : [];
 
       if (!text) {
         res.statusCode = 400;
@@ -118,7 +141,7 @@ export function createYandexParseHandler(getConfig) {
       }
 
       const { apiKey, folderId } = getConfig();
-      const products = await callYandexGpt(text, { apiKey, folderId });
+      const products = await callYandexGpt(text, { apiKey, folderId, customDictionary });
 
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');

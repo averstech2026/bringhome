@@ -20,6 +20,10 @@ import { getStorage } from 'firebase/storage';
  *   id, userId, name
  * }
  *
+ * custom_products_dictionary: {
+ *   name, category, unit, updatedAt
+ * }
+ *
  * users: {
  *   email, displayName, role ("admin" | "user"), disabled,
  *   avatarUrl, createdAt, createdBy
@@ -64,6 +68,7 @@ export const COLLECTIONS = {
   LISTS: 'lists',
   ITEMS: 'items',
   PRODUCT_HISTORY: 'product_history',
+  CUSTOM_PRODUCTS_DICTIONARY: 'custom_products_dictionary',
   USERS: 'users',
   CONFIG: 'config',
 };

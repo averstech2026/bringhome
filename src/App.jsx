@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { WifiOff } from 'lucide-react';
 import { isFirebaseConfigured } from './firebase';
 import { useAuth } from './hooks/useAuth';
 import { useUserProfile } from './hooks/useUserProfile';
 import { isAppInitialized } from './services/usersService';
 import AuthGate from './components/auth/AuthGate';
 import AdminRoute from './components/auth/AdminRoute';
+import AiBadge from './components/layout/AiBadge';
 import HomePage from './pages/HomePage';
 import ListPage from './pages/ListPage';
 import AdminSetupPage from './pages/AdminSetupPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import SettingsPage from './pages/SettingsPage';
 import AppHeader from './components/layout/AppHeader';
-import { APP_BACKGROUND } from './components/list/cardStyles';
+import { APP_BACKGROUND, CARD_SURFACE, PRIMARY_BTN } from './components/list/cardStyles';
 
 function ConfigMissing() {
   return (
@@ -43,6 +45,45 @@ function AccessDenied({ message, onSignOut }) {
         >
           Выйти
         </button>
+      </div>
+    </div>
+  );
+}
+
+function InitCheckFailed({ onRetry, retrying }) {
+  return (
+    <div className={`flex min-h-full items-center justify-center px-4 ${APP_BACKGROUND}`}>
+      <div className={`w-full max-w-sm p-6 ${CARD_SURFACE}`}>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900">КупиДомой</h1>
+          <AiBadge />
+        </div>
+
+        <div className="mt-6 flex flex-col items-center text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-500">
+            <WifiOff className="h-7 w-7" strokeWidth={1.75} />
+          </div>
+          <h2 className="mt-4 text-lg font-semibold leading-snug text-slate-900">
+            Упс, кажется у нас проблема с подключением к базе
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-500">
+            Мы не смогли загрузить данные. Так бывает при слабом интернете — подождите немного и
+            попробуйте снова.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onRetry}
+          disabled={retrying}
+          className={`mt-6 ${PRIMARY_BTN}`}
+        >
+          {retrying ? 'Подключаемся…' : 'Попробовать снова'}
+        </button>
+
+        <p className="mt-4 text-center text-xs text-slate-400">
+          Если ошибка не исчезает, проверьте Wi‑Fi или мобильную сеть
+        </p>
       </div>
     </div>
   );
@@ -88,6 +129,8 @@ export default function App() {
   const { profile, loading: profileLoading, isDisabled } = useUserProfile(user);
   const [initialized, setInitialized] = useState(null);
   const [initLoading, setInitLoading] = useState(true);
+  const [initError, setInitError] = useState(false);
+  const [initRetry, setInitRetry] = useState(0);
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
@@ -95,10 +138,25 @@ export default function App() {
       return;
     }
 
+    let cancelled = false;
+    setInitLoading(true);
+    setInitError(false);
+
     isAppInitialized()
-      .then(setInitialized)
-      .finally(() => setInitLoading(false));
-  }, [user]);
+      .then((value) => {
+        if (!cancelled) setInitialized(value);
+      })
+      .catch(() => {
+        if (!cancelled) setInitError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setInitLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, initRetry]);
 
   if (!isFirebaseConfigured) {
     return <ConfigMissing />;
@@ -112,7 +170,16 @@ export default function App() {
     );
   }
 
-  if (!initialized) {
+  if (initError) {
+    return (
+      <InitCheckFailed
+        onRetry={() => setInitRetry((n) => n + 1)}
+        retrying={initLoading}
+      />
+    );
+  }
+
+  if (initialized === false) {
     return <AdminSetupPage />;
   }
 

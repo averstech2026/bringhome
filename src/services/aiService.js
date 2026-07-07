@@ -31,7 +31,7 @@ function normalizeYandexProduct(item) {
   };
 }
 
-export async function parseProductsWithAI(text) {
+export async function parseProductsWithAI(text, { customDictionary = [] } = {}) {
   const apiUrl = resolveYandexParseUrl();
 
   let response;
@@ -43,7 +43,7 @@ export async function parseProductsWithAI(text) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, customDictionary }),
     });
   } catch {
     throw new Error(

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createActualList, formatListTitle } from '../services/listsService';
-import { mergeItemsBatch } from '../utils/mergeItems';
+import { mergeItemsBatch, normalizeItemName } from '../utils/mergeItems';
 import { peekRepeatDraft, clearRepeatDraft } from '../utils/repeatDraftStorage';
 
 function createDraftId() {
@@ -14,7 +14,7 @@ function createDraftId() {
 export function toDraftItem(item) {
   return {
     id: createDraftId(),
-    name: item.name,
+    name: normalizeItemName(item.name),
     quantity: item.quantity || '1 шт',
     category: item.category || 'Прочее',
     comment: item.comment?.trim() || null,

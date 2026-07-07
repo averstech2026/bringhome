@@ -1,19 +1,31 @@
 import { POPULAR_PRODUCTS } from './popularProducts';
+import { normalizeItemName } from './mergeItems';
 
 /**
  * Объединяет историю пользователя и популярные продукты для автодополнения.
+ * Все подсказки — строго в нижнем регистре.
  */
 export function mergeAutocompleteSuggestions(input, historyNames = []) {
-  const lower = input.toLowerCase().trim();
+  const lower = normalizeItemName(input);
   if (lower.length < 2) return [];
 
-  const fromHistory = historyNames.filter((name) => name.toLowerCase().includes(lower));
-  const fromPopular = POPULAR_PRODUCTS.filter((name) => name.toLowerCase().includes(lower));
+  const seen = new Set();
+  const results = [];
 
-  return [...new Set([...fromHistory, ...fromPopular])]
+  const push = (rawName) => {
+    const name = normalizeItemName(rawName);
+    if (!name || !name.includes(lower) || seen.has(name)) return;
+    seen.add(name);
+    results.push(name);
+  };
+
+  historyNames.forEach(push);
+  POPULAR_PRODUCTS.forEach(push);
+
+  return results
     .sort((a, b) => {
-      const aStarts = a.toLowerCase().startsWith(lower);
-      const bStarts = b.toLowerCase().startsWith(lower);
+      const aStarts = a.startsWith(lower);
+      const bStarts = b.startsWith(lower);
       if (aStarts && !bStarts) return -1;
       if (!aStarts && bStarts) return 1;
       return a.localeCompare(b, 'ru');

@@ -328,7 +328,9 @@ export async function addItem(
   listId,
   { name, quantity = '1 шт', category = 'Прочее', comment = '' },
 ) {
-  const trimmedName = name.trim();
+  const trimmedName = normalizeItemName(name);
+  if (!trimmedName) return;
+
   const existingItems = await getListItems(listId);
   const existing = findActiveItemByName(existingItems, trimmedName);
 
@@ -428,7 +430,8 @@ export async function addItemsBatch(listId, items) {
   const pendingNew = [];
 
   for (const incoming of items) {
-    const trimmedName = incoming.name.trim();
+    const trimmedName = normalizeItemName(incoming.name);
+    if (!trimmedName) continue;
     const key = normalizeItemName(trimmedName);
     const quantity = incoming.quantity || '1 шт';
     const comment = incoming.comment?.trim() || null;
@@ -535,45 +538,50 @@ export async function searchProductHistory(userId, searchText) {
     where('userId', '==', userId),
   );
   const snapshot = await getDocs(q);
-  const lower = searchText.toLowerCase();
+  const lower = normalizeItemName(searchText);
 
-  return snapshot.docs
-    .map((d) => d.data().name)
-    .filter((name, index, arr) => arr.indexOf(name) === index)
-    .filter((name) => name.toLowerCase().includes(lower))
-    .sort((a, b) => a.localeCompare(b, 'ru'))
-    .slice(0, 8);
+  const seen = new Set();
+  const names = [];
+
+  snapshot.docs.forEach((d) => {
+    const name = normalizeItemName(d.data().name);
+    if (!name || !name.includes(lower) || seen.has(name)) return;
+    seen.add(name);
+    names.push(name);
+  });
+
+  return names.sort((a, b) => a.localeCompare(b, 'ru')).slice(0, 8);
 }
 
 export async function getProductHistoryUnit(userId, name) {
-  const trimmed = name.trim();
+  const trimmed = normalizeItemName(name);
   if (!trimmed) return null;
 
   const q = query(
     collection(db, COLLECTIONS.PRODUCT_HISTORY),
     where('userId', '==', userId),
-    where('name', '==', trimmed),
   );
   const snapshot = await getDocs(q);
-  if (snapshot.empty) return null;
+  const match = snapshot.docs.find((d) => normalizeItemName(d.data().name) === trimmed);
+  if (!match) return null;
 
-  const data = snapshot.docs[0].data();
+  const data = match.data();
   if (!data.quantity) return null;
 
   return parseQuantity(data.quantity).unit;
 }
 
 export async function saveToProductHistory(userId, name, quantity = null) {
-  const trimmed = name.trim();
+  const trimmed = normalizeItemName(name);
   if (!trimmed) return;
 
   const q = query(
     collection(db, COLLECTIONS.PRODUCT_HISTORY),
     where('userId', '==', userId),
-    where('name', '==', trimmed),
   );
   const existing = await getDocs(q);
-  if (!existing.empty) return;
+  const alreadySaved = existing.docs.some((d) => normalizeItemName(d.data().name) === trimmed);
+  if (alreadySaved) return;
 
   await addDoc(collection(db, COLLECTIONS.PRODUCT_HISTORY), {
     userId,

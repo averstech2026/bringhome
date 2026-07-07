@@ -5,19 +5,19 @@ import { PRIMARY_BTN } from './cardStyles';
 import { formatBookerLabel } from '../../utils/booking';
 
 const STATUS_BTN =
-  'flex min-h-[3.25rem] flex-1 items-center justify-center gap-2 rounded-full border border-transparent px-3 py-2.5 text-sm font-semibold shadow-md transition-all duration-150 active:scale-[0.98] disabled:cursor-default disabled:opacity-50';
+  'flex min-h-[3.25rem] flex-1 items-center justify-center gap-2 rounded-full border border-transparent px-3 py-2.5 text-sm font-semibold shadow-none transition-all duration-150 active:scale-[0.98] disabled:cursor-default disabled:opacity-50';
 
 const STATUS_BTN_BOUGHT_IDLE =
   'bg-slate-100 text-slate-600 hover:bg-slate-200';
 
 const STATUS_BTN_BOUGHT_ACTIVE =
-  'bg-emerald-500 text-white shadow-lg shadow-emerald-200/80 hover:bg-emerald-600';
+  'bg-emerald-500 text-white shadow-[0_2px_8px_rgba(16,185,129,0.2)] hover:bg-emerald-600';
 
 const STATUS_BTN_BOOKING_IDLE =
   'bg-indigo-50 text-indigo-600 hover:bg-indigo-100';
 
 const STATUS_BTN_BOOKING_ACTIVE =
-  'bg-indigo-500 text-white shadow-lg shadow-indigo-200/80 hover:bg-indigo-600';
+  'bg-indigo-500 text-white shadow-[0_2px_8px_rgba(99,102,241,0.22)] hover:bg-indigo-600';
 
 export default function ItemDetailsModal({
   open,
@@ -52,14 +52,20 @@ export default function ItemDetailsModal({
   const isMine = bookedBy && bookedBy === displayName;
   const isOther = bookedBy && bookedBy !== displayName;
 
-  const handleSave = () => {
-    onSave?.({
-      comment: comment.trim() || null,
-      bookedBy: checked ? null : bookedBy || null,
-      category,
-      checked,
-    });
+  const buildPayload = ({ nextChecked = checked, nextBookedBy = bookedBy } = {}) => ({
+    comment: comment.trim() || null,
+    bookedBy: nextChecked ? null : nextBookedBy || null,
+    category,
+    checked: nextChecked,
+  });
+
+  const persistAndClose = (payload) => {
+    onSave?.(payload);
     onClose?.();
+  };
+
+  const handleSave = () => {
+    persistAndClose(buildPayload());
   };
 
   const canEdit = !disabled && !readOnly;
@@ -67,16 +73,19 @@ export default function ItemDetailsModal({
 
   const handleToggleChecked = () => {
     if (!canEdit) return;
-    setChecked((prev) => {
-      const next = !prev;
-      if (next) setBookedBy(null);
-      return next;
-    });
+    const nextChecked = !checked;
+    persistAndClose(
+      buildPayload({
+        nextChecked,
+        nextBookedBy: nextChecked ? null : bookedBy,
+      }),
+    );
   };
 
   const handleToggleBooking = () => {
     if (!canEditMeta || isOther) return;
-    setBookedBy((prev) => (prev === displayName ? null : displayName));
+    const nextBookedBy = bookedBy === displayName ? null : displayName;
+    persistAndClose(buildPayload({ nextBookedBy }));
   };
 
   return (
