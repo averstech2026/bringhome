@@ -7,6 +7,7 @@ import { useList } from '../hooks/useList';
 import { useItems } from '../hooks/useItems';
 import { useListDraft, toDraftItem } from '../hooks/useListDraft';
 import { usePendingListItems, isPendingListItem } from '../hooks/usePendingListItems';
+import { usePendingListAccess } from '../hooks/usePendingListAccess';
 import { mergeItemsBatch } from '../utils/mergeItems';
 import { decodeListTypeFromUrl, encodeListTypeForUrl } from '../services/listsService';
 import ListDescriptionModal, { ListDescriptionButton } from '../components/list/ListDescriptionModal';
@@ -76,6 +77,15 @@ export default function ListPage() {
     updatePendingCategoryBooking,
   } = usePendingListItems();
 
+  const {
+    pendingAccess,
+    resetPendingAccess,
+    getEffectiveAccess,
+    isAccessDirty,
+    togglePendingPublic,
+    togglePendingMember,
+  } = usePendingListAccess();
+
   const [savingChanges, setSavingChanges] = useState(false);
   const [accessError, setAccessError] = useState(null);
   const [accessChecked, setAccessChecked] = useState(false);
@@ -140,12 +150,17 @@ export default function ListPage() {
 
   useEffect(() => {
     resetPendingItems();
-  }, [listId, resetPendingItems]);
+    resetPendingAccess();
+  }, [listId, resetPendingItems, resetPendingAccess]);
 
   const deferAdds = !isDraft && !isArchivedView;
   const isEditMode = deferAdds;
 
   const activeList = isDraft ? draftList : list;
+  const effectiveAccess = getEffectiveAccess(list);
+  const displayList = list
+    ? { ...list, isPublic: effectiveAccess.isPublic, allowedUsers: effectiveAccess.allowedUsers }
+    : list;
   const displayItems = useMemo(() => {
     if (isDraft) return draftItems;
     if (deferAdds) return mergeItemsBatch(liveItems, pendingItems);
@@ -157,7 +172,7 @@ export default function ListPage() {
 
   const isDirty = isDraft
     ? draftItems.length > 0
-    : isEditMode && pendingItems.length > 0;
+    : isEditMode && (pendingItems.length > 0 || isAccessDirty(list));
 
   const scrollToShareAndHighlight = useCallback(() => {
     window.setTimeout(() => {
@@ -327,23 +342,39 @@ export default function ListPage() {
   };
 
   const handleSaveChanges = async () => {
-    if (!listId || pendingItems.length === 0) return;
+    if (!listId || !list) return;
+
+    const hasItems = pendingItems.length > 0;
+    const hasAccess = isAccessDirty(list);
+    if (!hasItems && !hasAccess) return;
 
     setSavingChanges(true);
     try {
-      await addItemsBatch(
-        listId,
-        pendingItems.map(({ name, quantity, category, comment, checked, checkedBy, bookedBy }) => ({
-          name,
-          quantity,
-          category,
-          comment,
-          checked,
-          checkedBy,
-          bookedBy,
-        })),
-      );
-      resetPendingItems();
+      if (hasItems) {
+        await addItemsBatch(
+          listId,
+          pendingItems.map(({ name, quantity, category, comment, checked, checkedBy, bookedBy }) => ({
+            name,
+            quantity,
+            category,
+            comment,
+            checked,
+            checkedBy,
+            bookedBy,
+          })),
+        );
+        resetPendingItems();
+      }
+
+      if (hasAccess && pendingAccess) {
+        const allowedUsers = [...new Set([...pendingAccess.allowedUsers, list.createdBy])];
+        await updateList(listId, {
+          isPublic: pendingAccess.isPublic,
+          allowedUsers,
+        });
+        resetPendingAccess();
+      }
+
       scrollToShareAndHighlight();
     } catch (err) {
       window.alert(err?.message || 'Не удалось сохранить изменения');
@@ -491,7 +522,7 @@ export default function ListPage() {
               </div>
 
               <div className="ml-auto flex shrink-0 items-center gap-2">
-                {!isDraft && !isArchivedView && <ListAccessIcon list={activeList} />}
+                {!isDraft && !isArchivedView && <ListAccessIcon list={displayList || activeList} />}
                 <ListTypeBadge type={activeList.type} />
 
                 {isArchivedView && (
@@ -587,6 +618,11 @@ export default function ListPage() {
                 currentUserAvatarUrl={userPhotoUrl}
                 shareLinkRef={shareLinkRef}
                 highlightShareLink={isHighlighting}
+                isPublic={effectiveAccess.isPublic}
+                allowedUsers={effectiveAccess.allowedUsers}
+                onTogglePublic={(value) => togglePendingPublic(list, value)}
+                onToggleMember={(userId, hasAccess) => togglePendingMember(list, userId, hasAccess)}
+                disabled={savingChanges}
               />
             )}
           </>

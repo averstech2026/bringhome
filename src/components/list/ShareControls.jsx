@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'lucide-react';
-import { toggleListPublic, toggleUserListAccess } from '../../services/listsService';
 import { getFamilyMembers } from '../../services/usersService';
 import { UserAvatar } from '../profile/UserAvatar';
 import BorderGapCard from './BorderGapCard';
@@ -110,15 +109,17 @@ export default function ShareControls({
   currentUserAvatarUrl,
   shareLinkRef,
   highlightShareLink = false,
+  isPublic,
+  allowedUsers = [],
+  onTogglePublic,
+  onToggleMember,
+  disabled = false,
 }) {
   const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
   const isOwner = list.createdBy === currentUserId;
   const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}#/list/${listId}`;
-  const allowedUsers = list.allowedUsers || [];
-  const isPublic = list.isPublic;
 
   useEffect(() => {
     if (!isOwner) return;
@@ -127,27 +128,14 @@ export default function ShareControls({
 
   if (!isOwner) return null;
 
-  const handleTogglePublic = async () => {
-    setLoading(true);
-    try {
-      await toggleListPublic(listId, !isPublic);
-    } finally {
-      setLoading(false);
-    }
+  const handleTogglePublic = (nextValue) => {
+    if (disabled) return;
+    onTogglePublic?.(nextValue);
   };
 
-  const handleToggleMember = async (userId, hasAccess) => {
-    if (userId === list.createdBy || isPublic) return;
-
-    setLoading(true);
-    setMessage('');
-    try {
-      await toggleUserListAccess(listId, userId, hasAccess);
-    } catch {
-      setMessage('Не удалось изменить доступ');
-    } finally {
-      setLoading(false);
-    }
+  const handleToggleMember = (userId, hasAccess) => {
+    if (disabled || userId === list.createdBy || isPublic) return;
+    onToggleMember?.(userId, hasAccess);
   };
 
   const copyLink = async () => {
@@ -168,7 +156,7 @@ export default function ShareControls({
             <p className="text-sm font-semibold text-gray-800">Для всей семьи</p>
             <p className="mt-0.5 text-xs text-gray-400">{toggleHint}</p>
           </div>
-          <FamilyToggle enabled={isPublic} onChange={handleTogglePublic} disabled={loading} />
+          <FamilyToggle enabled={isPublic} onChange={handleTogglePublic} disabled={disabled} />
         </div>
 
         <div className="mt-4 border-t border-gray-100 pt-3">
@@ -187,7 +175,7 @@ export default function ShareControls({
                   member={{ ...member, avatarUrl }}
                   hasAccess={hasAccess}
                   isOwner={isOwnerMember}
-                  loading={loading}
+                  loading={disabled}
                   locked={isPublic}
                   onToggle={handleToggleMember}
                 />
@@ -198,7 +186,7 @@ export default function ShareControls({
           <div ref={shareLinkRef}>
             <ShareLinkRow
               onCopy={copyLink}
-              disabled={loading}
+              disabled={disabled}
               highlighted={highlightShareLink}
             />
           </div>

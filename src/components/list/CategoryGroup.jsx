@@ -19,9 +19,9 @@ function CategoryBookButton({ items, displayName, disabled, onBookCategory }) {
       disabled={disabled || !canToggle}
       onClick={handleClick}
       title={allMine ? 'Снять бронь с отдела' : 'Забронировать весь отдел'}
-      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-transparent shadow-md transition-all duration-150 active:scale-95 disabled:opacity-40 ${
+      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-transparent shadow-sm transition-all duration-150 active:scale-95 disabled:opacity-40 ${
         allMine
-          ? 'bg-indigo-500 text-white shadow-indigo-200/80 hover:bg-indigo-600'
+          ? 'bg-indigo-500 text-white shadow-indigo-200/50 hover:bg-indigo-600'
           : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
       }`}
     >
