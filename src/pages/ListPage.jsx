@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';import { useAuth } from '../hooks/useAuth';
+import { useEffect, useRef, useState } from 'react';
+import { useParams, useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { getUserPhotoUrl } from '../utils/userPhoto';
 import { useList } from '../hooks/useList';
@@ -32,6 +33,7 @@ export default function ListPage() {
   const { listId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, displayName } = useAuth();
   const { profile } = useUserProfile(user);
   const userPhotoUrl = getUserPhotoUrl(user, profile);
@@ -60,26 +62,36 @@ export default function ListPage() {
   } = useListDraft(listType);
 
   const [accessError, setAccessError] = useState(null);
-  const [accessChecked, setAccessChecked] = useState(isDraft);
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [accessForListId, setAccessForListId] = useState(null);
   const [repeatOpen, setRepeatOpen] = useState(false);
   const [repeatBusy, setRepeatBusy] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [isHighlighting, setIsHighlighting] = useState(false);
+  const shareLinkRef = useRef(null);
+  const shareHighlightPendingRef = useRef(location.state?.highlightShareLink === true);
+  const suppressAiEntryGlowRef = useRef(location.state?.highlightShareLink === true);
 
-  const canLoadList = !isDraft && accessChecked && !accessError;
+  const canLoadList = !isDraft && accessChecked && accessForListId === listId && !accessError;
 
   const { list, loading: listLoading, error: listError } = useList(canLoadList ? listId : null);
   const { items: liveItems, loading: itemsLoading, error: itemsError } = useItems(canLoadList ? listId : null);
 
   useEffect(() => {
-    if (isDraft || !listId || !user) return;
+    if (isDraft || !listId || !user) return undefined;
 
+    let cancelled = false;
     setAccessChecked(false);
+    setAccessForListId(null);
+    setAccessError(null);
+
     const checkAccess = isArchivedView ? ensureArchivedListAccess(listId) : ensureListAccess(listId, user.uid);
 
     checkAccess
       .then(({ allowed, reason }) => {
+        if (cancelled) return;
         if (!allowed) {
           setAccessError(
             reason === 'not_found'
@@ -96,16 +108,52 @@ export default function ListPage() {
           setAccessError(null);
         }
       })
-      .catch(() => setAccessError('Ошибка доступа'))
-      .finally(() => setAccessChecked(true));
+      .catch(() => {
+        if (!cancelled) setAccessError('Ошибка доступа');
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setAccessChecked(true);
+        setAccessForListId(listId);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [listId, user, isDraft, isArchivedView]);
 
   const activeList = isDraft ? draftList : list;
   const items = isDraft ? draftItems : liveItems;
   const loading = isDraft ? false : !accessChecked || listLoading || itemsLoading;
 
+  if (location.state?.highlightShareLink) {
+    shareHighlightPendingRef.current = true;
+    suppressAiEntryGlowRef.current = true;
+  }
+
   const grouped = groupItemsByCategory(items);
   const { allDone, total } = getListProgress(items);
+
+  useEffect(() => {
+    if (isDraft || loading || !list || !shareHighlightPendingRef.current) return undefined;
+
+    const scrollTimer = setTimeout(() => {
+      shareLinkRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setIsHighlighting(true);
+      shareHighlightPendingRef.current = false;
+      if (location.state?.highlightShareLink) {
+        navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+      }
+    }, 200);
+
+    return () => clearTimeout(scrollTimer);
+  }, [isDraft, loading, list, location.pathname, location.search, location.state, navigate]);
+
+  useEffect(() => {
+    if (!isHighlighting) return undefined;
+    const timer = setTimeout(() => setIsHighlighting(false), 3600);
+    return () => clearTimeout(timer);
+  }, [isHighlighting]);
 
   const handleDraftManualAdd = async (itemData) => {
     await saveToProductHistory(user.uid, itemData.name, itemData.quantity);
@@ -340,7 +388,7 @@ export default function ListPage() {
               isDraft={isDraft}
               onDraftAdd={handleDraftAiAdd}
               disabled={persisting}
-              showEntryGlow
+              showEntryGlow={!suppressAiEntryGlowRef.current}
             />
 
             {!isDraft && (
@@ -349,6 +397,8 @@ export default function ListPage() {
                 listId={listId}
                 currentUserId={user.uid}
                 currentUserAvatarUrl={userPhotoUrl}
+                shareLinkRef={shareLinkRef}
+                highlightShareLink={isHighlighting}
               />
             )}
           </>

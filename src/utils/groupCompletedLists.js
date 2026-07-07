@@ -45,6 +45,17 @@ export function formatCompletedGroupRelativeLabel(date, now = new Date()) {
   return null;
 }
 
+export function formatCompletedListDateShort(date) {
+  const day = startOfDay(date);
+  const dd = String(day.getDate()).padStart(2, '0');
+  const mm = String(day.getMonth() + 1).padStart(2, '0');
+  return `${dd}.${mm}`;
+}
+
+export function formatCompletedListDateLabel(list) {
+  return formatCompletedListDateShort(getListGroupDate(list));
+}
+
 /** @deprecated используйте formatCompletedGroupRelativeLabel + formatDateFull */
 export function formatCompletedGroupLabel(date, now = new Date()) {
   return formatCompletedGroupRelativeLabel(date, now) ?? formatDateFull(date);

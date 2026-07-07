@@ -136,7 +136,7 @@ export default function StatusBar({ items, onClear, clearing = false }) {
             </>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center">
           {showClear && (
             <button
               type="button"
@@ -147,15 +147,17 @@ export default function StatusBar({ items, onClear, clearing = false }) {
               {clearing ? '…' : 'Очистить'}
             </button>
           )}
-          <ProgressPill checked={checked} total={total} percent={percent} done={done} />
         </div>
       </div>
 
-      <div className="mt-3 h-1 overflow-hidden rounded-full bg-gray-100">
-        <div
-          className={`h-full rounded-full ${done ? 'bg-emerald-500' : 'bg-emerald-400 transition-all duration-500 ease-out'}`}
-          style={{ width: total > 0 ? `${barPercent}%` : '0%' }}
-        />
+      <div className="mt-3 flex w-full items-center gap-3">
+        <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
+          <div
+            className={`h-full rounded-full ${done ? 'bg-emerald-500' : 'bg-emerald-400 transition-all duration-500 ease-out'}`}
+            style={{ width: total > 0 ? `${barPercent}%` : '0%' }}
+          />
+        </div>
+        <ProgressPill checked={checked} total={total} percent={percent} done={done} />
       </div>
     </div>
     </>

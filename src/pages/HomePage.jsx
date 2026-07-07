@@ -27,7 +27,7 @@ import { encodeListTypeForUrl } from '../utils/listTypes';
 export default function HomePage() {
   const { user } = useAuth();
   const { settings } = useAppSettings();
-  const { isAdmin } = useUserProfile(user);
+  const { isAdmin, loading: profileLoading } = useUserProfile(user);
   const [lists, setLists] = useState([]);
   const [authorsById, setAuthorsById] = useState({});
   const [listProgress, setListProgress] = useState({});
@@ -55,32 +55,44 @@ export default function HomePage() {
         : await getUserLists(user.uid);
 
       setLists(active);
-      const progress = await getItemsProgressByListIds(active.map((l) => l.id));
-      setListProgress(progress);
 
-      const members = await getFamilyMembers();
-      setAuthorsById(Object.fromEntries(members.map((member) => [member.id, member])));
+      try {
+        const progress = await getItemsProgressByListIds(active.map((l) => l.id));
+        setListProgress(progress);
 
-      for (const list of active) {
-        const resolved = resolveListStatus(list, progress[list.id]);
-        if (list.status !== resolved && resolved !== 'archived') {
-          updateList(list.id, { status: resolved }).catch(() => {});
-          list.status = resolved;
+        for (const list of active) {
+          const resolved = resolveListStatus(list, progress[list.id]);
+          if (list.status !== resolved && resolved !== 'archived') {
+            updateList(list.id, { status: resolved }).catch(() => {});
+            list.status = resolved;
+          }
         }
+      } catch (err) {
+        setListProgress(
+          Object.fromEntries(
+            active.map((list) => [list.id, { total: 0, checked: 0, percent: 0 }]),
+          ),
+        );
+        setLoadError(err?.message || 'Не удалось загрузить прогресс списков');
+      }
+
+      try {
+        const members = await getFamilyMembers();
+        setAuthorsById(Object.fromEntries(members.map((member) => [member.id, member])));
+      } catch {
+        setAuthorsById({});
       }
     } catch (err) {
       setLoadError(err?.message || 'Не удалось загрузить списки');
-      setLists([]);
-      setListProgress({});
-      setAuthorsById({});
     } finally {
       setLoading(false);
     }
   }, [user?.uid, isAdmin]);
 
   useEffect(() => {
+    if (!user?.uid || profileLoading) return;
     loadLists();
-  }, [loadLists, location.key]);
+  }, [loadLists, location.key, user?.uid, profileLoading]);
 
   const handleCreate = (type) => {
     clearRepeatDraft();
@@ -120,7 +132,7 @@ export default function HomePage() {
     (list) => resolveListStatus(list, listProgress[list.id]) === 'completed',
   );
 
-  const renderListCard = (list, { dimmed = false } = {}) => {
+  const renderListCard = (list, { dimmed = false, showCompletionDate = false } = {}) => {
     const manageable = canManageList(list);
     const listWithAuthor = {
       ...list,
@@ -134,6 +146,7 @@ export default function HomePage() {
         authorsById={authorsById}
         busy={busyId === list.id}
         dimmed={dimmed}
+        showCompletionDate={showCompletionDate}
         canArchive={manageable}
         onArchive={handleArchive}
         onArchiveDenied={manageable ? undefined : () => setArchiveAccessList(list)}
@@ -162,15 +175,15 @@ export default function HomePage() {
           <p className={`mt-2 ${HINT_TEXT} text-red-500`}>{loadError}</p>
         )}
 
-        {loading ? (
+        {loading || profileLoading ? (
           <div className="mt-6 flex justify-center">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
           </div>
-        ) : lists.length === 0 ? (
+        ) : lists.length === 0 && !loadError ? (
           <p className={`mt-4 ${HINT_TEXT}`}>
             Пока нет списков — создайте первый
           </p>
-        ) : (
+        ) : lists.length > 0 ? (
           <>
             {activeLists.length > 0 && (
               <ul className="mt-4 space-y-2.5">
@@ -185,11 +198,11 @@ export default function HomePage() {
                 key={location.key}
                 lists={completedLists}
                 groupByDate={settings.groupByDate}
-                renderListCard={(list) => renderListCard(list, { dimmed: true })}
+                renderListCard={(list) => renderListCard(list, { dimmed: true, showCompletionDate: true })}
               />
             )}
           </>
-        )}
+        ) : null}
       </section>
 
       <RequestCustomTypeModal

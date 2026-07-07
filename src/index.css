@@ -75,3 +75,30 @@ body {
 @utility animate-ai-glow {
   animation: ai-glow 1.75s ease-in-out 2 forwards;
 }
+
+@keyframes share-highlight {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgb(226 232 240 / 0.9),
+      0 4px 16px rgb(0 0 0 / 0.03);
+  }
+
+  35% {
+    box-shadow:
+      0 0 0 2px rgb(129 140 248 / 0.65),
+      0 0 18px rgb(129 140 248 / 0.28),
+      0 4px 16px rgb(0 0 0 / 0.03);
+  }
+
+  70% {
+    box-shadow:
+      0 0 0 2px rgb(99 102 241 / 0.55),
+      0 0 22px rgb(99 102 241 / 0.22),
+      0 4px 16px rgb(0 0 0 / 0.03);
+  }
+}
+
+@utility animate-share-highlight {
+  animation: share-highlight 1.75s ease-in-out 2 forwards;
+}

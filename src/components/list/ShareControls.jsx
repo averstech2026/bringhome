@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'lucide-react';
 import { toggleListPublic, toggleUserListAccess } from '../../services/listsService';
 import { getFamilyMembers } from '../../services/usersService';
 import { UserAvatar } from '../profile/UserAvatar';
@@ -81,36 +82,35 @@ function MemberAvatar({ member, hasAccess, isOwner, onToggle, loading, locked = 
   );
 }
 
-function CopyLinkButton({ onClick, disabled }) {
+function ShareLinkRow({ onCopy, disabled, highlighted = false }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={onCopy}
       disabled={disabled}
-      title="Скопировать ссылку"
-      className="group flex shrink-0 flex-col items-center gap-1"
+      className={`mt-4 flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50 p-3 text-left transition hover:bg-slate-100/80 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 ${
+        highlighted ? 'animate-share-highlight border-indigo-200/70' : ''
+      }`}
     >
-      <div className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-gray-50 transition hover:bg-gray-100 disabled:opacity-40">
-        <svg
-          className="h-4 w-4 text-gray-500 transition group-hover:text-gray-700"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-          />
-        </svg>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <Link className="h-4 w-4 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
+        <span className="text-sm text-slate-700">Поделиться ссылкой на список</span>
       </div>
-      <span className="max-w-[48px] truncate text-[10px] font-medium text-slate-600">Ссылка</span>
+      <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold text-indigo-600">
+        Копировать
+      </span>
     </button>
   );
 }
 
-export default function ShareControls({ list, listId, currentUserId, currentUserAvatarUrl }) {
+export default function ShareControls({
+  list,
+  listId,
+  currentUserId,
+  currentUserAvatarUrl,
+  shareLinkRef,
+  highlightShareLink = false,
+}) {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -152,7 +152,7 @@ export default function ShareControls({ list, listId, currentUserId, currentUser
 
   const copyLink = async () => {
     await navigator.clipboard.writeText(shareUrl);
-    setMessage('Ссылка скопирована');
+    setMessage('Ссылка скопирована!');
     setTimeout(() => setMessage(''), 2000);
   };
 
@@ -173,29 +173,34 @@ export default function ShareControls({ list, listId, currentUserId, currentUser
 
         <div className="mt-4 border-t border-gray-100 pt-3">
           <div className="flex gap-3 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex gap-3">
-              {members.map((member) => {
-                const isOwnerMember = member.id === list.createdBy;
-                const hasAccess = isPublic || isOwnerMember || allowedUsers.includes(member.id);
-                const avatarUrl =
-                  member.id === currentUserId && currentUserAvatarUrl
-                    ? currentUserAvatarUrl
-                    : member.avatarUrl;
+            {members.map((member) => {
+              const isOwnerMember = member.id === list.createdBy;
+              const hasAccess = isPublic || isOwnerMember || allowedUsers.includes(member.id);
+              const avatarUrl =
+                member.id === currentUserId && currentUserAvatarUrl
+                  ? currentUserAvatarUrl
+                  : member.avatarUrl;
 
-                return (
-                  <MemberAvatar
-                    key={member.id}
-                    member={{ ...member, avatarUrl }}
-                    hasAccess={hasAccess}
-                    isOwner={isOwnerMember}
-                    loading={loading}
-                    locked={isPublic}
-                    onToggle={handleToggleMember}
-                  />
-                );
-              })}
-            </div>
-            <CopyLinkButton onClick={copyLink} disabled={loading} />
+              return (
+                <MemberAvatar
+                  key={member.id}
+                  member={{ ...member, avatarUrl }}
+                  hasAccess={hasAccess}
+                  isOwner={isOwnerMember}
+                  loading={loading}
+                  locked={isPublic}
+                  onToggle={handleToggleMember}
+                />
+              );
+            })}
+          </div>
+
+          <div ref={shareLinkRef}>
+            <ShareLinkRow
+              onCopy={copyLink}
+              disabled={loading}
+              highlighted={highlightShareLink}
+            />
           </div>
 
           <p className="mt-3 flex items-center gap-1 text-xs text-gray-400">

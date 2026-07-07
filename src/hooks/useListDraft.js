@@ -75,7 +75,7 @@ export function useListDraft(listType) {
         });
 
         clearRepeatDraft();
-        navigate(`/list/${newListId}`, { replace: true });
+        navigate(`/list/${newListId}`, { replace: true, state: { highlightShareLink: true } });
         return newListId;
       } finally {
         persistingRef.current = false;

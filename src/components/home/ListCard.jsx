@@ -7,6 +7,7 @@ import {
   CARD_PRESS,
 } from '../list/cardStyles';
 import { getListProgressClass, getListTypeBadgeProps, isBuiltinListType } from '../../utils/listTypes';
+import { formatCompletedListDateLabel } from '../../utils/groupCompletedLists';
 import ListAccessIcon from './ListAccessIcon';
 
 const TYPE_PROGRESS = {
@@ -15,36 +16,56 @@ const TYPE_PROGRESS = {
   trip: 'bg-sky-500',
 };
 
-function ListAuthorAvatar({ author, className = 'h-5 w-5' }) {
-  if (!author) return null;
+const PARTICIPANT_AVATAR_CLASS = 'h-5 w-5';
 
-  const name = author.displayName || author.email?.split('@')[0] || 'Пользователь';
-
-  if (author.avatarUrl) {
-    return (
-      <img
-        src={author.avatarUrl}
-        alt={name}
-        title={name}
-        className={`${className} shrink-0 rounded-full border border-white object-cover`}
-      />
-    );
-  }
-
+function OwnerStarBadge() {
   return (
-    <span
-      title={name}
-      className={`flex ${className} shrink-0 items-center justify-center rounded-full border border-white bg-gray-100 text-[10px] font-bold text-gray-600`}
-    >
-      {name.charAt(0).toUpperCase()}
+    <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-amber-400 text-[6px] font-bold leading-none text-white ring-2 ring-white">
+      ★
     </span>
   );
 }
 
+function ListAuthorAvatar({ author, className = PARTICIPANT_AVATAR_CLASS, isOwner = false, zIndex }) {
+  if (!author) return null;
+
+  const name = author.displayName || author.email?.split('@')[0] || 'Пользователь';
+  const title = isOwner ? `${name} (создатель)` : name;
+
+  const avatar = author.avatarUrl ? (
+    <img
+      src={author.avatarUrl}
+      alt={name}
+      className={`${className} rounded-full border border-white object-cover`}
+    />
+  ) : (
+    <span
+      className={`flex ${className} items-center justify-center rounded-full border border-white bg-gray-100 text-[10px] font-bold text-gray-600`}
+    >
+      {name.charAt(0).toUpperCase()}
+    </span>
+  );
+
+  return (
+    <div
+      className="relative shrink-0"
+      style={{ zIndex: isOwner ? 10 : zIndex }}
+      title={title}
+    >
+      {avatar}
+      {isOwner && <OwnerStarBadge />}
+    </div>
+  );
+}
+
 function getListParticipants(list, authorsById = {}) {
+  const owner = authorsById[list.createdBy];
+
   if (list.isPublic) {
     const familyMembers = Object.values(authorsById);
-    if (familyMembers.length > 0) return familyMembers;
+    if (familyMembers.length === 0) return [];
+    if (!owner) return familyMembers;
+    return [owner, ...familyMembers.filter((member) => member.id !== list.createdBy)];
   }
 
   const ids = [...new Set(list.allowedUsers || [list.createdBy])];
@@ -52,7 +73,6 @@ function getListParticipants(list, authorsById = {}) {
 
   if (participants.length <= 1) return participants;
 
-  const owner = authorsById[list.createdBy];
   if (!owner) return participants;
 
   const others = participants.filter((p) => p.id !== list.createdBy);
@@ -65,26 +85,48 @@ function ListParticipantsAvatars({ list, authorsById }) {
   if (participants.length === 0) return null;
 
   if (participants.length === 1) {
-    return <ListAuthorAvatar author={participants[0]} />;
+    return (
+      <ListAuthorAvatar
+        author={participants[0]}
+        isOwner={participants[0].id === list.createdBy}
+      />
+    );
   }
 
   return (
     <div className="flex shrink-0 -space-x-1.5">
-      {participants.slice(0, 4).map((participant) => (
-        <ListAuthorAvatar key={participant.id} author={participant} />
-      ))}
+      {participants.slice(0, 4).map((participant, index) => {
+        const isOwner = participant.id === list.createdBy;
+        return (
+          <ListAuthorAvatar
+            key={participant.id}
+            author={participant}
+            isOwner={isOwner}
+            zIndex={isOwner ? undefined : index + 1}
+          />
+        );
+      })}
     </div>
   );
 }
 
-function ListStatusMeta({ list, progress, customBadge, authorsById }) {
+function ListStatusMeta({ list, progress, customBadge, authorsById, showCompletionDate = false }) {
   const { total = 0, checked = 0 } = progress || {};
+  const completionDateLabel = showCompletionDate ? formatCompletedListDateLabel(list) : null;
 
   return (
     <div className="flex shrink-0 items-center justify-end gap-2">
-      {total > 0 && (
-        <span className="shrink-0 whitespace-nowrap text-[11px] font-medium tabular-nums text-slate-400">
-          {checked}/{total}
+      {(completionDateLabel || total > 0) && (
+        <span className="shrink-0 whitespace-nowrap text-xs font-medium tabular-nums text-slate-400">
+          {completionDateLabel}
+          {completionDateLabel && total > 0 && (
+            <span className="mx-1.5 text-slate-300" aria-hidden>
+              •
+            </span>
+          )}
+          {total > 0 && (
+            <span>{checked}/{total}</span>
+          )}
         </span>
       )}
       <div className="flex shrink-0 items-center gap-2">
@@ -194,6 +236,7 @@ export default function ListCard({
   onRestore,
   onRepeat,
   busy = false,
+  showCompletionDate = false,
 }) {
   const customBadge = !isBuiltinListType(list.type) ? getListTypeBadgeProps(list.type) : null;
   const showArchive = onArchive || onArchiveDenied;
@@ -216,7 +259,10 @@ export default function ListCard({
               <ListSubtitle description={list.description} />
             </div>
             <div className="flex shrink-0 items-center justify-end gap-1.5">
-              <ListAuthorAvatar author={list.author} />
+              <ListAuthorAvatar
+                author={list.author}
+                isOwner={list.author?.id === list.createdBy}
+              />
               <span className={`${CARD_BADGE} shrink-0 text-slate-400`}>В архиве</span>
             </div>
           </div>
@@ -236,6 +282,7 @@ export default function ListCard({
               progress={progress}
               customBadge={customBadge}
               authorsById={authorsById}
+              showCompletionDate={showCompletionDate}
             />
           </div>
           <ListProgress progress={progress} listType={list.type} className="mt-1.5" />

@@ -259,6 +259,46 @@ export async function getListItemsForRepeat(listId) {
 }
 
 /** Прогресс по спискам: { [listId]: { total, checked, percent } } */
+async function fetchItemsProgressChunk(listIds) {
+  const chunkProgress = Object.fromEntries(
+    listIds.map((id) => [id, { total: 0, checked: 0, percent: 0 }]),
+  );
+
+  if (listIds.length === 0) return chunkProgress;
+
+  try {
+    const q = query(
+      collection(db, COLLECTIONS.ITEMS),
+      where('listId', 'in', listIds),
+    );
+    const snapshot = await getDocs(q);
+
+    snapshot.docs.forEach((d) => {
+      const { listId, checked } = d.data();
+      if (!chunkProgress[listId]) {
+        chunkProgress[listId] = { total: 0, checked: 0, percent: 0 };
+      }
+      chunkProgress[listId].total += 1;
+      if (checked) chunkProgress[listId].checked += 1;
+    });
+
+    return chunkProgress;
+  } catch {
+    const results = await Promise.all(
+      listIds.map(async (listId) => {
+        try {
+          const single = await fetchItemsProgressChunk([listId]);
+          return [listId, single[listId]];
+        } catch {
+          return [listId, { total: 0, checked: 0, percent: 0 }];
+        }
+      }),
+    );
+
+    return Object.fromEntries(results);
+  }
+}
+
 export async function getItemsProgressByListIds(listIds) {
   const progress = Object.fromEntries(
     listIds.map((id) => [id, { total: 0, checked: 0, percent: 0 }]),
@@ -269,20 +309,11 @@ export async function getItemsProgressByListIds(listIds) {
   const chunkSize = 10;
   for (let i = 0; i < listIds.length; i += chunkSize) {
     const chunk = listIds.slice(i, i + chunkSize);
-    const q = query(
-      collection(db, COLLECTIONS.ITEMS),
-      where('listId', 'in', chunk),
-    );
-    const snapshot = await getDocs(q);
+    const chunkProgress = await fetchItemsProgressChunk(chunk);
 
-    snapshot.docs.forEach((d) => {
-      const { listId, checked } = d.data();
-      if (!progress[listId]) {
-        progress[listId] = { total: 0, checked: 0, percent: 0 };
-      }
-      progress[listId].total += 1;
-      if (checked) progress[listId].checked += 1;
-    });
+    for (const [listId, value] of Object.entries(chunkProgress)) {
+      progress[listId] = value;
+    }
   }
 
   listIds.forEach((id) => {
