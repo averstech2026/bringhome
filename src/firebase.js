@@ -27,6 +27,7 @@ import { getStorage } from 'firebase/storage';
  * users: {
  *   email, displayName, role ("admin" | "user"), disabled,
  *   groupId?, avatarUrl, aiLimits?, aiUsage?, isChild?, uiTheme?,
+ *   pushEnabled?: boolean, fcmTokens?: string[],
  *   createdAt, createdBy
  * }
  *
@@ -43,6 +44,14 @@ const firebaseConfig = {
 };
 
 export { firebaseConfig };
+
+// Публичный VAPID-ключ (Firebase Console → Cloud Messaging → Web Push certificates)
+export const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || '';
+
+// URL serverless-прокси отправки push (Yandex Cloud Function, FCM HTTP v1).
+// Legacy FCM API отключён Google, а v1 требует service account — его нельзя держать
+// в публичном бандле, поэтому отправка идёт через прокси. Тариф Spark не задействован.
+export const PUSH_API_URL = import.meta.env.VITE_YANDEX_PUSH_URL || '';
 
 export const isFirebaseConfigured = Boolean(
   firebaseConfig.apiKey &&

@@ -5,6 +5,7 @@ import { isFirebaseConfigured } from './firebase';
 import { useAuth } from './hooks/useAuth';
 import { useUserProfile } from './hooks/useUserProfile';
 import { isAppInitialized } from './services/usersService';
+import { syncPushTokenOnLogin } from './services/pushNotification';
 import AuthGate from './components/auth/AuthGate';
 import AdminRoute from './components/auth/AdminRoute';
 import AiBadge from './components/layout/AiBadge';
@@ -181,6 +182,12 @@ export default function App() {
       cancelled = true;
     };
   }, [user, initRetry]);
+
+  useEffect(() => {
+    if (user?.uid && profile?.pushEnabled === true) {
+      syncPushTokenOnLogin(user.uid, profile);
+    }
+  }, [user?.uid, profile?.pushEnabled]);
 
   if (!isFirebaseConfigured) {
     return <ConfigMissing />;

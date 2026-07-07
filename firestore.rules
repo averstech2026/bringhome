@@ -63,6 +63,9 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatarUrl'])
           || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['aiUsage'])
           || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uiTheme'])
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pushEnabled'])
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmTokens'])
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pushEnabled', 'fcmTokens'])
         )
       );
     }

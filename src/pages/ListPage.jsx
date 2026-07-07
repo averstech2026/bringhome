@@ -9,7 +9,8 @@ import { useListDraft, toDraftItem } from '../hooks/useListDraft';
 import { usePendingListItems, isPendingListItem } from '../hooks/usePendingListItems';
 import { usePendingListAccess } from '../hooks/usePendingListAccess';
 import { mergeItemsBatch } from '../utils/mergeItems';
-import { decodeListTypeFromUrl, encodeListTypeForUrl } from '../services/listsService';
+import { decodeListTypeFromUrl, encodeListTypeForUrl, formatListTitle } from '../services/listsService';
+import { sendNewListNotification } from '../services/pushNotification';
 import { getFamilyGroupId } from '../utils/familyGroup';
 import ListDescriptionModal, { ListDescriptionButton } from '../components/list/ListDescriptionModal';
 import ScreenTopPanel, { ScreenTopBar } from '../components/layout/ScreenTopPanel';
@@ -341,7 +342,19 @@ export default function ListPage() {
   };
 
   const handleCreateList = async () => {
-    await persistWithItems(user.uid, draftItems, { groupId: getFamilyGroupId(profile) });
+    const newListId = await persistWithItems(user.uid, draftItems, {
+      groupId: getFamilyGroupId(profile),
+    });
+
+    if (newListId) {
+      // Уведомляем остальных членов семьи (client-side, без Cloud Functions).
+      // Не блокируем UI и глушим ошибки — создание списка важнее доставки пуша.
+      sendNewListNotification({
+        senderUid: user.uid,
+        creatorName: profile?.displayName || displayName,
+        listTitle: formatListTitle(listType),
+      }).catch((err) => console.warn('[push] Не удалось отправить уведомление', err));
+    }
   };
 
   const handleSaveChanges = async () => {

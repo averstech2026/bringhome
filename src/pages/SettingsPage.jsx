@@ -6,6 +6,11 @@ import { useAuth } from '../hooks/useAuth';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { updateUserAvatar, removeUserAvatar, updateOwnUiTheme } from '../services/usersService';
+import {
+  isPushSupported,
+  enablePushNotifications,
+  disablePushNotifications,
+} from '../services/pushNotification';
 import { UserAvatar } from '../components/profile/UserAvatar';
 import PageHeader from '../components/layout/PageHeader';
 import { PRIMARY_BTN } from '../components/list/cardStyles';
@@ -143,6 +148,9 @@ export default function SettingsPage() {
   const [removingAvatar, setRemovingAvatar] = useState(false);
   const [savingTheme, setSavingTheme] = useState(false);
   const [activeUiTheme, setActiveUiTheme] = useState(null);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushSupported, setPushSupported] = useState(true);
 
   const name = profile?.displayName || user?.displayName || 'Пользователь';
   const savedPhotoUrl = profile?.avatarUrl || null;
@@ -156,6 +164,20 @@ export default function SettingsPage() {
       setActiveUiTheme(resolveUiTheme(profile));
     }
   }, [profile?.uiTheme, profile?.id]);
+
+  useEffect(() => {
+    setPushEnabled(profile?.pushEnabled === true);
+  }, [profile?.pushEnabled, profile?.id]);
+
+  useEffect(() => {
+    let active = true;
+    isPushSupported().then((supported) => {
+      if (active) setPushSupported(supported);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const button = themeButtonRefs.current[currentUiTheme];
@@ -262,6 +284,33 @@ export default function SettingsPage() {
       setError(getAvatarErrorMessage(err));
     } finally {
       setRemovingAvatar(false);
+    }
+  };
+
+  const handleTogglePush = async (value) => {
+    if (!user?.uid || pushBusy) return;
+
+    const previous = pushEnabled;
+    setPushEnabled(value);
+    setPushBusy(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      if (value) {
+        await enablePushNotifications(user.uid);
+        setSuccess('Пуш-уведомления включены');
+      } else {
+        await disablePushNotifications(user.uid);
+        setSuccess('Пуш-уведомления выключены');
+      }
+      reload();
+      setTimeout(() => setSuccess(''), 2500);
+    } catch (err) {
+      setPushEnabled(previous);
+      setError(err?.message || 'Не удалось изменить настройку уведомлений');
+    } finally {
+      setPushBusy(false);
     }
   };
 
@@ -407,6 +456,27 @@ export default function SettingsPage() {
             <SettingsSwitch
               enabled={settings.groupByDate}
               onChange={(value) => updateSetting('groupByDate', value)}
+            />
+          </div>
+
+          <div className="mx-4 border-t border-gray-100" />
+
+          <div className="flex items-center justify-between gap-4 px-4 py-4">
+            <div className="min-w-0">
+              <p className="text-[15px] text-slate-800">Пуш-уведомления</p>
+              <p className="mt-0.5 text-xs text-slate-400">
+                Получать уведомления о новых списках продуктов от семьи
+              </p>
+              {!pushSupported && (
+                <p className="mt-1 text-xs text-amber-600">
+                  Этот браузер не поддерживает пуш-уведомления
+                </p>
+              )}
+            </div>
+            <SettingsSwitch
+              enabled={pushEnabled}
+              onChange={handleTogglePush}
+              disabled={pushBusy || !pushSupported}
             />
           </div>
         </section>
