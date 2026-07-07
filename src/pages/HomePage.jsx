@@ -238,6 +238,19 @@ export default function HomePage() {
       <ArchiveListConfirmModal
         open={Boolean(archiveConfirmTarget)}
         listTitle={archiveConfirmTarget?.title}
+        creatorName={
+          archiveConfirmTarget
+            ? authorsById[archiveConfirmTarget.createdBy]?.displayName
+              || authorsById[archiveConfirmTarget.createdBy]?.email?.split('@')[0]
+              || null
+            : null
+        }
+        adminArchivingOthers={Boolean(
+          archiveConfirmTarget
+          && isAdmin
+          && archiveConfirmTarget.createdBy
+          && archiveConfirmTarget.createdBy !== user?.uid,
+        )}
         archiving={Boolean(archiveConfirmTarget && busyId === archiveConfirmTarget.id)}
         onConfirm={handleConfirmArchive}
         onCancel={() => !busyId && setArchiveConfirmTarget(null)}
