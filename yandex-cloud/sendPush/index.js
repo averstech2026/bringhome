@@ -158,11 +158,22 @@ export async function handler(event) {
 
     const accessToken = await getAccessToken(sa);
 
+    // Иконки/превью приходят в data: icon — крупная иконка (аватар/логотип),
+    // badge — монохромный значок в статус-баре, image — большое превью.
+    const icon = String(data.icon || '') || undefined;
+    const badge = String(data.badge || '') || undefined;
+    const image = String(data.image || '') || undefined;
+    const link = String(data.link || '') || undefined;
+
+    const webpushNotification = { title, body: text, icon, badge };
+    if (image) webpushNotification.image = image;
+
     const message = {
       notification: { title, body: text },
       data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
       webpush: {
-        notification: { title, body: text, icon: String(data.icon || '') || undefined },
+        notification: webpushNotification,
+        ...(link ? { fcm_options: { link } } : {}),
       },
     };
 

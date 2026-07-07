@@ -26,7 +26,22 @@ import app, {
 } from '../firebase';
 
 const BASE_URL = import.meta.env.BASE_URL || '/';
-const NOTIFICATION_ICON = `${BASE_URL}icons/note.png`;
+// Крупная иконка уведомления по умолчанию (когда аватар отправителя недоступен).
+const APP_ICON = `${BASE_URL}icons/logo.png`;
+// Мелкая монохромная иконка в статус-баре (Android/Chrome тонируют её по alpha-каналу).
+const APP_BADGE = `${BASE_URL}icons/badge.png`;
+
+// FCM ограничивает размер сообщения (~4 КБ), а аватары хранятся как data URL до 120 КБ —
+// такой аватар не влезет в payload и «уронит» доставку. Поэтому в пуш кладём только
+// короткие https-ссылки; для локальных/ data:-аватаров используем фирменную иконку.
+const MAX_IMAGE_URL_LENGTH = 480;
+function safeRemoteImage(url) {
+  if (typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!/^https:\/\//i.test(trimmed)) return '';
+  if (trimmed.length > MAX_IMAGE_URL_LENGTH) return '';
+  return trimmed;
+}
 
 const DEVICE_TOKEN_KEY = 'bringhome:fcmToken';
 
@@ -199,7 +214,7 @@ export async function syncPushTokenOnLogin(uid, profile) {
  * Диагностика: отправляет тестовый пуш самому себе (на токены текущего юзера).
  * Полезно проверить всю цепочку без второго аккаунта.
  */
-export async function sendTestPush(uid) {
+export async function sendTestPush(uid, { photoUrl } = {}) {
   if (!PUSH_API_URL) {
     throw new Error('VITE_YANDEX_PUSH_URL не задан — задеплойте прокси и заполните URL');
   }
@@ -208,8 +223,11 @@ export async function sendTestPush(uid) {
     throw new Error('Нет сохранённых токенов — переключите тумблер пушей заново');
   }
 
+  const avatar = safeRemoteImage(photoUrl) || safeRemoteImage(auth?.currentUser?.photoURL);
   const result = await postToProxy(tokens, {
     body: '🔔 Тестовое уведомление — всё работает!',
+    icon: avatar || APP_ICON,
+    ...(avatar ? { image: avatar } : {}),
     data: { type: 'test' },
   });
   if ((result.sent ?? 0) === 0) {
@@ -292,7 +310,7 @@ async function getUserTokens(uid) {
 
 // --- Транспорт: доставка на набор токенов через serverless-прокси (FCM HTTP v1) ---
 
-async function postToProxy(tokens, { title = 'КупиДомой', body, data = {} }) {
+async function postToProxy(tokens, { title = 'КупиДомой', body, data = {}, icon, badge, image } = {}) {
   if (!PUSH_API_URL) {
     console.warn('[push] VITE_YANDEX_PUSH_URL не задан — пуш не отправлен');
     return { sent: 0, skipped: true };
@@ -302,6 +320,15 @@ async function postToProxy(tokens, { title = 'КупиДомой', body, data = 
 
   const currentUser = auth?.currentUser;
   if (!currentUser) return { sent: 0, skipped: true };
+
+  // icon — крупная иконка (аватар отправителя или логотип), badge — монохромный значок
+  // в статус-баре, image — большое превью (аватар отправителя, если это https-ссылка).
+  const payloadData = {
+    icon: icon || APP_ICON,
+    badge: badge || APP_BADGE,
+    ...(image ? { image } : {}),
+    ...data,
+  };
 
   const idToken = await currentUser.getIdToken();
   try {
@@ -313,7 +340,7 @@ async function postToProxy(tokens, { title = 'КупиДомой', body, data = 
         tokens: uniqueTokens,
         title,
         body,
-        data: { icon: NOTIFICATION_ICON, ...data },
+        data: payloadData,
       }),
     });
     if (!response.ok) {
@@ -335,6 +362,18 @@ function resolveListTitle(list) {
   return (list?.title || '').trim() || 'список';
 }
 
+/**
+ * Иконки для персонализированного пуша: если у отправителя есть https-аватар —
+ * показываем его крупной иконкой и превью, иначе — фирменную иконку приложения.
+ */
+function authorImages(author) {
+  const avatar = safeRemoteImage(author?.photoUrl);
+  return {
+    icon: avatar || APP_ICON,
+    image: avatar || undefined,
+  };
+}
+
 // --- Сценарии уведомлений ---
 
 /** Сценарий А: создан новый список — всем участникам с доступом, кроме автора. */
@@ -342,6 +381,7 @@ export async function notifyListCreated({ list, author }) {
   const tokens = await getTargetUserTokens(list, author?.uid);
   return postToProxy(tokens, {
     body: `📝 ${resolveAuthorName(author)} создал список «${resolveListTitle(list)}»`,
+    ...authorImages(author),
     data: { type: 'list_created', listId: list?.id || '' },
   });
 }
@@ -355,6 +395,7 @@ export async function notifyListUpdated({ list, author, excludeUids = [] }) {
   const tokens = await getTargetUserTokens(list, exclude);
   return postToProxy(tokens, {
     body: `🔄 ${resolveAuthorName(author)} обновил список «${resolveListTitle(list)}»`,
+    ...authorImages(author),
     data: { type: 'list_updated', listId: list?.id || '' },
   });
 }
@@ -365,6 +406,7 @@ export async function notifyUserAddedToList({ list, author, newUid }) {
   const tokens = await getUserTokens(newUid);
   return postToProxy(tokens, {
     body: `👋 ${resolveAuthorName(author)} открыл вам доступ к списку «${resolveListTitle(list)}»`,
+    ...authorImages(author),
     data: { type: 'list_shared', listId: list?.id || '' },
   });
 }

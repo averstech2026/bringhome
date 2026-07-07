@@ -425,7 +425,7 @@ export default function ListPage() {
           allowedUsers,
           groupId,
         },
-        author: { uid: user.uid, name: profile?.displayName || displayName },
+        author: { uid: user.uid, name: profile?.displayName || displayName, photoUrl: userPhotoUrl },
       }).catch((err) => console.warn('[push] Не удалось отправить уведомление', err));
     }
   };
@@ -470,7 +470,7 @@ export default function ListPage() {
       }
 
       // Уведомления после успешной записи (не блокируем UI, глушим ошибки доставки).
-      const author = { uid: user.uid, name: profile?.displayName || displayName };
+      const author = { uid: user.uid, name: profile?.displayName || displayName, photoUrl: userPhotoUrl };
       const updatedList = {
         id: listId,
         title: list.title,

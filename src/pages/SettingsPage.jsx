@@ -186,10 +186,13 @@ export default function SettingsPage() {
     let unsubscribe;
     onForegroundPush((payload) => {
       const note = payload?.notification || {};
+      const data = payload?.data || {};
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         new Notification(note.title || 'КупиДомой', {
           body: note.body || '',
-          icon: note.icon || undefined,
+          icon: data.icon || note.icon || undefined,
+          badge: data.badge || undefined,
+          image: data.image || note.image || undefined,
         });
       }
     }).then((unsub) => {
@@ -342,7 +345,7 @@ export default function SettingsPage() {
     setError('');
     setSuccess('');
     try {
-      const result = await sendTestPush(user.uid);
+      const result = await sendTestPush(user.uid, { photoUrl: displayPhotoUrl });
       setSuccess(`Тестовый пуш отправлен (доставок: ${result.sent ?? 0})`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
