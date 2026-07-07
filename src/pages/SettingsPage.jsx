@@ -134,7 +134,7 @@ function SignOutConfirmModal({ open, onConfirm, onCancel }) {
 export default function SettingsPage() {
   const { user, signOut, reloadUser } = useAuth();
   const { settings, updateSetting } = useAppSettings();
-  const { profile, isAdmin, reload } = useUserProfile(user);
+  const { profile, isAdmin, reload, loading: profileLoading } = useUserProfile(user);
   const fileInputRef = useRef(null);
   const avatarMenuRef = useRef(null);
   const themeCarouselRef = useRef(null);
@@ -551,29 +551,44 @@ export default function SettingsPage() {
               </p>
             )}
 
-            <div
-              ref={themeCarouselRef}
-              className="-mx-1 mt-3 flex flex-nowrap gap-1.5 overflow-x-auto scroll-smooth px-1 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              {PROFILE_THEME_OPTIONS.map((option) => {
-                const active = currentUiTheme === option.id;
-                return (
-                  <button
+            {profileLoading || !profile ? (
+              <div
+                className="-mx-1 mt-3 flex flex-nowrap gap-1.5 px-1 pb-0.5"
+                aria-hidden
+              >
+                {PROFILE_THEME_OPTIONS.map((option) => (
+                  <div
                     key={option.id}
-                    ref={(node) => {
-                      if (node) themeButtonRefs.current[option.id] = node;
-                    }}
-                    type="button"
-                    disabled={savingTheme}
-                    aria-pressed={active}
-                    onClick={() => handleThemeChange(option.id)}
-                    className={getProfileThemeButtonClass(option.id, active)}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
+                    className="h-[30px] shrink-0 animate-pulse rounded-full bg-slate-100"
+                    style={{ width: `${Math.max(72, option.label.length * 8)}px` }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div
+                ref={themeCarouselRef}
+                className="-mx-1 mt-3 flex flex-nowrap gap-1.5 overflow-x-auto scroll-smooth px-1 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {PROFILE_THEME_OPTIONS.map((option) => {
+                  const active = currentUiTheme === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      ref={(node) => {
+                        if (node) themeButtonRefs.current[option.id] = node;
+                      }}
+                      type="button"
+                      disabled={savingTheme}
+                      aria-pressed={active}
+                      onClick={() => handleThemeChange(option.id)}
+                      className={getProfileThemeButtonClass(option.id, active)}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
         )}

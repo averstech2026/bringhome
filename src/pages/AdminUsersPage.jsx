@@ -153,9 +153,9 @@ export default function AdminUsersPage() {
                 setSuccess('');
                 setModal({ mode: 'create' });
               }}
-              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 text-[13px] font-medium text-emerald-700 shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition hover:bg-emerald-50/60 active:bg-emerald-50"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:bg-slate-50 hover:text-slate-900"
             >
-              <Plus className="h-3.5 w-3.5 stroke-[2.5]" aria-hidden />
+              <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
               Пользователь
             </button>
           </div>
