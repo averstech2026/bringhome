@@ -8,6 +8,7 @@ import {
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   query,
   where,
@@ -159,6 +160,29 @@ export async function syncPushTokenOnLogin(uid, profile) {
   }
 }
 
+/**
+ * Диагностика: отправляет тестовый пуш самому себе (на токены текущего юзера).
+ * Полезно проверить всю цепочку без второго аккаунта.
+ */
+export async function sendTestPush(uid) {
+  if (!PUSH_API_URL) {
+    throw new Error('VITE_YANDEX_PUSH_URL не задан — задеплойте прокси и заполните URL');
+  }
+  const tokens = await getUserTokens(uid);
+  if (tokens.length === 0) {
+    throw new Error('Нет сохранённых токенов — переключите тумблер пушей заново');
+  }
+
+  const result = await postToProxy(tokens, {
+    body: '🔔 Тестовое уведомление — всё работает!',
+    data: { type: 'test' },
+  });
+  if ((result.sent ?? 0) === 0) {
+    throw new Error('Прокси принял запрос, но доставок 0 — проверьте логи функции');
+  }
+  return result;
+}
+
 /** Подписка на пуши, пришедшие пока вкладка активна (foreground). */
 export async function onForegroundPush(handler) {
   const messaging = await getMessagingInstance();
@@ -166,72 +190,146 @@ export async function onForegroundPush(handler) {
   return onMessage(messaging, handler);
 }
 
+// --- Точечная адресация получателей ---
+
 /**
- * Отправка пуша о новом списке всем активным членам семьи, у которых включены
- * уведомления, кроме автора. Токены собираются на клиенте, а сама доставка идёт
- * через serverless-прокси (FCM HTTP v1) — приватный ключ остаётся на сервере.
+ * Есть ли у пользователя доступ к списку. Логика совпадает с firestore.rules:
+ * явный доступ (allowedUsers) ИЛИ публичный список внутри той же семейной группы.
  */
-export async function sendNewListNotification({ senderUid, creatorName, listTitle }) {
-  if (!PUSH_API_URL) {
-    console.warn('[push] VITE_YANDEX_PUSH_URL не задан — уведомления о новом списке не отправлены');
-    return { sent: 0, skipped: true };
+function userCanAccessList(userData, uid, list) {
+  const allowedUsers = Array.isArray(list?.allowedUsers) ? list.allowedUsers : [];
+  if (allowedUsers.includes(uid)) return true;
+  if (list?.isPublic === true && userData?.groupId && userData.groupId === list?.groupId) {
+    return true;
   }
+  return false;
+}
 
-  const currentUser = auth?.currentUser;
-  if (!currentUser) return { sent: 0, skipped: true };
-
+/**
+ * Пользователи с включёнными пушами, имеющие доступ к списку.
+ * Возвращает [{ uid, tokens }], чтобы вызывающий мог исключить нужные uid.
+ */
+async function getAccessibleUsers(list) {
   const snapshot = await getDocs(
     query(collection(db, COLLECTIONS.USERS), where('pushEnabled', '==', true)),
   );
 
-  const tokens = [];
+  const result = [];
   snapshot.forEach((docSnap) => {
-    if (docSnap.id === senderUid) return; // автора не уведомляем
     const data = docSnap.data();
     if (data.disabled === true) return;
-    if (Array.isArray(data.fcmTokens)) {
-      tokens.push(...data.fcmTokens.filter(Boolean));
-    }
+    if (!userCanAccessList(data, docSnap.id, list)) return;
+    const tokens = Array.isArray(data.fcmTokens) ? data.fcmTokens.filter(Boolean) : [];
+    if (tokens.length > 0) result.push({ uid: docSnap.id, tokens });
   });
+  return result;
+}
 
-  const uniqueTokens = [...new Set(tokens)];
+function toExcludeSet(exclude) {
+  if (!exclude) return new Set();
+  return new Set((Array.isArray(exclude) ? exclude : [exclude]).filter(Boolean));
+}
+
+/**
+ * Токены получателей с доступом к списку, кроме excludeUid.
+ * excludeUid — один uid или массив (например, автор + только что добавленные участники).
+ */
+export async function getTargetUserTokens(list, excludeUid) {
+  const excluded = toExcludeSet(excludeUid);
+  const users = await getAccessibleUsers(list);
+  const tokens = [];
+  for (const u of users) {
+    if (excluded.has(u.uid)) continue;
+    tokens.push(...u.tokens);
+  }
+  return [...new Set(tokens)];
+}
+
+/** Токены одного пользователя (если у него включены пуши). */
+async function getUserTokens(uid) {
+  if (!uid) return [];
+  const snap = await getDoc(doc(db, COLLECTIONS.USERS, uid));
+  if (!snap.exists()) return [];
+  const data = snap.data();
+  if (data.pushEnabled !== true || data.disabled === true) return [];
+  return Array.isArray(data.fcmTokens) ? [...new Set(data.fcmTokens.filter(Boolean))] : [];
+}
+
+// --- Транспорт: доставка на набор токенов через serverless-прокси (FCM HTTP v1) ---
+
+async function postToProxy(tokens, { title = 'КупиДомой', body, data = {} }) {
+  if (!PUSH_API_URL) {
+    console.warn('[push] VITE_YANDEX_PUSH_URL не задан — пуш не отправлен');
+    return { sent: 0, skipped: true };
+  }
+  const uniqueTokens = [...new Set((tokens || []).filter(Boolean))];
   if (uniqueTokens.length === 0) return { sent: 0 };
 
-  const name = (creatorName || '').trim() || 'Кто-то из семьи';
-  const title = (listTitle || '').trim() || 'Новый список';
-  const body = `📝 ${name} создал список «${title}»`;
+  const currentUser = auth?.currentUser;
+  if (!currentUser) return { sent: 0, skipped: true };
 
   const idToken = await currentUser.getIdToken();
-
   try {
     const response = await fetch(PUSH_API_URL, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${idToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        idToken,
         tokens: uniqueTokens,
-        title: 'КупиДомой',
+        title,
         body,
-        data: {
-          type: 'new_list',
-          title,
-          creator: name,
-          icon: NOTIFICATION_ICON,
-        },
+        data: { icon: NOTIFICATION_ICON, ...data },
       }),
     });
-
     if (!response.ok) {
       console.warn('[push] Прокси ответил ошибкой', response.status, await response.text());
       return { sent: 0 };
     }
-
     const result = await response.json().catch(() => ({}));
     return { sent: result.sent ?? 0 };
   } catch (err) {
     console.warn('[push] Ошибка отправки пуша', err);
     return { sent: 0 };
   }
+}
+
+function resolveAuthorName(author) {
+  return (author?.name || '').trim() || 'Кто-то из семьи';
+}
+function resolveListTitle(list) {
+  return (list?.title || '').trim() || 'список';
+}
+
+// --- Сценарии уведомлений ---
+
+/** Сценарий А: создан новый список — всем участникам с доступом, кроме автора. */
+export async function notifyListCreated({ list, author }) {
+  const tokens = await getTargetUserTokens(list, author?.uid);
+  return postToProxy(tokens, {
+    body: `📝 ${resolveAuthorName(author)} создал список «${resolveListTitle(list)}»`,
+    data: { type: 'list_created', listId: list?.id || '' },
+  });
+}
+
+/**
+ * Сценарий Б: список изменён — всем участникам с доступом, кроме автора и excludeUids
+ * (новые участники получают персональный пуш из сценария В, а не это уведомление).
+ */
+export async function notifyListUpdated({ list, author, excludeUids = [] }) {
+  const exclude = [author?.uid, ...(Array.isArray(excludeUids) ? excludeUids : [excludeUids])];
+  const tokens = await getTargetUserTokens(list, exclude);
+  return postToProxy(tokens, {
+    body: `🔄 ${resolveAuthorName(author)} обновил список «${resolveListTitle(list)}»`,
+    data: { type: 'list_updated', listId: list?.id || '' },
+  });
+}
+
+/** Сценарий В: пользователю открыли доступ — персонально только ему. */
+export async function notifyUserAddedToList({ list, author, newUid }) {
+  if (!newUid || newUid === author?.uid) return { sent: 0, skipped: true };
+  const tokens = await getUserTokens(newUid);
+  return postToProxy(tokens, {
+    body: `👋 ${resolveAuthorName(author)} открыл вам доступ к списку «${resolveListTitle(list)}»`,
+    data: { type: 'list_shared', listId: list?.id || '' },
+  });
 }

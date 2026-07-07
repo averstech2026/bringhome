@@ -21,7 +21,7 @@ function corsHeaders(event) {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': requested || 'Authorization, Content-Type',
+    'Access-Control-Allow-Headers': requested || 'Content-Type',
     'Access-Control-Max-Age': '86400',
     'Content-Type': 'application/json',
   };
@@ -137,14 +137,16 @@ export async function handler(event) {
     const sa = loadServiceAccount();
     const projectId = sa.project_id;
 
-    const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
-    const idToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+    const body = parseBody(event);
+
+    // Firebase ID-токен передаём в теле, а НЕ в заголовке Authorization: иначе шлюз
+    // Yandex Cloud пытается проверить его как свой IAM-токен и отвечает 403.
+    const idToken = String(body.idToken || '').trim();
     if (!idToken) {
-      return { statusCode: 401, headers, body: JSON.stringify({ error: 'Нет авторизации' }) };
+      return { statusCode: 401, headers, body: JSON.stringify({ error: 'Нет idToken' }) };
     }
     await verifyIdToken(idToken, projectId);
 
-    const body = parseBody(event);
     const tokens = [...new Set((Array.isArray(body.tokens) ? body.tokens : []).filter(Boolean))];
     const title = String(body.title || 'КупиДомой');
     const text = String(body.body || '');

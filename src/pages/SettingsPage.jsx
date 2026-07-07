@@ -10,6 +10,8 @@ import {
   isPushSupported,
   enablePushNotifications,
   disablePushNotifications,
+  sendTestPush,
+  onForegroundPush,
 } from '../services/pushNotification';
 import { UserAvatar } from '../components/profile/UserAvatar';
 import PageHeader from '../components/layout/PageHeader';
@@ -151,6 +153,7 @@ export default function SettingsPage() {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushSupported, setPushSupported] = useState(true);
+  const [pushTesting, setPushTesting] = useState(false);
 
   const name = profile?.displayName || user?.displayName || 'Пользователь';
   const savedPhotoUrl = profile?.avatarUrl || null;
@@ -176,6 +179,24 @@ export default function SettingsPage() {
     });
     return () => {
       active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let unsubscribe;
+    onForegroundPush((payload) => {
+      const note = payload?.notification || {};
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification(note.title || 'КупиДомой', {
+          body: note.body || '',
+          icon: note.icon || undefined,
+        });
+      }
+    }).then((unsub) => {
+      unsubscribe = unsub;
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
     };
   }, []);
 
@@ -311,6 +332,23 @@ export default function SettingsPage() {
       setError(err?.message || 'Не удалось изменить настройку уведомлений');
     } finally {
       setPushBusy(false);
+    }
+  };
+
+  const handleTestPush = async () => {
+    if (!user?.uid || pushTesting) return;
+
+    setPushTesting(true);
+    setError('');
+    setSuccess('');
+    try {
+      const result = await sendTestPush(user.uid);
+      setSuccess(`Тестовый пуш отправлен (доставок: ${result.sent ?? 0})`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err?.message || 'Не удалось отправить тестовый пуш');
+    } finally {
+      setPushTesting(false);
     }
   };
 
@@ -479,6 +517,22 @@ export default function SettingsPage() {
               disabled={pushBusy || !pushSupported}
             />
           </div>
+
+          {pushEnabled && (
+            <div className="px-4 pb-4">
+              <button
+                type="button"
+                onClick={handleTestPush}
+                disabled={pushTesting}
+                className="w-full rounded-full border border-emerald-200 bg-emerald-50 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+              >
+                {pushTesting ? 'Отправляем…' : 'Проверить пуш'}
+              </button>
+              <p className="mt-1.5 text-center text-xs text-slate-400">
+                Пришлёт тестовое уведомление на это устройство
+              </p>
+            </div>
+          )}
         </section>
 
         {user && (

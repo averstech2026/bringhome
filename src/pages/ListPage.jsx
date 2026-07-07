@@ -10,7 +10,11 @@ import { usePendingListItems, isPendingListItem } from '../hooks/usePendingListI
 import { usePendingListAccess } from '../hooks/usePendingListAccess';
 import { mergeItemsBatch } from '../utils/mergeItems';
 import { decodeListTypeFromUrl, encodeListTypeForUrl, formatListTitle } from '../services/listsService';
-import { sendNewListNotification } from '../services/pushNotification';
+import {
+  notifyListCreated,
+  notifyListUpdated,
+  notifyUserAddedToList,
+} from '../services/pushNotification';
 import { getFamilyGroupId } from '../utils/familyGroup';
 import ListDescriptionModal, { ListDescriptionButton } from '../components/list/ListDescriptionModal';
 import ScreenTopPanel, { ScreenTopBar } from '../components/layout/ScreenTopPanel';
@@ -89,6 +93,7 @@ export default function ListPage() {
   } = usePendingListAccess();
 
   const [savingChanges, setSavingChanges] = useState(false);
+  const [notifyOnSave, setNotifyOnSave] = useState(false);
   const [accessError, setAccessError] = useState(null);
   const [accessChecked, setAccessChecked] = useState(false);
   const [accessForListId, setAccessForListId] = useState(null);
@@ -342,17 +347,21 @@ export default function ListPage() {
   };
 
   const handleCreateList = async () => {
-    const newListId = await persistWithItems(user.uid, draftItems, {
-      groupId: getFamilyGroupId(profile),
-    });
+    const groupId = getFamilyGroupId(profile);
+    const newListId = await persistWithItems(user.uid, draftItems, { groupId });
 
     if (newListId) {
-      // Уведомляем остальных членов семьи (client-side, без Cloud Functions).
+      // Сценарий А: уведомляем участников с доступом к списку, кроме автора.
       // Не блокируем UI и глушим ошибки — создание списка важнее доставки пуша.
-      sendNewListNotification({
-        senderUid: user.uid,
-        creatorName: profile?.displayName || displayName,
-        listTitle: formatListTitle(listType),
+      notifyListCreated({
+        list: {
+          id: newListId,
+          title: formatListTitle(listType),
+          isPublic: false,
+          allowedUsers: [user.uid],
+          groupId,
+        },
+        author: { uid: user.uid, name: profile?.displayName || displayName },
       }).catch((err) => console.warn('[push] Не удалось отправить уведомление', err));
     }
   };
@@ -363,6 +372,10 @@ export default function ListPage() {
     const hasItems = pendingItems.length > 0;
     const hasAccess = isAccessDirty(list);
     if (!hasItems && !hasAccess) return;
+
+    const previousAllowed = Array.isArray(list.allowedUsers) ? list.allowedUsers : [];
+    let updatedAllowed = previousAllowed;
+    let updatedIsPublic = list.isPublic === true;
 
     setSavingChanges(true);
     try {
@@ -383,14 +396,43 @@ export default function ListPage() {
       }
 
       if (hasAccess && pendingAccess) {
-        const allowedUsers = [...new Set([...pendingAccess.allowedUsers, list.createdBy])];
+        updatedAllowed = [...new Set([...pendingAccess.allowedUsers, list.createdBy])];
+        updatedIsPublic = pendingAccess.isPublic;
         await updateList(listId, {
-          isPublic: pendingAccess.isPublic,
-          allowedUsers,
+          isPublic: updatedIsPublic,
+          allowedUsers: updatedAllowed,
         });
         resetPendingAccess();
       }
 
+      // Уведомления после успешной записи (не блокируем UI, глушим ошибки доставки).
+      const author = { uid: user.uid, name: profile?.displayName || displayName };
+      const updatedList = {
+        id: listId,
+        title: list.title,
+        isPublic: updatedIsPublic,
+        allowedUsers: updatedAllowed,
+        groupId: list.groupId,
+      };
+      const newMembers = updatedAllowed.filter(
+        (uid) => uid !== author.uid && !previousAllowed.includes(uid),
+      );
+
+      // Сценарий В: персональный пуш каждому только что добавленному участнику.
+      newMembers.forEach((uid) => {
+        notifyUserAddedToList({ list: updatedList, author, newUid: uid }).catch((err) =>
+          console.warn('[push] Не удалось уведомить нового участника', err),
+        );
+      });
+
+      // Сценарий Б: пуш об изменениях остальным участникам — только если включён чекбокс.
+      if (notifyOnSave) {
+        notifyListUpdated({ list: updatedList, author, excludeUids: newMembers }).catch((err) =>
+          console.warn('[push] Не удалось отправить уведомление об изменениях', err),
+        );
+      }
+
+      setNotifyOnSave(false);
       scrollToShareAndHighlight();
     } catch (err) {
       window.alert(err?.message || 'Не удалось сохранить изменения');
@@ -657,14 +699,37 @@ export default function ListPage() {
               Повторить список
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={handleSave}
-              className={`${PRIMARY_BTN} disabled:cursor-not-allowed`}
-              disabled={saveBusy || !isDirty}
-            >
-              {saveLabel}
-            </button>
+            <>
+              {isEditMode && isDirty && (
+                <label className="mb-3 flex cursor-pointer items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-2.5 ring-1 ring-black/[0.04]">
+                  <span className="text-sm text-slate-700">Уведомить участников об изменениях</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={notifyOnSave}
+                    onClick={() => setNotifyOnSave((value) => !value)}
+                    disabled={saveBusy}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 disabled:opacity-40 ${
+                      notifyOnSave ? 'bg-emerald-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                        notifyOnSave ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </label>
+              )}
+              <button
+                type="button"
+                onClick={handleSave}
+                className={`${PRIMARY_BTN} disabled:cursor-not-allowed`}
+                disabled={saveBusy || !isDirty}
+              >
+                {saveLabel}
+              </button>
+            </>
           )}
         </footer>
       )}
