@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { groupCompletedListsByDate } from '../../utils/groupCompletedLists';
+import {
+  groupCompletedListsByDate,
+  sortCompletedListsByDate,
+} from '../../utils/groupCompletedLists';
 import {
   BUILTIN_TYPES,
   getListTypeBadgeProps,
@@ -92,11 +95,9 @@ function CompletedDateGroup({ group, expanded, onToggle, renderListCard }) {
   );
 }
 
-export default function CompletedListsSection({ lists, renderListCard }) {
+function CompletedListsGrouped({ lists, renderListCard }) {
   const groups = groupCompletedListsByDate(lists);
   const [expandedKeys, setExpandedKeys] = useState(() => new Set());
-
-  if (groups.length === 0) return null;
 
   const allExpanded = groups.length > 0 && groups.every((group) => expandedKeys.has(group.key));
 
@@ -118,7 +119,7 @@ export default function CompletedListsSection({ lists, renderListCard }) {
   };
 
   return (
-    <section className="mt-8">
+    <>
       <div className="flex items-center justify-between gap-3">
         <h2 className={PAGE_SECTION_TITLE}>Готовые</h2>
         <button
@@ -141,6 +142,35 @@ export default function CompletedListsSection({ lists, renderListCard }) {
           />
         ))}
       </div>
+    </>
+  );
+}
+
+function CompletedListsFlat({ lists, renderListCard }) {
+  const sorted = sortCompletedListsByDate(lists);
+
+  return (
+    <>
+      <h2 className={PAGE_SECTION_TITLE}>Готовые</h2>
+      <ul className="mt-3 space-y-2.5">
+        {sorted.map((list) => (
+          <li key={list.id}>{renderListCard(list)}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+export default function CompletedListsSection({ lists, renderListCard, groupByDate = false }) {
+  if (lists.length === 0) return null;
+
+  return (
+    <section className="mt-8">
+      {groupByDate ? (
+        <CompletedListsGrouped lists={lists} renderListCard={renderListCard} />
+      ) : (
+        <CompletedListsFlat lists={lists} renderListCard={renderListCard} />
+      )}
     </section>
   );
 }

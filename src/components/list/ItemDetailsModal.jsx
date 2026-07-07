@@ -1,14 +1,23 @@
 import { useEffect, useState } from 'react';
-import { User, X } from 'lucide-react';
-import { UserAvatar } from '../profile/UserAvatar';
+import { Check, Hand, X } from 'lucide-react';
 import { CATEGORIES, CATEGORY_EMOJI } from '../../utils/categories';
 import { PRIMARY_BTN } from './cardStyles';
+import { formatBookerLabel } from '../../utils/booking';
 
-function formatBookerLabel(name) {
-  if (!name) return '';
-  const first = name.trim().split(/\s+/)[0];
-  return first || name;
-}
+const STATUS_BTN =
+  'flex min-h-[3.25rem] flex-1 items-center justify-center gap-2 rounded-full border border-transparent px-3 py-2.5 text-sm font-semibold shadow-md transition-all duration-150 active:scale-[0.98] disabled:cursor-default disabled:opacity-50';
+
+const STATUS_BTN_BOUGHT_IDLE =
+  'bg-slate-100 text-slate-600 hover:bg-slate-200';
+
+const STATUS_BTN_BOUGHT_ACTIVE =
+  'bg-emerald-500 text-white shadow-lg shadow-emerald-200/80 hover:bg-emerald-600';
+
+const STATUS_BTN_BOOKING_IDLE =
+  'bg-indigo-50 text-indigo-600 hover:bg-indigo-100';
+
+const STATUS_BTN_BOOKING_ACTIVE =
+  'bg-indigo-500 text-white shadow-lg shadow-indigo-200/80 hover:bg-indigo-600';
 
 export default function ItemDetailsModal({
   open,
@@ -23,12 +32,14 @@ export default function ItemDetailsModal({
   const [comment, setComment] = useState('');
   const [bookedBy, setBookedBy] = useState(null);
   const [category, setCategory] = useState('Прочее');
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
     if (!open || !item) return undefined;
     setComment(item.comment || '');
     setBookedBy(item.bookedBy || null);
     setCategory(item.category || 'Прочее');
+    setChecked(Boolean(item.checked));
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
@@ -40,21 +51,31 @@ export default function ItemDetailsModal({
 
   const isMine = bookedBy && bookedBy === displayName;
   const isOther = bookedBy && bookedBy !== displayName;
-  const bookerPhotoUrl = isMine ? userPhotoUrl : undefined;
 
   const handleSave = () => {
     onSave?.({
       comment: comment.trim() || null,
-      bookedBy: bookedBy || null,
+      bookedBy: checked ? null : bookedBy || null,
       category,
+      checked,
     });
     onClose?.();
   };
 
   const canEdit = !disabled && !readOnly;
+  const canEditMeta = canEdit && !checked;
+
+  const handleToggleChecked = () => {
+    if (!canEdit) return;
+    setChecked((prev) => {
+      const next = !prev;
+      if (next) setBookedBy(null);
+      return next;
+    });
+  };
 
   const handleToggleBooking = () => {
-    if (!canEdit || isOther) return;
+    if (!canEditMeta || isOther) return;
     setBookedBy((prev) => (prev === displayName ? null : displayName));
   };
 
@@ -79,7 +100,7 @@ export default function ItemDetailsModal({
             <p id="item-details-title" className="truncate text-sm font-semibold text-slate-800">
               {item.name}
             </p>
-            <p className="mt-0.5 text-xs text-slate-400">Категория, примечание и бронь</p>
+            <p className="mt-0.5 text-xs text-slate-400">Категория, примечание и статус</p>
           </div>
           <button
             type="button"
@@ -101,7 +122,7 @@ export default function ItemDetailsModal({
                   <button
                     key={c}
                     type="button"
-                    disabled={!canEdit}
+                    disabled={!canEditMeta}
                     onClick={() => setCategory(c)}
                     aria-pressed={isActive}
                     className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-default ${
@@ -125,7 +146,7 @@ export default function ItemDetailsModal({
               id="item-comment"
               rows={3}
               value={comment}
-              disabled={!canEdit}
+              disabled={!canEditMeta}
               onChange={(e) => setComment(e.target.value)}
               placeholder="Например: 2.5%, пожирнее"
               className="w-full resize-none rounded-2xl border border-gray-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white disabled:opacity-50"
@@ -133,57 +154,37 @@ export default function ItemDetailsModal({
           </div>
 
           <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-            <p className="mb-2 text-xs font-medium text-slate-500">Бронь</p>
+            <p className="mb-3 text-xs font-medium text-slate-500">Статус</p>
 
-            {isOther ? (
-              <div className="flex items-center gap-2.5">
-                <UserAvatar
-                  photoUrl={undefined}
-                  name={bookedBy}
-                  className="h-8 w-8 text-[11px]"
-                  variant="vivid"
-                />
-                <div>
-                  <p className="text-sm font-medium text-slate-700">
-                    Забронировано
-                  </p>
-                  <p className="text-xs text-slate-400">Купит {formatBookerLabel(bookedBy)}</p>
-                </div>
-              </div>
-            ) : isMine ? (
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <UserAvatar
-                    photoUrl={bookerPhotoUrl}
-                    name={bookedBy}
-                    className="h-8 w-8 text-[11px]"
-                    variant="vivid"
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-slate-700">Вы берёте на себя</p>
-                    <p className="text-xs text-slate-400">Забронировано</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  disabled={!canEdit}
-                  onClick={handleToggleBooking}
-                  className="shrink-0 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-white disabled:opacity-40"
-                >
-                  Снять
-                </button>
-              </div>
-            ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={!canEditMeta || isOther}
+                onClick={handleToggleBooking}
+                aria-pressed={isMine}
+                className={`${STATUS_BTN} ${
+                  isMine || isOther ? STATUS_BTN_BOOKING_ACTIVE : STATUS_BTN_BOOKING_IDLE
+                } ${isOther ? 'disabled:opacity-100' : ''}`}
+              >
+                <Hand className="h-4 w-4 shrink-0" strokeWidth={isMine || isOther ? 2.25 : 2} aria-hidden />
+                {isOther
+                  ? `Купит ${formatBookerLabel(bookedBy)}`
+                  : isMine
+                    ? 'Вы берете'
+                    : 'Взять на себя'}
+              </button>
+
               <button
                 type="button"
                 disabled={!canEdit}
-                onClick={handleToggleBooking}
-                className="flex w-full items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 active:scale-[0.98] disabled:opacity-40"
+                onClick={handleToggleChecked}
+                aria-pressed={checked}
+                className={`${STATUS_BTN} ${checked ? STATUS_BTN_BOUGHT_ACTIVE : STATUS_BTN_BOUGHT_IDLE}`}
               >
-                <User className="h-4 w-4" aria-hidden />
-                Взять на себя
+                <Check className="h-4 w-4 shrink-0" strokeWidth={checked ? 2.5 : 2} aria-hidden />
+                Куплено
               </button>
-            )}
+            </div>
           </div>
         </div>
 

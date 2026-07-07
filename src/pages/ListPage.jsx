@@ -130,8 +130,6 @@ export default function ListPage() {
   };
 
   const handleClearList = async () => {
-    if (!window.confirm('Очистить весь список?')) return;
-
     setClearing(true);
     try {
       if (isDraft) {

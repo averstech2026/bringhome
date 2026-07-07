@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useAppSettings } from '../hooks/useAppSettings';
 import { useUserProfile } from '../hooks/useUserProfile';
 import {
   getUserLists,
@@ -23,6 +24,7 @@ import { encodeListTypeForUrl } from '../utils/listTypes';
 
 export default function HomePage() {
   const { user } = useAuth();
+  const { settings } = useAppSettings();
   const { isAdmin } = useUserProfile(user);
   const [lists, setLists] = useState([]);
   const [authorsById, setAuthorsById] = useState({});
@@ -177,6 +179,7 @@ export default function HomePage() {
               <CompletedListsSection
                 key={location.key}
                 lists={completedLists}
+                groupByDate={settings.groupByDate}
                 renderListCard={(list) => renderListCard(list, { dimmed: true })}
               />
             )}

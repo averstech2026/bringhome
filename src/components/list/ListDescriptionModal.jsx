@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { StickyNote, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { PRIMARY_BTN } from './cardStyles';
+
+const NOTE_ICON = `${import.meta.env.BASE_URL}icons/note.png`;
 
 export function ListDescriptionButton({ hasDescription, onClick, disabled = false }) {
   return (
@@ -10,13 +12,16 @@ export function ListDescriptionButton({ hasDescription, onClick, disabled = fals
       disabled={disabled}
       title={hasDescription ? 'Редактировать заметку' : 'Добавить заметку'}
       aria-label={hasDescription ? 'Редактировать заметку к списку' : 'Добавить заметку к списку'}
-      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition disabled:opacity-40 ${
-        hasDescription
-          ? 'text-slate-500 hover:bg-slate-50 hover:text-slate-600'
-          : 'text-slate-300 hover:bg-slate-50 hover:text-slate-400'
-      }`}
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition hover:bg-slate-50 disabled:opacity-40"
     >
-      <StickyNote className="h-3.5 w-3.5 stroke-[1.5]" aria-hidden />
+      <img
+        src={NOTE_ICON}
+        alt=""
+        aria-hidden
+        className={`h-3.5 w-3.5 object-contain transition-opacity ${
+          hasDescription ? 'opacity-60' : 'opacity-35'
+        }`}
+      />
     </button>
   );
 }

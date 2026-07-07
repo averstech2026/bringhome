@@ -61,7 +61,18 @@ export default function ItemRow({
     await deleteItem(item.id);
   };
 
-  const handleDetailsSave = async ({ comment, bookedBy, category }) => {
+  const handleDetailsSave = async ({ comment, bookedBy, category, checked }) => {
+    if (checked !== item.checked) {
+      if (onToggle) {
+        onToggle(item.id, displayName);
+      } else {
+        await toggleItem(item.id, {
+          checked,
+          checkedBy: displayName,
+        });
+      }
+    }
+
     if (category && category !== item.category) {
       saveLearnedCategory(item.name, category);
       if (onCategoryChange) {
@@ -101,11 +112,11 @@ export default function ItemRow({
           <div className="flex items-start gap-1">
             <button
               type="button"
-              disabled={disabled || (item.checked && !readOnly)}
+              disabled={disabled}
               onClick={() => setDetailsOpen(true)}
               className={`min-w-0 flex-1 text-left text-sm font-medium text-slate-700 ${
                 item.checked ? 'line-through' : ''
-              } ${!item.checked || readOnly ? 'cursor-pointer hover:text-slate-900' : ''}`}
+              } cursor-pointer hover:text-slate-900`}
             >
               {item.name}
             </button>
@@ -166,7 +177,7 @@ export default function ItemRow({
         item={item}
         displayName={displayName}
         userPhotoUrl={userPhotoUrl}
-        disabled={disabled || item.checked}
+        disabled={disabled}
         readOnly={readOnly}
         onClose={() => setDetailsOpen(false)}
         onSave={handleDetailsSave}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useAppSettings } from '../hooks/useAppSettings';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { updateUserAvatar } from '../services/usersService';
 import {
@@ -17,6 +18,27 @@ import RepeatListModal from '../components/home/RepeatListModal';
 import { HINT_TEXT, PAGE_SECTION_TITLE, PRIMARY_BTN } from '../components/list/cardStyles';
 import { saveRepeatDraft } from '../utils/repeatDraftStorage';
 import { encodeListTypeForUrl } from '../utils/listTypes';
+
+function SettingsSwitch({ enabled, onChange, disabled = false }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      disabled={disabled}
+      onClick={() => onChange(!enabled)}
+      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 disabled:opacity-40 ${
+        enabled ? 'bg-emerald-500' : 'bg-gray-200'
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+          enabled ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
+  );
+}
 
 function ChevronRightIcon() {
   return (
@@ -41,6 +63,7 @@ function getAvatarErrorMessage(err) {
 
 export default function SettingsPage() {
   const { user, signOut, reloadUser } = useAuth();
+  const { settings, updateSetting } = useAppSettings();
   const { profile, isAdmin, reload } = useUserProfile(user);
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
@@ -232,6 +255,21 @@ export default function SettingsPage() {
 
           {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
           {success && <p className="mt-2 text-sm text-emerald-600">{success}</p>}
+        </section>
+
+        <section className="mt-10 overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <div className="flex items-center justify-between gap-4 px-4 py-4">
+            <div className="min-w-0">
+              <p className="text-[15px] text-slate-800">Группировать завершенные списки по датам</p>
+              <p className="mt-0.5 text-xs text-slate-400">
+                На главном экране готовые списки будут сгруппированы по дням
+              </p>
+            </div>
+            <SettingsSwitch
+              enabled={settings.groupByDate}
+              onChange={(value) => updateSetting('groupByDate', value)}
+            />
+          </div>
         </section>
 
         <section className="mt-10">

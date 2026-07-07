@@ -1,4 +1,4 @@
-import { User } from 'lucide-react';
+import { Hand } from 'lucide-react';
 import ItemRow from './ItemRow';
 import { getCategoryLabel, getCategoryHeaderClass } from '../../utils/categories';
 import { getCategoryBookingState, resolveCategoryBookingAction } from '../../utils/booking';
@@ -19,13 +19,13 @@ function CategoryBookButton({ items, displayName, disabled, onBookCategory }) {
       disabled={disabled || !canToggle}
       onClick={handleClick}
       title={allMine ? 'Снять бронь с отдела' : 'Забронировать весь отдел'}
-      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-40 ${
+      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-transparent shadow-md transition-all duration-150 active:scale-95 disabled:opacity-40 ${
         allMine
-          ? 'border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-          : 'border-slate-200/80 bg-white/80 text-slate-500 hover:bg-white hover:text-emerald-600'
+          ? 'bg-indigo-500 text-white shadow-indigo-200/80 hover:bg-indigo-600'
+          : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
       }`}
     >
-      <User className="h-3.5 w-3.5" aria-hidden />
+      <Hand className="h-3.5 w-3.5" strokeWidth={allMine ? 2.25 : 2} aria-hidden />
     </button>
   );
 }

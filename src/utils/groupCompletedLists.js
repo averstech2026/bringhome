@@ -69,6 +69,19 @@ export function countListsByType(lists) {
   });
 }
 
+export function getListSortTimestamp(list) {
+  return (
+    list.completedAt?.toMillis?.() ??
+    list.updatedAt?.toMillis?.() ??
+    list.createdAt?.toMillis?.() ??
+    0
+  );
+}
+
+export function sortCompletedListsByDate(lists) {
+  return [...lists].sort((a, b) => getListSortTimestamp(b) - getListSortTimestamp(a));
+}
+
 export function groupCompletedListsByDate(lists, now = new Date()) {
   const groups = new Map();
 

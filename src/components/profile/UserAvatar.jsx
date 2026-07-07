@@ -10,7 +10,7 @@ export function UserAvatar({ photoUrl, name, className = 'h-9 w-9 text-sm', vari
 
   const photoFilter =
     variant === 'checkbox'
-      ? 'brightness-110 contrast-[1.12] saturate-[1.08]'
+      ? 'brightness-110 contrast-[1.12] saturate-[0.94]'
       : variant === 'vivid'
         ? 'brightness-105 contrast-[1.06]'
         : '';

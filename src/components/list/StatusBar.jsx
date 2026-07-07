@@ -1,11 +1,12 @@
-import { Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getListProgress } from '../../utils/groupByCategory';
 import {
   CARD_SURFACE,
   CARD_PAD_V,
   HINT_TEXT,
   ZONE_TITLE,
-  HEADER_CONTROL_INSET,
+  PRIMARY_BTN,
 } from './cardStyles';
 
 const PILL_CLASS =
@@ -44,14 +45,76 @@ function ProgressPill({ checked, total, percent, done = false }) {
   );
 }
 
+function ClearConfirmDialog({ open, clearing, onConfirm, onCancel }) {
+  if (!open) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center">
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default"
+        aria-label="Закрыть"
+        onClick={onCancel}
+      />
+
+      <div
+        className="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="clear-list-title"
+      >
+        <h3 id="clear-list-title" className="text-base font-semibold text-slate-900">
+          Очистить весь список?
+        </h3>
+        <p className="mt-1.5 text-sm text-slate-500">Вы уверены? Все товары будут удалены.</p>
+
+        <div className="mt-5 space-y-2">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={clearing}
+            className={`${PRIMARY_BTN} !bg-red-500 !py-3 text-sm hover:!bg-red-600 disabled:opacity-50`}
+          >
+            {clearing ? 'Очищаем…' : 'Да, очистить'}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={clearing}
+            className="w-full rounded-full border border-gray-200 py-3 text-sm font-medium text-slate-600 transition hover:bg-gray-50 disabled:opacity-50"
+          >
+            Отмена
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export default function StatusBar({ items, onClear, clearing = false }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const { total, checked, allDone, percent } = getListProgress(items);
   const remaining = total - checked;
   const done = allDone && total > 0;
   const barPercent = done ? 100 : percent;
   const showClear = Boolean(onClear) && total > 0;
 
+  const handleConfirmClear = () => {
+    onClear?.();
+    setConfirmOpen(false);
+  };
+
   return (
+    <>
+      <ClearConfirmDialog
+        open={confirmOpen}
+        clearing={clearing}
+        onConfirm={handleConfirmClear}
+        onCancel={() => setConfirmOpen(false)}
+      />
+
     <div className={`${CARD_SURFACE} ${CARD_PAD_V}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 text-left">
@@ -77,12 +140,11 @@ export default function StatusBar({ items, onClear, clearing = false }) {
           {showClear && (
             <button
               type="button"
-              onClick={onClear}
+              onClick={() => setConfirmOpen(true)}
               disabled={clearing}
-              title="Очистить список"
-              className="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-red-50 disabled:opacity-40"
+              className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98] disabled:opacity-40"
             >
-              <Trash2 className="h-4 w-4 text-gray-400 transition-colors hover:text-red-500" />
+              {clearing ? '…' : 'Очистить'}
             </button>
           )}
           <ProgressPill checked={checked} total={total} percent={percent} done={done} />
@@ -96,6 +158,7 @@ export default function StatusBar({ items, onClear, clearing = false }) {
         />
       </div>
     </div>
+    </>
   );
 }
 
