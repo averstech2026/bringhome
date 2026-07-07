@@ -18,18 +18,10 @@ const firebaseConfig = {
 
 if (firebaseConfig.projectId) {
   firebase.initializeApp(firebaseConfig);
-  const messaging = firebase.messaging();
-
-  // Показываем уведомление, когда вкладка неактивна.
-  messaging.onBackgroundMessage((payload) => {
-    const notification = payload.notification || {};
-    const title = notification.title || 'КупиДомой';
-    self.registration.showNotification(title, {
-      body: notification.body || '',
-      icon: notification.icon || undefined,
-      data: payload.data || {},
-    });
-  });
+  // Инициализируем messaging, чтобы SDK сам показал ОДНО уведомление для
+  // notification-сообщений в фоне. Свой onBackgroundMessage с showNotification
+  // НЕ добавляем — иначе уведомление задваивается (авто-показ SDK + наш вызов).
+  firebase.messaging();
 }
 
 // Фокус/открытие приложения по клику на уведомление.

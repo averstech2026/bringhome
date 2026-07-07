@@ -28,9 +28,29 @@ import app, {
 const BASE_URL = import.meta.env.BASE_URL || '/';
 const NOTIFICATION_ICON = `${BASE_URL}icons/note.png`;
 
+const DEVICE_TOKEN_KEY = 'bringhome:fcmToken';
+
 let messagingPromise = null;
 // Токен текущего устройства — нужен, чтобы аккуратно удалить его при выключении тумблера.
 let currentDeviceToken = null;
+
+// Последний токен этого устройства сохраняем локально, чтобы при ротации заменять
+// старый на новый и не копить дубли в fcmTokens (иначе одно устройство получит N пушей).
+function readStoredDeviceToken() {
+  try {
+    return localStorage.getItem(DEVICE_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+function writeStoredDeviceToken(token) {
+  try {
+    if (token) localStorage.setItem(DEVICE_TOKEN_KEY, token);
+    else localStorage.removeItem(DEVICE_TOKEN_KEY);
+  } catch {
+    // localStorage может быть недоступен — не критично
+  }
+}
 
 /** Поддерживает ли окружение веб-пуши (Safari в приватном режиме и пр. — нет). */
 export async function isPushSupported() {
@@ -115,10 +135,19 @@ export async function enablePushNotifications(uid) {
   if (!uid) throw new Error('Нет активного пользователя');
 
   const token = await requestDeviceToken();
-  await updateDoc(doc(db, COLLECTIONS.USERS, uid), {
+  const ref = doc(db, COLLECTIONS.USERS, uid);
+
+  // Заменяем прежний токен этого устройства, чтобы не было дублей доставки.
+  const previous = readStoredDeviceToken();
+  if (previous && previous !== token) {
+    await updateDoc(ref, { fcmTokens: arrayRemove(previous) });
+  }
+
+  await updateDoc(ref, {
     pushEnabled: true,
     fcmTokens: arrayUnion(token),
   });
+  writeStoredDeviceToken(token);
   return token;
 }
 
@@ -126,9 +155,10 @@ export async function enablePushNotifications(uid) {
 export async function disablePushNotifications(uid) {
   if (!uid) return;
 
+  const tokenToRemove = currentDeviceToken || readStoredDeviceToken();
   const payload = { pushEnabled: false };
-  if (currentDeviceToken) {
-    payload.fcmTokens = arrayRemove(currentDeviceToken);
+  if (tokenToRemove) {
+    payload.fcmTokens = arrayRemove(tokenToRemove);
   }
   await updateDoc(doc(db, COLLECTIONS.USERS, uid), payload);
 
@@ -138,6 +168,7 @@ export async function disablePushNotifications(uid) {
   } catch (err) {
     console.warn('[push] Не удалось удалить токен устройства', err);
   }
+  writeStoredDeviceToken(null);
   currentDeviceToken = null;
 }
 
@@ -152,9 +183,13 @@ export async function syncPushTokenOnLogin(uid, profile) {
 
   try {
     const token = await requestDeviceToken();
-    await updateDoc(doc(db, COLLECTIONS.USERS, uid), {
-      fcmTokens: arrayUnion(token),
-    });
+    const ref = doc(db, COLLECTIONS.USERS, uid);
+    const previous = readStoredDeviceToken();
+    if (previous && previous !== token) {
+      await updateDoc(ref, { fcmTokens: arrayRemove(previous) });
+    }
+    await updateDoc(ref, { fcmTokens: arrayUnion(token) });
+    writeStoredDeviceToken(token);
   } catch (err) {
     console.warn('[push] Не удалось синхронизировать токен', err);
   }
