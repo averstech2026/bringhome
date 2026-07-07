@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { WifiOff } from 'lucide-react';
 import { isFirebaseConfigured } from './firebase';
 import { useAuth } from './hooks/useAuth';
@@ -89,6 +89,19 @@ function InitCheckFailed({ onRetry, retrying }) {
       </div>
     </div>
   );
+}
+
+function LoggedOutRedirect() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (location.pathname !== '/') {
+      navigate('/', { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
+  return null;
 }
 
 function AppRoutes() {
@@ -195,7 +208,12 @@ export default function App() {
   }
 
   if (!user) {
-    return <AuthGate />;
+    return (
+      <>
+        <LoggedOutRedirect />
+        <AuthGate />
+      </>
+    );
   }
 
   if (profileLoading) {

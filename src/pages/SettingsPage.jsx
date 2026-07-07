@@ -11,6 +11,22 @@ import PageHeader from '../components/layout/PageHeader';
 import { PRIMARY_BTN } from '../components/list/cardStyles';
 import { getProfileThemeButtonClass, PROFILE_THEME_OPTIONS, resolveUiTheme } from '../utils/uiThemes';
 
+function scrollThemeButtonIntoView(container, button) {
+  if (!container || !button) return;
+
+  const padding = 6;
+  const containerRect = container.getBoundingClientRect();
+  const buttonRect = button.getBoundingClientRect();
+  const overflowRight = buttonRect.right - containerRect.right;
+  const overflowLeft = containerRect.left - buttonRect.left;
+
+  if (overflowRight > 0) {
+    container.scrollBy({ left: overflowRight + padding, behavior: 'smooth' });
+  } else if (overflowLeft > 0) {
+    container.scrollBy({ left: -(overflowLeft + padding), behavior: 'smooth' });
+  }
+}
+
 function SettingsSwitch({ enabled, onChange, disabled = false }) {
   return (
     <button
@@ -114,6 +130,8 @@ export default function SettingsPage() {
   const { profile, isAdmin, reload } = useUserProfile(user);
   const fileInputRef = useRef(null);
   const avatarMenuRef = useRef(null);
+  const themeCarouselRef = useRef(null);
+  const themeButtonRefs = useRef({});
 
   const [pendingFile, setPendingFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -138,6 +156,17 @@ export default function SettingsPage() {
       setActiveUiTheme(resolveUiTheme(profile));
     }
   }, [profile?.uiTheme, profile?.id]);
+
+  useEffect(() => {
+    const button = themeButtonRefs.current[currentUiTheme];
+    if (!button) return undefined;
+
+    const frame = window.requestAnimationFrame(() => {
+      scrollThemeButtonIntoView(themeCarouselRef.current, button);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [currentUiTheme]);
 
   useEffect(() => {
     return () => {
@@ -384,7 +413,7 @@ export default function SettingsPage() {
 
         {user && (
         <section
-          className="mt-6 overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+          className="mt-6 rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
           aria-labelledby="profile-ui-theme-title"
         >
           <div className="px-4 py-4">
@@ -398,12 +427,18 @@ export default function SettingsPage() {
               </p>
             )}
 
-            <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div
+              ref={themeCarouselRef}
+              className="-mx-1 mt-3 flex flex-nowrap gap-1.5 overflow-x-auto scroll-smooth px-1 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
               {PROFILE_THEME_OPTIONS.map((option) => {
                 const active = currentUiTheme === option.id;
                 return (
                   <button
                     key={option.id}
+                    ref={(node) => {
+                      if (node) themeButtonRefs.current[option.id] = node;
+                    }}
                     type="button"
                     disabled={savingTheme}
                     aria-pressed={active}

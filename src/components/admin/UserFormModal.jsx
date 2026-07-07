@@ -36,6 +36,10 @@ function RoleOption({ value, current, label, onChange, disabled }) {
   );
 }
 
+function SectionHeading({ children }) {
+  return <h3 className="text-sm font-semibold text-slate-900">{children}</h3>;
+}
+
 function userToForm(user) {
   const limits = resolveAiLimits(user);
   return {
@@ -132,8 +136,9 @@ export default function UserFormModal({
     }
   };
 
+  const displayName = user?.displayName?.trim() || form.displayName.trim();
   const title = isEdit
-    ? `Настройки пользователя ${user?.displayName || ''}`.trim()
+    ? `Настройки пользователя ${displayName || 'участника'}`
     : 'Добавить пользователя';
 
   const subtitle = isEdit
@@ -153,160 +158,171 @@ export default function UserFormModal({
       />
 
       <div
-        className="relative max-h-[min(90vh,720px)] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"
+        className="relative flex w-full max-w-md max-h-[90vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="user-form-title"
       >
-        <h2 id="user-form-title" className="text-base font-semibold text-slate-900">
-          {title}
-        </h2>
-        <p className="mt-1.5 text-sm text-slate-500">{subtitle}</p>
+        <header className="flex-shrink-0 border-b border-slate-100 bg-white p-5">
+          <h2 id="user-form-title" className="text-base font-semibold text-slate-900">
+            {title}
+          </h2>
+        </header>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <label className="block">
-            <span className="text-xs font-medium text-slate-500">Имя</span>
-            <input
-              type="text"
-              required
-              value={form.displayName}
-              onChange={(e) => setField('displayName', e.target.value)}
-              placeholder="Имя"
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500"
-            />
-          </label>
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-6 overflow-y-auto p-5 [scrollbar-width:thin]">
+            <p className="text-sm text-slate-500">{subtitle}</p>
 
-          <label className="block">
-            <span className="text-xs font-medium text-slate-500">Email</span>
-            <input
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => setField('email', e.target.value)}
-              placeholder="Email"
-              disabled={isEdit}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
-            />
-          </label>
-
-          {!isEdit && (
             <label className="block">
-              <span className="text-xs font-medium text-slate-500">Пароль</span>
+              <span className="text-xs font-medium text-slate-500">Имя</span>
               <input
                 type="text"
                 required
-                minLength={6}
-                value={form.password}
-                onChange={(e) => setField('password', e.target.value)}
-                placeholder="Не менее 6 символов"
+                value={form.displayName}
+                onChange={(e) => setField('displayName', e.target.value)}
+                placeholder="Имя"
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500"
               />
             </label>
-          )}
 
-          <div>
-            <span className="text-xs font-medium text-slate-500">Роль</span>
-            {isSelf && (
-              <p className="mt-0.5 text-[11px] text-slate-400">
-                Нельзя изменить свою собственную роль
-              </p>
+            <label className="block">
+              <span className="text-xs font-medium text-slate-500">Email</span>
+              <input
+                type="email"
+                required
+                value={form.email}
+                onChange={(e) => setField('email', e.target.value)}
+                placeholder="Email"
+                disabled={isEdit}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+              />
+            </label>
+
+            {!isEdit && (
+              <label className="block">
+                <span className="text-xs font-medium text-slate-500">Пароль</span>
+                <input
+                  type="text"
+                  required
+                  minLength={6}
+                  value={form.password}
+                  onChange={(e) => setField('password', e.target.value)}
+                  placeholder="Не менее 6 символов"
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500"
+                />
+              </label>
             )}
-            <div className="mt-1.5 flex gap-2">
-              <RoleOption
-                value="user"
-                current={form.role}
-                label="Член семьи"
-                onChange={(role) => setField('role', role)}
-                disabled={isSelf}
-              />
-              <RoleOption
-                value="admin"
-                current={form.role}
-                label="Администратор"
-                onChange={(role) => setField('role', role)}
-                disabled={isSelf}
-              />
+
+            <div>
+              <span className="text-xs font-medium text-slate-500">Роль</span>
+              {isSelf && (
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  Нельзя изменить свою собственную роль
+                </p>
+              )}
+              <div className="mt-1.5 flex gap-2">
+                <RoleOption
+                  value="user"
+                  current={form.role}
+                  label="Член семьи"
+                  onChange={(role) => setField('role', role)}
+                  disabled={isSelf}
+                />
+                <RoleOption
+                  value="admin"
+                  current={form.role}
+                  label="Администратор"
+                  onChange={(role) => setField('role', role)}
+                  disabled={isSelf}
+                />
+              </div>
             </div>
+
+            {form.role !== 'admin' && (
+              <section className="space-y-4">
+                <SectionHeading>Лимиты и статистика</SectionHeading>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="block">
+                    <span className="text-xs text-slate-500">В день</span>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={form.daily}
+                      onChange={(e) => setField('daily', e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-2.5 py-2.5 text-sm outline-none focus:border-violet-400"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-slate-500">В неделю</span>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={form.weekly}
+                      onChange={(e) => setField('weekly', e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-2.5 py-2.5 text-sm outline-none focus:border-violet-400"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-slate-500">В месяц</span>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={form.monthly}
+                      onChange={(e) => setField('monthly', e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-2.5 py-2.5 text-sm outline-none focus:border-violet-400"
+                    />
+                  </label>
+                </div>
+
+                {canResetTodayLimit && (
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm text-slate-600">Использовано сегодня</p>
+                        <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">
+                          {todayUsage?.daily.count ?? 0} / {todayLimit}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={saving || resettingToday}
+                        onClick={() => onResetTodayLimit?.()}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-amber-600 transition hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <RotateCcw
+                          className={`h-4 w-4 ${resettingToday ? 'animate-spin' : ''}`}
+                          aria-hidden
+                        />
+                        {resettingToday ? '…' : 'Сбросить'}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Обнуляет только дневной счётчик. Лимиты 5/20/50 останутся без изменений.
+                    </p>
+                  </div>
+                )}
+              </section>
+            )}
+
+            <section className="space-y-4">
+              <SectionHeading>Ограничения и интерфейс</SectionHeading>
+
+              {form.role !== 'admin' && (
+                <IsChildToggle checked={form.isChild} onChange={(value) => setField('isChild', value)} />
+              )}
+
+              <UiThemeSelect value={form.uiTheme} onChange={(value) => setField('uiTheme', value)} />
+            </section>
           </div>
 
-          {form.role !== 'admin' && (
-            <div>
-              <span className="text-xs font-medium text-slate-500">Лимиты запросов ИИ</span>
-              <div className="mt-2 space-y-2">
-                <label className="block">
-                  <span className="text-xs text-slate-500">В день</span>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={form.daily}
-                    onChange={(e) => setField('daily', e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-400"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs text-slate-500">В неделю</span>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={form.weekly}
-                    onChange={(e) => setField('weekly', e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-400"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs text-slate-500">В месяц</span>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={form.monthly}
-                    onChange={(e) => setField('monthly', e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-400"
-                  />
-                </label>
-              </div>
-
-              {canResetTodayLimit && (
-                <div className="mt-3 rounded-xl border border-orange-100 bg-orange-50/50 px-3 py-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-slate-600">Использовано сегодня</span>
-                    <span className="text-xs font-medium tabular-nums text-slate-800">
-                      {todayUsage?.daily.count ?? 0} / {todayLimit}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={saving || resettingToday}
-                    onClick={() => onResetTodayLimit?.()}
-                    className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-orange-200 bg-white px-3 py-2.5 text-sm font-medium text-orange-700 transition hover:border-orange-300 hover:bg-orange-50 active:bg-orange-100/80 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <RotateCcw
-                      className={`h-4 w-4 shrink-0 ${resettingToday ? 'animate-spin' : ''}`}
-                      aria-hidden
-                    />
-                    {resettingToday ? 'Сбрасываем…' : 'Сбросить лимиты на сегодня'}
-                  </button>
-                  <p className="mt-2 text-[11px] leading-relaxed text-orange-800/80">
-                    Обнуляет только дневной счётчик. Лимиты 5/20/50 останутся без изменений.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {form.role !== 'admin' && (
-            <IsChildToggle checked={form.isChild} onChange={(value) => setField('isChild', value)} />
-          )}
-
-          <UiThemeSelect value={form.uiTheme} onChange={(value) => setField('uiTheme', value)} />
-
-          {error && <p className="text-sm text-red-500">{error}</p>}
-
-          <div className="space-y-2 pt-1">
-            <button type="submit" disabled={saving} className={`${PRIMARY_BTN} !py-3 text-sm`}>
+          <footer className="flex flex-shrink-0 flex-col gap-2 border-t border-slate-100 bg-white p-5">
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            <button type="submit" disabled={saving || resettingToday} className={`${PRIMARY_BTN} !py-3 text-sm`}>
               {saving
                 ? isEdit
                   ? 'Сохраняем…'
@@ -323,7 +339,7 @@ export default function UserFormModal({
             >
               Отмена
             </button>
-          </div>
+          </footer>
         </form>
       </div>
     </div>,

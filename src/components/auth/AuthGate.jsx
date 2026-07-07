@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { getAuthErrorMessage } from '../../utils/authErrors';
 import AiBadge from '../layout/AiBadge';
 
 export default function AuthGate() {
   const { signInEmail } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -16,6 +18,7 @@ export default function AuthGate() {
     setLoading(true);
     try {
       await signInEmail(email, password);
+      navigate('/', { replace: true });
     } catch (err) {
       setError(getAuthErrorMessage(err));
     } finally {
