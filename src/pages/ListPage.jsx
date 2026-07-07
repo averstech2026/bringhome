@@ -25,6 +25,8 @@ import CategoryGroup from '../components/list/CategoryGroup';
 import AddItemForm from '../components/list/AddItemForm';
 import AiInput from '../components/list/AiInput';
 import ShareControls from '../components/list/ShareControls';
+import CreateListAccess from '../components/list/CreateListAccess';
+import { getFamilyMembers } from '../services/usersService';
 import ListTypeBadge from '../components/list/ListTypeBadge';
 import ListAccessIcon from '../components/home/ListAccessIcon';
 import RepeatListModal from '../components/home/RepeatListModal';
@@ -94,6 +96,13 @@ export default function ListPage() {
 
   const [savingChanges, setSavingChanges] = useState(false);
   const [notifyOnSave, setNotifyOnSave] = useState(false);
+  // Доступ к списку выбираем ещё на экране создания, чтобы участники получили пуш сразу.
+  const [familyMembers, setFamilyMembers] = useState([]);
+  // По умолчанию список общий для всей семьи (тумблер включён) — чтобы состояние
+  // не выглядело противоречиво (все выделены при выключенном тумблере).
+  const [draftIsPublic, setDraftIsPublic] = useState(true);
+  const [draftSharedWith, setDraftSharedWith] = useState([]);
+  const draftAccessPrefilled = useRef(false);
   const [accessError, setAccessError] = useState(null);
   const [accessChecked, setAccessChecked] = useState(false);
   const [accessForListId, setAccessForListId] = useState(null);
@@ -160,7 +169,52 @@ export default function ListPage() {
   useEffect(() => {
     resetPendingItems();
     resetPendingAccess();
+    // Сбрасываем выбор доступа, чтобы следующий черновик начинался с чистого листа.
+    draftAccessPrefilled.current = false;
+    setDraftSharedWith([]);
+    setDraftIsPublic(true);
   }, [listId, resetPendingItems, resetPendingAccess]);
+
+  // Черновик: подтягиваем членов семьи и по умолчанию открываем список всем.
+  useEffect(() => {
+    if (!isDraft || !user) return undefined;
+
+    let cancelled = false;
+    getFamilyMembers()
+      .then((members) => {
+        if (cancelled) return;
+        setFamilyMembers(members);
+        if (!draftAccessPrefilled.current) {
+          setDraftSharedWith(members.map((member) => member.id));
+          draftAccessPrefilled.current = true;
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFamilyMembers([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isDraft, user]);
+
+  const handleDraftTogglePublic = useCallback((value) => {
+    setDraftIsPublic(value);
+  }, []);
+
+  const handleDraftToggleMember = useCallback(
+    (userId, hasAccess) => {
+      if (!user || userId === user.uid) return; // автор всегда с доступом
+      setDraftSharedWith((prev) =>
+        hasAccess
+          ? prev.filter((id) => id !== userId)
+          : prev.includes(userId)
+            ? prev
+            : [...prev, userId],
+      );
+    },
+    [user],
+  );
 
   const deferAdds = !isDraft && !isArchivedView;
   const isEditMode = deferAdds;
@@ -348,7 +402,17 @@ export default function ListPage() {
 
   const handleCreateList = async () => {
     const groupId = getFamilyGroupId(profile);
-    const newListId = await persistWithItems(user.uid, draftItems, { groupId });
+    // Доступ выбран на экране создания: при «для всей семьи» открываем всем,
+    // иначе — только отмеченным участникам. Автора добавит сам сервис.
+    const allowedUsers = draftIsPublic
+      ? [...new Set([user.uid, ...familyMembers.map((member) => member.id)])]
+      : [...new Set([user.uid, ...draftSharedWith])];
+
+    const newListId = await persistWithItems(user.uid, draftItems, {
+      groupId,
+      isPublic: draftIsPublic,
+      allowedUsers,
+    });
 
     if (newListId) {
       // Сценарий А: уведомляем участников с доступом к списку, кроме автора.
@@ -357,8 +421,8 @@ export default function ListPage() {
         list: {
           id: newListId,
           title: formatListTitle(listType),
-          isPublic: false,
-          allowedUsers: [user.uid],
+          isPublic: draftIsPublic,
+          allowedUsers,
           groupId,
         },
         author: { uid: user.uid, name: profile?.displayName || displayName },
@@ -682,6 +746,21 @@ export default function ListPage() {
                 onToggleMember={(userId, hasAccess) => togglePendingMember(list, userId, hasAccess)}
                 disabled={savingChanges}
               />
+            )}
+
+            {isDraft && draftItems.length > 0 && familyMembers.length > 1 && (
+              <div className="animate-access-reveal">
+                <CreateListAccess
+                  members={familyMembers}
+                  authorId={user.uid}
+                  currentUserAvatarUrl={userPhotoUrl}
+                  isPublic={draftIsPublic}
+                  selectedIds={draftSharedWith}
+                  onTogglePublic={handleDraftTogglePublic}
+                  onToggleMember={handleDraftToggleMember}
+                  disabled={persisting}
+                />
+              </div>
             )}
           </>
         )}

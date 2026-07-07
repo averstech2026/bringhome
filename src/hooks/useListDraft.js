@@ -73,6 +73,8 @@ export function useListDraft(listType) {
           items: payload,
           description: draftDescription,
           groupId: options.groupId,
+          isPublic: options.isPublic,
+          allowedUsers: options.allowedUsers,
         });
 
         clearRepeatDraft();

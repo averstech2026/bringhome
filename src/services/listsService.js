@@ -33,8 +33,13 @@ export async function createList({
   isPublic = false,
   description = '',
   groupId = DEFAULT_GROUP_ID,
+  allowedUsers,
 }) {
   const resolvedType = normalizeListTypeForCreate(type);
+  // Автор всегда имеет доступ; остальных участников выбирают ещё на экране создания.
+  const resolvedAllowed = Array.isArray(allowedUsers) && allowedUsers.length > 0
+    ? [...new Set([createdBy, ...allowedUsers.filter(Boolean)])]
+    : [createdBy];
   const ref = await addDoc(collection(db, COLLECTIONS.LISTS), {
     title: formatListTitle(resolvedType),
     description: description.trim() || '',
@@ -42,7 +47,7 @@ export async function createList({
     isPublic,
     createdBy,
     groupId,
-    allowedUsers: [createdBy],
+    allowedUsers: resolvedAllowed,
     status: 'active',
     archived: false,
     createdAt: serverTimestamp(),
@@ -457,12 +462,22 @@ export async function deleteItem(itemId) {
   if (listId) await syncListStatus(listId);
 }
 
-export async function createActualList({ type, createdBy, items = [], description = '', groupId }) {
+export async function createActualList({
+  type,
+  createdBy,
+  items = [],
+  description = '',
+  groupId,
+  isPublic = false,
+  allowedUsers,
+}) {
   const listId = await createList({
     type: normalizeListTypeForCreate(type),
     createdBy,
     description,
     groupId,
+    isPublic,
+    allowedUsers,
   });
   if (items.length > 0) {
     await addItemsBatch(listId, items);
