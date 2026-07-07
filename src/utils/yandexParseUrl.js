@@ -1,4 +1,4 @@
-/** Локально — Vite-прокси; в проде — URL Cloudflare Worker (VITE_YANDEX_PARSE_URL). */
+/** Локально — Vite-прокси; в проде — Yandex Cloud Functions (VITE_YANDEX_PARSE_URL). */
 export function resolveYandexParseUrl() {
   const configured = import.meta.env.VITE_YANDEX_PARSE_URL;
 

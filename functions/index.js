@@ -20,7 +20,7 @@ function resolveConfig() {
 
 /**
  * HTTP-прокси к YandexGPT. Требует план Blaze.
- * В проде используется Cloudflare Worker или Yandex Cloud Functions (см. .env.example).
+ * В проде используется Yandex Cloud Functions (см. .env.example и scripts/deploy-yandex-parse.sh).
  * Лимиты ИИ хранятся в Firestore и проверяются в клиенте (план Spark).
  */
 export const parseProducts = onRequest(

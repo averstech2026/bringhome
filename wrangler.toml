@@ -1,7 +1,0 @@
-name = "bringhome-parse"
-main = "worker/index.js"
-compatibility_date = "2024-11-01"
-account_id = "36e146e3c7c8ddccb3128af014c78579"
-
-[vars]
-YANDEX_FOLDER_ID = "b1gopp0dfgdbi9fv8c00"
