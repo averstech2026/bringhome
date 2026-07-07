@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -16,18 +16,23 @@ import AppHeader from '../components/layout/AppHeader';
 import ScreenTopPanel from '../components/layout/ScreenTopPanel';
 import ListCard from '../components/home/ListCard';
 import CompletedListsSection from '../components/home/CompletedListsSection';
-import ArchiveAccessModal from '../components/home/ArchiveAccessModal';
+import ArchiveListConfirmModal from '../components/home/ArchiveListConfirmModal';
 import RequestCustomTypeModal from '../components/home/RequestCustomTypeModal';
+import ThemeToast from '../components/ui/ThemeToast';
 import { HINT_TEXT, PAGE_SECTION_TITLE } from '../components/list/cardStyles';
 import { resolveListStatus } from '../utils/listStatus';
-import { canArchiveList, getListArchiveAdmins } from '../utils/listPermissions';
+import { canArchiveList } from '../utils/listPermissions';
 import { clearRepeatDraft } from '../utils/repeatDraftStorage';
 import { encodeListTypeForUrl } from '../utils/listTypes';
+import { getAiInputTheme, resolveUiTheme } from '../utils/uiThemes';
+
+const ARCHIVE_DENIED_TOAST =
+  'Чтобы поместить список в архив, обратитесь к владельцу списка.';
 
 export default function HomePage() {
   const { user } = useAuth();
   const { settings } = useAppSettings();
-  const { isAdmin, loading: profileLoading } = useUserProfile(user);
+  const { isAdmin, profile, loading: profileLoading } = useUserProfile(user);
   const [lists, setLists] = useState([]);
   const [authorsById, setAuthorsById] = useState({});
   const [listProgress, setListProgress] = useState({});
@@ -35,9 +40,15 @@ export default function HomePage() {
   const [loadError, setLoadError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [requestCustomOpen, setRequestCustomOpen] = useState(false);
-  const [archiveAccessList, setArchiveAccessList] = useState(null);
+  const [archiveConfirmTarget, setArchiveConfirmTarget] = useState(null);
+  const [archiveDeniedToast, setArchiveDeniedToast] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
+
+  const archiveConfirmClassName = useMemo(
+    () => getAiInputTheme(resolveUiTheme(profile)).buttonClass,
+    [profile],
+  );
 
   const canManageList = useCallback(
     (list) => canArchiveList(list, user?.uid, isAdmin),
@@ -104,11 +115,30 @@ export default function HomePage() {
     navigate(`/list/new?type=${encodeListTypeForUrl(name)}`);
   };
 
-  const handleArchive = async (listId, title) => {
-    if (!window.confirm(`Отправить «${title}» в архив?`)) return;
+  const handleArchiveRequest = (list) => {
+    if (!user?.uid || !list) return;
 
+    if (!canArchiveList(list, user.uid, isAdmin)) {
+      setArchiveDeniedToast(ARCHIVE_DENIED_TOAST);
+      return;
+    }
+
+    setArchiveConfirmTarget(list);
+  };
+
+  const handleConfirmArchive = async () => {
+    const list = archiveConfirmTarget;
+    if (!list?.id || !user?.uid || busyId) return;
+
+    if (!canArchiveList(list, user.uid, isAdmin)) {
+      setArchiveConfirmTarget(null);
+      setArchiveDeniedToast(ARCHIVE_DENIED_TOAST);
+      return;
+    }
+
+    const listId = list.id;
     setBusyId(listId);
-    setLists((prev) => prev.filter((list) => list.id !== listId));
+    setLists((prev) => prev.filter((item) => item.id !== listId));
     setListProgress((prev) => {
       const next = { ...prev };
       delete next[listId];
@@ -117,6 +147,7 @@ export default function HomePage() {
 
     try {
       await archiveList(listId, user.uid);
+      setArchiveConfirmTarget(null);
     } catch (err) {
       window.alert(err?.message || 'Не удалось отправить список в архив');
       await loadLists();
@@ -148,8 +179,8 @@ export default function HomePage() {
         dimmed={dimmed}
         showCompletionDate={showCompletionDate}
         canArchive={manageable}
-        onArchive={handleArchive}
-        onArchiveDenied={manageable ? undefined : () => setArchiveAccessList(list)}
+        onArchive={handleArchiveRequest}
+        onArchiveDenied={handleArchiveRequest}
       />
     );
   };
@@ -210,11 +241,16 @@ export default function HomePage() {
         onClose={() => setRequestCustomOpen(false)}
       />
 
-      <ArchiveAccessModal
-        open={Boolean(archiveAccessList)}
-        admins={archiveAccessList ? getListArchiveAdmins(archiveAccessList, authorsById) : []}
-        onClose={() => setArchiveAccessList(null)}
+      <ArchiveListConfirmModal
+        open={Boolean(archiveConfirmTarget)}
+        listTitle={archiveConfirmTarget?.title}
+        archiving={Boolean(archiveConfirmTarget && busyId === archiveConfirmTarget.id)}
+        confirmClassName={archiveConfirmClassName}
+        onConfirm={handleConfirmArchive}
+        onCancel={() => !busyId && setArchiveConfirmTarget(null)}
       />
+
+      <ThemeToast message={archiveDeniedToast} onClose={() => setArchiveDeniedToast('')} />
     </div>
   );
 }

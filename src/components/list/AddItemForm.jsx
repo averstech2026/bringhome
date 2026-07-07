@@ -11,6 +11,9 @@ import {
   findPartialCustomProductMatch,
 } from '../../services/customProductsDictionaryService';
 import { useCustomProductsDictionary } from '../../hooks/useCustomProductsDictionary';
+import { useAuth } from '../../hooks/useAuth';
+import { useUserProfile } from '../../hooks/useUserProfile';
+import { ADULT_CONTENT_TOAST, isRestrictedItemName } from '../../utils/adultContentFilter';
 import { CATEGORIES, CATEGORY_EMOJI, detectCategory } from '../../utils/categories';
 import { getLearnedCategory } from '../../utils/productCategoryMap';
 import { learnProducts } from '../../utils/productLearning';
@@ -20,6 +23,7 @@ import { formatQuantity, parseQuantity } from '../../utils/quantity';
 import { normalizeItemName } from '../../utils/mergeItems';
 import { CARD_SURFACE, CARD_PAD_V, INPUT_PLACEHOLDER } from './cardStyles';
 import QuantityStepper from './QuantityStepper';
+import ThemeToast from '../ui/ThemeToast';
 
 const NAME_INPUT_CONTAINER =
   'flex w-full min-w-0 items-center rounded-xl border border-gray-200/90 bg-white px-2.5 py-1 transition-colors focus-within:border-emerald-400 focus-within:shadow-[0_0_0_3px_rgba(16,185,129,0.08)]';
@@ -43,6 +47,7 @@ export default function AddItemForm({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [themeToast, setThemeToast] = useState('');
   const wrapperRef = useRef(null);
   const categoryChipRefs = useRef({});
   const unitManualRef = useRef(false);
@@ -51,6 +56,8 @@ export default function AddItemForm({
   const categoryAutoRef = useRef(categoryAuto);
 
   useCustomProductsDictionary();
+  const { user } = useAuth();
+  const { profile } = useUserProfile(user);
 
   useEffect(() => {
     categoryRef.current = category;
@@ -223,11 +230,18 @@ export default function AddItemForm({
     e.preventDefault();
     if (!name.trim() || disabled || loading) return;
 
+    const normalizedName = normalizeItemName(name);
+
+    if (isRestrictedItemName(normalizedName, profile)) {
+      setThemeToast(ADULT_CONTENT_TOAST);
+      return;
+    }
+
     setLoading(true);
     setSubmitError('');
     try {
       const itemData = {
-        name: normalizeItemName(name),
+        name: normalizedName,
         quantity,
         category,
       };
@@ -338,6 +352,8 @@ export default function AddItemForm({
           </div>
         </div>
       </div>
+
+      <ThemeToast message={themeToast} onClose={() => setThemeToast('')} />
     </form>
   );
 }

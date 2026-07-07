@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { getUserProfile } from '../services/usersService';
+import { getUserProfile, isOwnerEmail } from '../services/usersService';
 
 export function useUserProfile(user) {
   const [profile, setProfile] = useState(null);
@@ -36,6 +36,7 @@ export function useUserProfile(user) {
     loading,
     reload,
     isAdmin: profile?.role === 'admin' && !profile?.disabled,
+    isOwner: profile ? isOwnerEmail(profile.email) : false,
     isDisabled: profile?.disabled === true,
   };
 }

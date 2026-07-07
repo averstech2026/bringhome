@@ -1,24 +1,15 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useUserProfile } from '../hooks/useUserProfile';
-import { updateUserAvatar, removeUserAvatar } from '../services/usersService';
-import {
-  getUserArchivedLists,
-  getArchivedLists,
-  deleteList,
-  getListItemsForRepeat,
-} from '../services/listsService';
+import { updateUserAvatar, removeUserAvatar, updateOwnUiTheme } from '../services/usersService';
 import { UserAvatar } from '../components/profile/UserAvatar';
 import PageHeader from '../components/layout/PageHeader';
-import ListCard from '../components/home/ListCard';
-import RepeatListModal from '../components/home/RepeatListModal';
-import { HINT_TEXT, PAGE_SECTION_TITLE, PRIMARY_BTN } from '../components/list/cardStyles';
-import { saveRepeatDraft } from '../utils/repeatDraftStorage';
-import { encodeListTypeForUrl } from '../utils/listTypes';
+import { PRIMARY_BTN } from '../components/list/cardStyles';
+import { getProfileThemeButtonClass, PROFILE_THEME_OPTIONS, resolveUiTheme } from '../utils/uiThemes';
 
 function SettingsSwitch({ enabled, onChange, disabled = false }) {
   return (
@@ -117,73 +108,10 @@ function SignOutConfirmModal({ open, onConfirm, onCancel }) {
   );
 }
 
-function DeleteListConfirmModal({ open, listTitle, deleting, onConfirm, onCancel }) {
-  useEffect(() => {
-    if (!open) return undefined;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
-  if (!open) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default"
-        aria-label="Закрыть"
-        onClick={onCancel}
-        disabled={deleting}
-      />
-
-      <div
-        className="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="delete-list-title"
-      >
-        <h2 id="delete-list-title" className="text-base font-semibold text-slate-900">
-          Удалить список?
-        </h2>
-        <p className="mt-1.5 text-sm text-slate-500">
-          {listTitle
-            ? `Вы уверены, что хотите удалить «${listTitle}» навсегда? Это действие нельзя отменить.`
-            : 'Вы уверены, что хотите удалить этот список навсегда? Это действие нельзя отменить.'}
-        </p>
-
-        <div className="mt-5 space-y-2">
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={deleting}
-            className={`${PRIMARY_BTN} !bg-red-500 !py-3 text-sm hover:!bg-red-600 disabled:opacity-50`}
-          >
-            {deleting ? 'Удаляем…' : 'Да, удалить'}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={deleting}
-            className="w-full rounded-full border border-gray-200 py-3 text-sm font-medium text-slate-600 transition hover:bg-gray-50 disabled:opacity-50"
-          >
-            Отмена
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
 export default function SettingsPage() {
   const { user, signOut, reloadUser } = useAuth();
   const { settings, updateSetting } = useAppSettings();
   const { profile, isAdmin, reload } = useUserProfile(user);
-  const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const avatarMenuRef = useRef(null);
 
@@ -192,49 +120,30 @@ export default function SettingsPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [archivedLists, setArchivedLists] = useState([]);
-  const [archiveLoading, setArchiveLoading] = useState(true);
-  const [busyId, setBusyId] = useState(null);
-  const [repeatTarget, setRepeatTarget] = useState(null);
-  const [visibleArchiveCount, setVisibleArchiveCount] = useState(10);
   const [signOutOpen, setSignOutOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const [removingAvatar, setRemovingAvatar] = useState(false);
+  const [savingTheme, setSavingTheme] = useState(false);
+  const [activeUiTheme, setActiveUiTheme] = useState(null);
 
   const name = profile?.displayName || user?.displayName || 'Пользователь';
   const savedPhotoUrl = profile?.avatarUrl || null;
   const displayPhotoUrl = previewUrl || savedPhotoUrl;
   const hasSavedAvatar = Boolean(profile?.avatarUrl);
   const hasChanges = Boolean(pendingFile);
-  const visibleArchivedLists = archivedLists.slice(0, visibleArchiveCount);
-  const hasMoreArchived = archivedLists.length > visibleArchiveCount;
+  const currentUiTheme = activeUiTheme ?? resolveUiTheme(profile);
+
+  useEffect(() => {
+    if (profile) {
+      setActiveUiTheme(resolveUiTheme(profile));
+    }
+  }, [profile?.uiTheme, profile?.id]);
 
   useEffect(() => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
-
-  const loadArchivedLists = useCallback(async () => {
-    if (!user?.uid) return;
-
-    setArchiveLoading(true);
-    try {
-      const lists = isAdmin
-        ? await getArchivedLists()
-        : await getUserArchivedLists(user.uid);
-      setArchivedLists(lists);
-    } catch {
-      setArchivedLists([]);
-    } finally {
-      setArchiveLoading(false);
-    }
-  }, [user?.uid, isAdmin]);
-
-  useEffect(() => {
-    loadArchivedLists();
-  }, [loadArchivedLists]);
 
   useEffect(() => {
     if (!avatarMenuOpen) return undefined;
@@ -248,48 +157,6 @@ export default function SettingsPage() {
     document.addEventListener('pointerdown', closeMenu);
     return () => document.removeEventListener('pointerdown', closeMenu);
   }, [avatarMenuOpen]);
-
-  const handleDeleteArchivedRequest = (listId, title) => {
-    setDeleteTarget({ listId, title });
-  };
-
-  const handleDeleteArchivedConfirm = async () => {
-    if (!deleteTarget || busyId) return;
-
-    const { listId } = deleteTarget;
-    setBusyId(listId);
-    setArchivedLists((prev) => prev.filter((list) => list.id !== listId));
-
-    try {
-      await deleteList(listId);
-      setDeleteTarget(null);
-    } catch (err) {
-      window.alert(err?.message || 'Не удалось удалить список');
-      await loadArchivedLists();
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const handleRepeatArchived = (list) => {
-    setRepeatTarget(list);
-  };
-
-  const handleRepeatConfirm = async (type) => {
-    if (!repeatTarget) return;
-
-    setBusyId(repeatTarget.id);
-    try {
-      const repeatItems = await getListItemsForRepeat(repeatTarget.id);
-      saveRepeatDraft({ repeatItems, repeatFrom: repeatTarget.id, type });
-      navigate(`/list/new?type=${encodeListTypeForUrl(type)}`);
-      setRepeatTarget(null);
-    } catch (err) {
-      window.alert(err?.message || 'Не удалось загрузить товары списка');
-    } finally {
-      setBusyId(null);
-    }
-  };
 
   const handleFileSelect = (event) => {
     const file = event.target.files?.[0];
@@ -366,6 +233,25 @@ export default function SettingsPage() {
       setError(getAvatarErrorMessage(err));
     } finally {
       setRemovingAvatar(false);
+    }
+  };
+
+  const handleThemeChange = async (newTheme) => {
+    if (!user?.uid || newTheme === currentUiTheme || savingTheme) return;
+
+    const previousTheme = currentUiTheme;
+    setActiveUiTheme(newTheme);
+    setSavingTheme(true);
+    setError('');
+
+    try {
+      await updateOwnUiTheme(user.uid, newTheme);
+      reload();
+    } catch (err) {
+      setActiveUiTheme(previousTheme);
+      setError(err?.message || 'Не удалось сохранить тему');
+    } finally {
+      setSavingTheme(false);
     }
   };
 
@@ -496,8 +382,63 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {user && (
+        <section
+          className="mt-6 overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+          aria-labelledby="profile-ui-theme-title"
+        >
+          <div className="px-4 py-4">
+            <p id="profile-ui-theme-title" className="text-[15px] text-slate-800">Тема интерфейса</p>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Стиль кнопки распознавания ИИ — настраивается для каждого члена семьи отдельно
+            </p>
+            {profile?.isChild && (
+              <p className="mt-1 text-xs text-amber-700">
+                Защита от товаров 18+ остаётся активной независимо от выбранной темы
+              </p>
+            )}
+
+            <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {PROFILE_THEME_OPTIONS.map((option) => {
+                const active = currentUiTheme === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    disabled={savingTheme}
+                    aria-pressed={active}
+                    onClick={() => handleThemeChange(option.id)}
+                    className={getProfileThemeButtonClass(option.id, active)}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+        )}
+
+        <section className="mt-6 overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <Link
+            to="/admin/lists"
+            className="flex items-center justify-between px-4 py-4 transition hover:bg-black/[0.02] active:bg-black/[0.04]"
+          >
+            <span className="text-[15px] text-slate-800">Все списки группы</span>
+            <ChevronRightIcon />
+          </Link>
+        </section>
+
         {isAdmin && (
           <section className="mt-6 overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <Link
+              to="/admin/ai-stats"
+              className="flex items-center justify-between px-4 py-4 transition hover:bg-black/[0.02] active:bg-black/[0.04]"
+            >
+              <span className="text-[15px] text-slate-800">Статистика ИИ</span>
+              <ChevronRightIcon />
+            </Link>
+            <div className="mx-4 border-t border-gray-100" />
             <Link
               to="/admin/users"
               className="flex items-center justify-between px-4 py-4 transition hover:bg-black/[0.02] active:bg-black/[0.04]"
@@ -507,63 +448,7 @@ export default function SettingsPage() {
             </Link>
           </section>
         )}
-
-        <section className="mt-10">
-          <h2 className={PAGE_SECTION_TITLE}>Архив списков</h2>
-
-          {archiveLoading ? (
-            <div className="mt-4 flex justify-center">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
-            </div>
-          ) : archivedLists.length === 0 ? (
-            <p className={`mt-4 ${HINT_TEXT}`}>Архив пуст</p>
-          ) : (
-            <>
-              <ul className="mt-4 space-y-2.5">
-                {visibleArchivedLists.map((list) => (
-                  <li key={list.id}>
-                    <ListCard
-                      list={list}
-                      archived
-                      busy={busyId === list.id}
-                      onRepeat={handleRepeatArchived}
-                      onDelete={handleDeleteArchivedRequest}
-                    />
-                  </li>
-                ))}
-              </ul>
-
-              {hasMoreArchived && (
-                <div className="mt-4 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => setVisibleArchiveCount((prev) => prev + 10)}
-                    className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
-                  >
-                    Показать еще
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </section>
       </div>
-
-      <RepeatListModal
-        list={repeatTarget}
-        open={Boolean(repeatTarget)}
-        loading={Boolean(repeatTarget && busyId === repeatTarget.id)}
-        onClose={() => !busyId && setRepeatTarget(null)}
-        onConfirm={handleRepeatConfirm}
-      />
-
-      <DeleteListConfirmModal
-        open={Boolean(deleteTarget)}
-        listTitle={deleteTarget?.title}
-        deleting={Boolean(deleteTarget && busyId === deleteTarget.listId)}
-        onConfirm={handleDeleteArchivedConfirm}
-        onCancel={() => !busyId && setDeleteTarget(null)}
-      />
 
       <SignOutConfirmModal
         open={signOutOpen}

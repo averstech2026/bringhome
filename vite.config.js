@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => {
       },
     ],
     base:
-      process.env.GITHUB_PAGES === 'true' || process.env.CI === 'true'
+      mode === 'pages' || process.env.GITHUB_PAGES === 'true' || process.env.CI === 'true'
         ? '/bringhome/'
         : '/',
     server: {

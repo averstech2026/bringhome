@@ -49,7 +49,7 @@ export function useListDraft(listType) {
   );
 
   const persistWithItems = useCallback(
-    async (userId, itemsToSave) => {
+    async (userId, itemsToSave, options = {}) => {
       if (persistingRef.current) return null;
 
       persistingRef.current = true;
@@ -72,6 +72,7 @@ export function useListDraft(listType) {
           createdBy: userId,
           items: payload,
           description: draftDescription,
+          groupId: options.groupId,
         });
 
         clearRepeatDraft();

@@ -59,7 +59,11 @@ service cloud.firestore {
       );
       allow update: if (isAdmin() && userId != request.auth.uid && !isOwnerAccount(resource.data)) || (
         request.auth.uid == userId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatarUrl'])
+        && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatarUrl'])
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['aiUsage'])
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uiTheme'])
+        )
       );
     }
 

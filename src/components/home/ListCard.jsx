@@ -111,9 +111,18 @@ function ListParticipantsAvatars({ list, authorsById }) {
   );
 }
 
-function ListStatusMeta({ list, progress, customBadge, authorsById, showCompletionDate = false }) {
+function ListStatusMeta({
+  list,
+  progress,
+  customBadge,
+  authorsById,
+  showCompletionDate = false,
+  creatorOnly = false,
+}) {
   const { total = 0, checked = 0 } = progress || {};
   const completionDateLabel = showCompletionDate ? formatCompletedListDateLabel(list) : null;
+  const creator = authorsById[list.createdBy];
+  const creatorName = creator?.displayName || creator?.email?.split('@')[0] || null;
 
   return (
     <div className="flex shrink-0 items-center justify-end gap-2">
@@ -142,14 +151,25 @@ function ListStatusMeta({ list, progress, customBadge, authorsById, showCompleti
           )}
         </span>
       )}
-      <div className="flex shrink-0 items-center gap-2">
-        <ListParticipantsAvatars list={list} authorsById={authorsById} />
+      <div className="flex shrink-0 items-center gap-1.5">
+        {creatorOnly ? (
+          <>
+            {creatorName && (
+              <span className="max-w-[4.5rem] truncate text-[10px] font-medium text-slate-400">
+                {creatorName.split(' ')[0]}
+              </span>
+            )}
+            <ListAuthorAvatar author={creator} isOwner />
+          </>
+        ) : (
+          <ListParticipantsAvatars list={list} authorsById={authorsById} />
+        )}
         {customBadge ? (
           <span className={`${CARD_BADGE} shrink-0 rounded-md px-2 py-0.5 ${customBadge.className}`}>
             {customBadge.label}
           </span>
         ) : (
-          <ListAccessIcon list={list} />
+          !creatorOnly && <ListAccessIcon list={list} />
         )}
       </div>
     </div>
@@ -250,10 +270,13 @@ export default function ListCard({
   onRepeat,
   busy = false,
   showCompletionDate = false,
+  creatorOnly = false,
 }) {
   const customBadge = !isBuiltinListType(list.type) ? getListTypeBadgeProps(list.type) : null;
   const showArchive = onArchive || onArchiveDenied;
   const hasActions = onRepeat || showArchive || onRestore || onDelete;
+  const isArchivedList = archived || list.archived || list.status === 'archived';
+  const listHref = isArchivedList ? `/list/${list.id}?archived=1` : `/list/${list.id}`;
 
   return (
     <div
@@ -263,7 +286,7 @@ export default function ListCard({
     >
       {archived ? (
         <Link
-          to={`/list/${list.id}?archived=1`}
+          to={listHref}
           className={`min-w-0 flex-1 px-1 py-1.5 ${CARD_PRESS}`}
         >
           <div className="flex min-w-0 items-center justify-between gap-3">
@@ -282,7 +305,7 @@ export default function ListCard({
         </Link>
       ) : (
         <Link
-          to={`/list/${list.id}`}
+          to={listHref}
           className={`min-w-0 flex-1 px-1 py-1.5 ${CARD_PRESS}`}
         >
           <div className="flex items-start justify-between gap-2">
@@ -296,6 +319,7 @@ export default function ListCard({
               customBadge={customBadge}
               authorsById={authorsById}
               showCompletionDate={showCompletionDate}
+              creatorOnly={creatorOnly}
             />
           </div>
           <ListProgress progress={progress} listType={list.type} className="mt-1.5" />
@@ -325,7 +349,7 @@ export default function ListCard({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (canArchive) onArchive?.(list.id, list.title);
+                if (canArchive) onArchive?.(list);
                 else onArchiveDenied?.(list);
               }}
               className={

@@ -7,13 +7,13 @@ const LEGEND_CAPSULE =
 export default function BorderGapCard({
   legend,
   children,
-  className = '',
+  className = 'bg-white',
   legendClassName = '',
   borderClassName = 'border-slate-200',
 }) {
   return (
     <div
-      className={`relative mt-6 rounded-2xl border bg-white px-4 pb-4 pt-6 ${borderClassName} ${className}`}
+      className={`relative mt-6 rounded-2xl border px-4 pb-4 pt-6 ${borderClassName} ${className}`}
     >
       <div className="absolute left-4 top-0 z-10 -translate-y-1/2">
         <span className={legendClassName || LEGEND_CAPSULE}>{legend}</span>

@@ -31,6 +31,10 @@ function normalizeYandexProduct(item) {
   };
 }
 
+/**
+ * Распознавание через Cloudflare Worker / Vite-прокси / Yandex Cloud Functions.
+ * Лимиты учитываются в Firestore на клиенте (план Spark, без Firebase Cloud Functions).
+ */
 export async function parseProductsWithAI(text, { customDictionary = [] } = {}) {
   const apiUrl = resolveYandexParseUrl();
 

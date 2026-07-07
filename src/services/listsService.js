@@ -14,6 +14,7 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '../firebase';
+import { DEFAULT_GROUP_ID } from '../utils/familyGroup';
 import { findActiveItemByName, normalizeItemName } from '../utils/mergeItems';
 import { addQuantities, parseQuantity, resetBaseQuantity } from '../utils/quantity';
 import { computeListStatusFromItems } from '../utils/listStatus';
@@ -26,7 +27,13 @@ import {
 export { LIST_TYPE_LABELS, formatListTitle, normalizeListTypeForCreate as normalizeListType };
 export { decodeListTypeFromUrl, encodeListTypeForUrl, getListTypeLabel } from '../utils/listTypes';
 
-export async function createList({ type = 'home', createdBy, isPublic = false, description = '' }) {
+export async function createList({
+  type = 'home',
+  createdBy,
+  isPublic = false,
+  description = '',
+  groupId = DEFAULT_GROUP_ID,
+}) {
   const resolvedType = normalizeListTypeForCreate(type);
   const ref = await addDoc(collection(db, COLLECTIONS.LISTS), {
     title: formatListTitle(resolvedType),
@@ -34,6 +41,7 @@ export async function createList({ type = 'home', createdBy, isPublic = false, d
     type: resolvedType,
     isPublic,
     createdBy,
+    groupId,
     allowedUsers: [createdBy],
     status: 'active',
     archived: false,
@@ -85,7 +93,7 @@ export async function toggleUserListAccess(listId, userId, hasAccess) {
   return addUserToList(listId, userId);
 }
 
-export async function ensureListAccess(listId, userId) {
+export async function ensureListAccess(listId, userId, { isAdmin = false } = {}) {
   const listRef = doc(db, COLLECTIONS.LISTS, listId);
 
   let snapshot;
@@ -97,6 +105,8 @@ export async function ensureListAccess(listId, userId) {
   }
 
   if (!snapshot?.exists()) {
+    if (isAdmin) return { allowed: false, reason: 'not_found' };
+
     try {
       await updateDoc(listRef, { allowedUsers: arrayUnion(userId) });
       snapshot = await getDoc(listRef);
@@ -110,6 +120,9 @@ export async function ensureListAccess(listId, userId) {
   const data = snapshot.data();
   if (data.archived || data.status === 'archived') {
     return { allowed: false, reason: 'archived' };
+  }
+  if (isAdmin) {
+    return { allowed: true, list: { id: snapshot.id, ...data } };
   }
   if (data.isPublic) return { allowed: true, list: { id: snapshot.id, ...data } };
   if (data.createdBy === userId) return { allowed: true, list: { id: snapshot.id, ...data } };
@@ -174,6 +187,40 @@ export async function getAllLists({ includeArchived = false } = {}) {
       const tb = b.createdAt?.toMillis?.() ?? 0;
       return tb - ta;
     });
+}
+
+export async function getGroupLists(groupId, { includeArchived = true } = {}) {
+  const snapshot = await getDocs(
+    query(collection(db, COLLECTIONS.LISTS), where('groupId', '==', groupId)),
+  );
+
+  const listsById = new Map(
+    snapshot.docs.map((d) => [d.id, { id: d.id, ...d.data() }]),
+  );
+
+  if (groupId === DEFAULT_GROUP_ID) {
+    const legacySnapshot = await getDocs(collection(db, COLLECTIONS.LISTS));
+    for (const docSnap of legacySnapshot.docs) {
+      if (!docSnap.data().groupId && !listsById.has(docSnap.id)) {
+        listsById.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+      }
+    }
+  }
+
+  return [...listsById.values()]
+    .filter((list) => includeArchived || !isListArchived(list))
+    .sort((a, b) => {
+      const ta = getListSortTime(a);
+      const tb = getListSortTime(b);
+      return tb - ta;
+    });
+}
+
+function getListSortTime(list) {
+  if (isListArchived(list)) {
+    return list.archivedAt?.toMillis?.() ?? list.createdAt?.toMillis?.() ?? 0;
+  }
+  return list.updatedAt?.toMillis?.() ?? list.createdAt?.toMillis?.() ?? 0;
 }
 
 export async function getArchivedLists() {
@@ -410,11 +457,12 @@ export async function deleteItem(itemId) {
   if (listId) await syncListStatus(listId);
 }
 
-export async function createActualList({ type, createdBy, items = [], description = '' }) {
+export async function createActualList({ type, createdBy, items = [], description = '', groupId }) {
   const listId = await createList({
     type: normalizeListTypeForCreate(type),
     createdBy,
     description,
+    groupId,
   });
   if (items.length > 0) {
     await addItemsBatch(listId, items);

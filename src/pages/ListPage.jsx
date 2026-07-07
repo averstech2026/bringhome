@@ -10,6 +10,7 @@ import { usePendingListItems, isPendingListItem } from '../hooks/usePendingListI
 import { usePendingListAccess } from '../hooks/usePendingListAccess';
 import { mergeItemsBatch } from '../utils/mergeItems';
 import { decodeListTypeFromUrl, encodeListTypeForUrl } from '../services/listsService';
+import { getFamilyGroupId } from '../utils/familyGroup';
 import ListDescriptionModal, { ListDescriptionButton } from '../components/list/ListDescriptionModal';
 import ScreenTopPanel, { ScreenTopBar } from '../components/layout/ScreenTopPanel';
 import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, syncListStatus, clearAllListItems, updateList, updateItemsBookingBatch, addItemsBatch, toggleItem, updateItemQuantity, updateItemCategory, updateItemComment, updateItemBooking, deleteItem } from '../services/listsService';
@@ -38,7 +39,7 @@ export default function ListPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, displayName } = useAuth();
-  const { profile } = useUserProfile(user);
+  const { profile, isAdmin } = useUserProfile(user);
   const userPhotoUrl = getUserPhotoUrl(user, profile);
 
   const isDraft = listId === 'new';
@@ -113,7 +114,9 @@ export default function ListPage() {
     setAccessForListId(null);
     setAccessError(null);
 
-    const checkAccess = isArchivedView ? ensureArchivedListAccess(listId) : ensureListAccess(listId, user.uid);
+    const checkAccess = isArchivedView
+      ? ensureArchivedListAccess(listId)
+      : ensureListAccess(listId, user.uid, { isAdmin });
 
     checkAccess
       .then(({ allowed, reason }) => {
@@ -146,7 +149,7 @@ export default function ListPage() {
     return () => {
       cancelled = true;
     };
-  }, [listId, user, isDraft, isArchivedView]);
+  }, [listId, user, isDraft, isArchivedView, isAdmin]);
 
   useEffect(() => {
     resetPendingItems();
@@ -338,7 +341,7 @@ export default function ListPage() {
   };
 
   const handleCreateList = async () => {
-    await persistWithItems(user.uid, draftItems);
+    await persistWithItems(user.uid, draftItems, { groupId: getFamilyGroupId(profile) });
   };
 
   const handleSaveChanges = async () => {

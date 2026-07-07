@@ -12,6 +12,8 @@ import HomePage from './pages/HomePage';
 import ListPage from './pages/ListPage';
 import AdminSetupPage from './pages/AdminSetupPage';
 import AdminUsersPage from './pages/AdminUsersPage';
+import AdminGroupListsPage from './pages/AdminGroupListsPage';
+import AdminAiStatsPage from './pages/AdminAiStatsPage';
 import SettingsPage from './pages/SettingsPage';
 import AppHeader from './components/layout/AppHeader';
 import { APP_BACKGROUND, CARD_SURFACE, PRIMARY_BTN } from './components/list/cardStyles';
@@ -100,6 +102,15 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <AdminUsersPage />
+          </AdminRoute>
+        }
+      />
+      <Route path="/admin/lists" element={<AdminGroupListsPage />} />
+      <Route
+        path="/admin/ai-stats"
+        element={
+          <AdminRoute>
+            <AdminAiStatsPage />
           </AdminRoute>
         }
       />

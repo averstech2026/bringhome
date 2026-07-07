@@ -1,3 +1,7 @@
+export function isListOwner(list, userId) {
+  return Boolean(userId && list && list.createdBy === userId);
+}
+
 export function canArchiveList(list, userId, isAppAdmin = false) {
   if (!userId || !list) return false;
   if (isAppAdmin) return true;

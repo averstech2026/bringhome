@@ -76,6 +76,60 @@ body {
   animation: ai-glow 1.75s ease-in-out 2 forwards;
 }
 
+@keyframes ai-glow-hogwarts {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgb(252 211 77 / 0.45),
+      0 8px 30px rgb(0 0 0 / 0.04);
+  }
+
+  35% {
+    box-shadow:
+      0 0 0 2px rgb(217 119 6 / 0.55),
+      0 0 18px rgb(239 68 68 / 0.22),
+      0 8px 30px rgb(0 0 0 / 0.04);
+  }
+
+  70% {
+    box-shadow:
+      0 0 0 2px rgb(180 83 9 / 0.5),
+      0 0 22px rgb(245 158 11 / 0.28),
+      0 8px 30px rgb(0 0 0 / 0.04);
+  }
+}
+
+@utility animate-ai-glow-hogwarts {
+  animation: ai-glow-hogwarts 1.75s ease-in-out 2 forwards;
+}
+
+@keyframes ai-glow-star-wars {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgb(199 210 254 / 0.5),
+      0 8px 30px rgb(0 0 0 / 0.04);
+  }
+
+  35% {
+    box-shadow:
+      0 0 0 2px rgb(79 70 229 / 0.55),
+      0 0 18px rgb(56 189 248 / 0.25),
+      0 8px 30px rgb(0 0 0 / 0.04);
+  }
+
+  70% {
+    box-shadow:
+      0 0 0 2px rgb(30 41 59 / 0.55),
+      0 0 22px rgb(99 102 241 / 0.28),
+      0 8px 30px rgb(0 0 0 / 0.04);
+  }
+}
+
+@utility animate-ai-glow-star-wars {
+  animation: ai-glow-star-wars 1.75s ease-in-out 2 forwards;
+}
+
 @keyframes share-highlight {
   0%,
   100% {

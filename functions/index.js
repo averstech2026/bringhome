@@ -18,6 +18,11 @@ function resolveConfig() {
   return { apiKey, folderId };
 }
 
+/**
+ * HTTP-прокси к YandexGPT. Требует план Blaze.
+ * В проде используется Cloudflare Worker или Yandex Cloud Functions (см. .env.example).
+ * Лимиты ИИ хранятся в Firestore и проверяются в клиенте (план Spark).
+ */
 export const parseProducts = onRequest(
   {
     region: 'europe-west1',

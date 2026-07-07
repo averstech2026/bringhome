@@ -8,7 +8,7 @@ import { getStorage } from 'firebase/storage';
  *
  * lists: {
  *   id, title, description?, type ("home" | "cottage"), isPublic, createdBy,
- *   allowedUsers: string[], createdAt
+ *   groupId, allowedUsers: string[], createdAt
  * }
  *
  * items: {
@@ -26,7 +26,8 @@ import { getStorage } from 'firebase/storage';
  *
  * users: {
  *   email, displayName, role ("admin" | "user"), disabled,
- *   avatarUrl, createdAt, createdBy
+ *   groupId?, avatarUrl, aiLimits?, aiUsage?, isChild?, uiTheme?,
+ *   createdAt, createdBy
  * }
  *
  * config/setup: { initialized, adminUid, createdAt }
