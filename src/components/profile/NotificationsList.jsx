@@ -16,7 +16,7 @@ function NotificationFilterTabs({ value, onChange }) {
   ];
 
   return (
-    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="inline-flex h-9 items-center rounded-full bg-slate-100/80 p-1">
       {tabs.map((tab) => {
         const active = value === tab.id;
         return (
@@ -24,10 +24,10 @@ function NotificationFilterTabs({ value, onChange }) {
             key={tab.id}
             type="button"
             onClick={() => onChange(tab.id)}
-            className={`shrink-0 rounded-xl px-4 py-1.5 text-sm transition-all ${
+            className={`flex h-full items-center justify-center rounded-full px-3 text-sm transition-colors ${
               active
-                ? 'border border-slate-200/60 bg-slate-100 font-semibold text-slate-900'
-                : 'border border-transparent bg-white text-slate-500 hover:text-slate-800'
+                ? 'bg-white font-semibold text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             {tab.label}
@@ -191,7 +191,7 @@ export default function NotificationsList({ userId }) {
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:bg-slate-50 hover:text-slate-900"
+            className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-4 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
           >
             <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
             Новое уведомление

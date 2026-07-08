@@ -1,10 +1,33 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Check } from 'lucide-react';
 import { getFamilyMembers } from '../../services/usersService';
 import { createAdminAnnouncement } from '../../services/notificationsService';
 import { UserAvatar } from './UserAvatar';
 
-const CHECKBOX_CLASS =
-  'h-5 w-5 shrink-0 cursor-pointer rounded-md border-gray-300 accent-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 transition-colors';
+function AnnouncementCheckbox({ id, checked, disabled = false, onChange }) {
+  return (
+    <>
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={onChange}
+        className="sr-only"
+      />
+      <span
+        aria-hidden
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
+          checked
+            ? 'border-emerald-500 bg-emerald-500'
+            : 'border-slate-200 bg-white'
+        } ${disabled ? 'opacity-40' : ''}`}
+      >
+        {checked && <Check className="h-3.5 w-3.5 stroke-[3] text-white" />}
+      </span>
+    </>
+  );
+}
 
 function AnnouncementSwitch({ enabled, onChange, disabled = false }) {
   return (
@@ -148,13 +171,15 @@ export default function CreateAnnouncementModal({
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Кому
               </p>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
-                <input
-                  type="checkbox"
+              <label
+                htmlFor="announcement-select-all"
+                className="flex cursor-pointer select-none items-center gap-2 text-sm text-slate-600"
+              >
+                <AnnouncementCheckbox
+                  id="announcement-select-all"
                   checked={allSelected}
-                  onChange={toggleAll}
                   disabled={loadingMembers || recipientMembers.length === 0}
-                  className={CHECKBOX_CLASS}
+                  onChange={toggleAll}
                 />
                 <span className="leading-none">Выбрать всех</span>
               </label>
@@ -175,17 +200,17 @@ export default function CreateAnnouncementModal({
                   return (
                     <li key={member.id}>
                       <label
-                        className={`flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2 transition ${
+                        htmlFor={`announcement-member-${member.id}`}
+                        className={`flex cursor-pointer select-none items-center gap-2.5 rounded-xl border px-3 py-2 transition ${
                           checked
                             ? 'border-emerald-200 bg-emerald-50/60'
                             : 'border-slate-100 bg-slate-50'
                         }`}
                       >
-                        <input
-                          type="checkbox"
+                        <AnnouncementCheckbox
+                          id={`announcement-member-${member.id}`}
                           checked={checked}
                           onChange={() => toggleMember(member.id)}
-                          className={CHECKBOX_CLASS}
                         />
                         <UserAvatar
                           photoUrl={member.avatarUrl}

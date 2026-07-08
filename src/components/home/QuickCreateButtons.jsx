@@ -21,7 +21,7 @@ const BUTTONS = [
 ];
 
 const TAB_BASE =
-  'mr-2 inline-flex h-8 flex-shrink-0 snap-start items-center rounded-full border bg-white px-3 text-[13px] font-medium shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition disabled:opacity-40';
+  'mr-2 inline-flex h-9 flex-shrink-0 snap-start items-center justify-center rounded-full border bg-white px-4 text-sm font-medium shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition-colors disabled:opacity-40';
 
 function CheckIcon() {
   return (
@@ -119,7 +119,7 @@ export default function QuickCreateButtons({
         {customMode && canCreateCustom ? (
           <div
             ref={customFormRef}
-            className="mr-2 flex h-8 flex-shrink-0 snap-start items-center gap-1 rounded-full border border-slate-200 bg-white py-1 pl-3 pr-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
+            className="mr-2 flex h-9 flex-shrink-0 snap-start items-center gap-1 rounded-full border border-slate-200 bg-white py-1 pl-3 pr-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
           >
             <input
               ref={inputRef}

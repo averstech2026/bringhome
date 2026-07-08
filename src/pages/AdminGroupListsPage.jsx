@@ -47,7 +47,7 @@ function ListFilterTabs({ value, onChange }) {
   ];
 
   return (
-    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="inline-flex h-9 items-center rounded-full bg-slate-100/80 p-1">
       {tabs.map((tab) => {
         const active = value === tab.id;
         return (
@@ -55,10 +55,10 @@ function ListFilterTabs({ value, onChange }) {
             key={tab.id}
             type="button"
             onClick={() => onChange(tab.id)}
-            className={`shrink-0 rounded-xl px-4 py-1.5 text-sm transition-all ${
+            className={`flex h-full items-center justify-center rounded-full px-3 text-sm transition-colors ${
               active
-                ? 'border border-slate-200/60 bg-slate-100 font-semibold text-slate-900'
-                : 'border border-transparent bg-white text-slate-500 hover:text-slate-800'
+                ? 'bg-white font-semibold text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             {tab.label}
