@@ -17,21 +17,20 @@ import ScreenTopPanel from '../components/layout/ScreenTopPanel';
 import ListCard from '../components/home/ListCard';
 import CompletedListsSection from '../components/home/CompletedListsSection';
 import ArchiveListConfirmModal from '../components/home/ArchiveListConfirmModal';
+import ArchiveAccessModal from '../components/home/ArchiveAccessModal';
 import RequestCustomTypeModal from '../components/home/RequestCustomTypeModal';
-import ThemeToast from '../components/ui/ThemeToast';
+import { useToast } from '../components/ui/ToastProvider';
 import { HINT_TEXT, PAGE_SECTION_TITLE } from '../components/list/cardStyles';
 import { resolveListStatus } from '../utils/listStatus';
-import { canArchiveList, isListOwner, isListSharedWithUser } from '../utils/listPermissions';
+import { canArchiveList, getListArchiveAdmins, isListOwner, isListSharedWithUser } from '../utils/listPermissions';
 import { clearRepeatDraft } from '../utils/repeatDraftStorage';
 import { encodeListTypeForUrl } from '../utils/listTypes';
-
-const ARCHIVE_DENIED_TOAST =
-  'Чтобы поместить список в архив, обратитесь к владельцу списка.';
 
 export default function HomePage() {
   const { user } = useAuth();
   const { settings } = useAppSettings();
   const { isAdmin, loading: profileLoading } = useUserProfile(user);
+  const toast = useToast();
   const [lists, setLists] = useState([]);
   const [authorsById, setAuthorsById] = useState({});
   const [listProgress, setListProgress] = useState({});
@@ -40,7 +39,7 @@ export default function HomePage() {
   const [busyId, setBusyId] = useState(null);
   const [requestCustomOpen, setRequestCustomOpen] = useState(false);
   const [archiveConfirmTarget, setArchiveConfirmTarget] = useState(null);
-  const [archiveDeniedToast, setArchiveDeniedToast] = useState('');
+  const [archiveAccessList, setArchiveAccessList] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -113,7 +112,7 @@ export default function HomePage() {
     if (!user?.uid || !list) return;
 
     if (!canArchiveList(list, user.uid, isAdmin)) {
-      setArchiveDeniedToast(ARCHIVE_DENIED_TOAST);
+      setArchiveAccessList(list);
       return;
     }
 
@@ -126,7 +125,7 @@ export default function HomePage() {
 
     if (!canArchiveList(list, user.uid, isAdmin)) {
       setArchiveConfirmTarget(null);
-      setArchiveDeniedToast(ARCHIVE_DENIED_TOAST);
+      setArchiveAccessList(list);
       return;
     }
 
@@ -143,7 +142,7 @@ export default function HomePage() {
       await archiveList(listId, user.uid);
       setArchiveConfirmTarget(null);
     } catch (err) {
-      window.alert(err?.message || 'Не удалось отправить список в архив');
+      toast.error(err?.message || 'Не удалось отправить список в архив');
       await loadLists();
     } finally {
       setBusyId(null);
@@ -279,7 +278,11 @@ export default function HomePage() {
         onCancel={() => !busyId && setArchiveConfirmTarget(null)}
       />
 
-      <ThemeToast message={archiveDeniedToast} onClose={() => setArchiveDeniedToast('')} />
+      <ArchiveAccessModal
+        open={Boolean(archiveAccessList)}
+        contacts={archiveAccessList ? getListArchiveAdmins(archiveAccessList, authorsById) : []}
+        onClose={() => setArchiveAccessList(null)}
+      />
     </div>
   );
 }

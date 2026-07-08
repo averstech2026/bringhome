@@ -27,7 +27,7 @@ import { learnProducts } from '../../utils/productLearning';
 import AiPreviewModal from './AiPreviewModal';
 import AiLimitModal from './AiLimitModal';
 import BorderGapCard from './BorderGapCard';
-import ThemeToast from '../ui/ThemeToast';
+import { useToast } from '../ui/ToastProvider';
 import { HINT_TEXT, INPUT_PLACEHOLDER } from './cardStyles';
 import { CATEGORY_ORDER } from '../../utils/categories';
 
@@ -69,7 +69,7 @@ export default function AiInput({
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [adding, setAdding] = useState(false);
   const [pasteHint, setPasteHint] = useState('');
-  const [themeToast, setThemeToast] = useState('');
+  const toast = useToast();
   const [limitPhrase, setLimitPhrase] = useState(null);
 
   const sectionRef = useRef(null);
@@ -188,7 +188,7 @@ export default function AiInput({
       let products = await parseProductsWithAI(text, { customDictionary });
 
       products = applyAdultContentFilter(products, profile, () => {
-        setThemeToast(ADULT_CONTENT_TOAST);
+        toast.themed(ADULT_CONTENT_TOAST);
       });
 
       if (products.length === 0) {
@@ -262,7 +262,7 @@ export default function AiInput({
       }));
 
       products = applyAdultContentFilter(products, profile, () => {
-        setThemeToast(ADULT_CONTENT_TOAST);
+        toast.themed(ADULT_CONTENT_TOAST);
       });
 
       if (products.length === 0) {
@@ -385,7 +385,6 @@ export default function AiInput({
         onClose={() => setLimitPhrase(null)}
       />
 
-      <ThemeToast message={themeToast} themed onClose={() => setThemeToast('')} />
     </>
   );
 }

@@ -23,6 +23,7 @@ import RepeatListModal from '../components/home/RepeatListModal';
 import PageHeader from '../components/layout/PageHeader';
 import { HINT_TEXT, PAGE_SECTION_TITLE } from '../components/list/cardStyles';
 import DeleteListConfirmModal from '../components/home/DeleteListConfirmModal';
+import { useToast } from '../components/ui/ToastProvider';
 
 function sortActiveLists(lists) {
   return [...lists].sort((a, b) => getListSortTimestamp(b) - getListSortTimestamp(a));
@@ -70,6 +71,7 @@ function ListFilterTabs({ value, onChange }) {
 
 export default function AdminGroupListsPage() {
   const { user } = useAuth();
+  const toast = useToast();
   const { profile, isAdmin } = useUserProfile(user);
   const { settings } = useAppSettings();
   const navigate = useNavigate();
@@ -184,7 +186,7 @@ export default function AdminGroupListsPage() {
       await deleteList(listId);
       setDeleteTarget(null);
     } catch (err) {
-      window.alert(err?.message || 'Не удалось удалить список');
+      toast.error(err?.message || 'Не удалось удалить список');
       await loadData();
     } finally {
       setBusyId(null);
@@ -201,7 +203,7 @@ export default function AdminGroupListsPage() {
       navigate(`/list/new?type=${encodeListTypeForUrl(type)}`);
       setRepeatTarget(null);
     } catch (err) {
-      window.alert(err?.message || 'Не удалось загрузить товары списка');
+      toast.error(err?.message || 'Не удалось загрузить товары списка');
     } finally {
       setBusyId(null);
     }

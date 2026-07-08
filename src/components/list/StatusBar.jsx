@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { getListProgress } from '../../utils/groupByCategory';
+import ConfirmModal from '../ui/ConfirmModal';
 import {
   CARD_SURFACE,
   CARD_PAD_V,
   HINT_TEXT,
   ZONE_TITLE,
-  PRIMARY_BTN,
 } from './cardStyles';
 
 const PILL_CLASS =
@@ -46,50 +45,19 @@ function ProgressPill({ checked, total, percent, done = false }) {
 }
 
 function ClearConfirmDialog({ open, clearing, onConfirm, onCancel }) {
-  if (!open) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default"
-        aria-label="Закрыть"
-        onClick={onCancel}
-      />
-
-      <div
-        className="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="clear-list-title"
-      >
-        <h3 id="clear-list-title" className="text-base font-semibold text-slate-900">
-          Очистить весь список?
-        </h3>
-        <p className="mt-1.5 text-sm text-slate-500">Вы уверены? Все товары будут удалены.</p>
-
-        <div className="mt-5 space-y-2">
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={clearing}
-            className={`${PRIMARY_BTN} !bg-red-500 !py-3 text-sm hover:!bg-red-600 disabled:opacity-50`}
-          >
-            {clearing ? 'Очищаем…' : 'Да, очистить'}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={clearing}
-            className="w-full rounded-full border border-gray-200 py-3 text-sm font-medium text-slate-600 transition hover:bg-gray-50 disabled:opacity-50"
-          >
-            Отмена
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+  return (
+    <ConfirmModal
+      open={open}
+      title="Очистить весь список?"
+      titleId="clear-list-title"
+      message="Вы уверены? Все товары будут удалены."
+      confirmLabel="Да, очистить"
+      confirming={clearing}
+      confirmingLabel="Очищаем…"
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+      destructive
+    />
   );
 }
 

@@ -39,9 +39,11 @@ import {
   PAGE_X,
   PRIMARY_BTN,
 } from '../components/list/cardStyles';
+import { useToast } from '../components/ui/ToastProvider';
 
 export default function ListPage() {
   const { listId } = useParams();
+  const toast = useToast();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -394,7 +396,7 @@ export default function ListPage() {
         await clearAllListItems(listId);
       }
     } catch (err) {
-      window.alert(err?.message || 'Не удалось очистить список');
+      toast.error(err?.message || 'Не удалось очистить список');
     } finally {
       setClearing(false);
     }
@@ -499,7 +501,7 @@ export default function ListPage() {
       setNotifyOnSave(false);
       scrollToShareAndHighlight();
     } catch (err) {
-      window.alert(err?.message || 'Не удалось сохранить изменения');
+      toast.error(err?.message || 'Не удалось сохранить изменения');
     } finally {
       setSavingChanges(false);
     }
@@ -522,7 +524,7 @@ export default function ListPage() {
       saveRepeatDraft({ repeatItems, repeatFrom: list.id, type });
       navigate(`/list/new?type=${encodeListTypeForUrl(type)}`);
     } catch (err) {
-      window.alert(err?.message || 'Не удалось загрузить товары списка');
+      toast.error(err?.message || 'Не удалось загрузить товары списка');
     } finally {
       setRepeatBusy(false);
       setRepeatOpen(false);
@@ -554,7 +556,7 @@ export default function ListPage() {
     try {
       await updateList(listId, { description: trimmed });
     } catch (err) {
-      window.alert(err?.message || 'Не удалось сохранить заметку');
+      toast.error(err?.message || 'Не удалось сохранить заметку');
     }
   };
 

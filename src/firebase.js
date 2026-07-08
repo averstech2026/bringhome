@@ -12,7 +12,9 @@ import { getStorage } from 'firebase/storage';
  * }
  *
  * notifications: {
- *   userId, type, title, body, link, isRead, createdAt
+ *   userId?, type, title, body, link, isRead?, createdAt,
+ *   senderId?, senderDisplayName?, receiverIds?: string[],
+ *   readByUids?: string[], sendAsPush?: boolean
  * }
  *
  * items: {

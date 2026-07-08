@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_SHEET } from '../ui/AppModal';
 import { PRIMARY_BTN } from './cardStyles';
 
 const NOTE_ICON = `${import.meta.env.BASE_URL}icons/note.png`;
@@ -38,13 +39,8 @@ export default function ListDescriptionModal({
   const [local, setLocal] = useState(value);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open) return;
     setLocal(value);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
   }, [open, value]);
 
   if (!open) return null;
@@ -55,21 +51,13 @@ export default function ListDescriptionModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default"
-        aria-label="Закрыть"
-        onClick={onClose}
-      />
-
-      <div
-        className="relative w-full max-w-sm rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="list-description-title"
-      >
+    <AppModal
+      open={open}
+      onClose={onClose}
+      labelledBy="list-description-title"
+      overlayClassName={MODAL_OVERLAY_SHEET}
+      panelClassName={MODAL_PANEL_SHEET}
+    >
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 pb-4 pt-5">
           <div className="min-w-0">
             <p id="list-description-title" className="truncate text-sm font-semibold text-slate-800">
@@ -130,7 +118,6 @@ export default function ListDescriptionModal({
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </AppModal>
   );
 }

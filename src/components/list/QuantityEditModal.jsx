@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Delete, Trash2, X } from 'lucide-react';
+import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_SHEET } from '../ui/AppModal';
 import {
   parseQuantity,
   formatQuantity,
@@ -64,16 +65,11 @@ export default function QuantityEditModal({ quantity, open, onClose, onSave, onR
   const [replaceOnInput, setReplaceOnInput] = useState(true);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open) return;
     const parsed = parseQuantity(quantity);
     setValue(String(parsed.count));
     setSelectedUnit(resolvePickerUnit(parsed.unit));
     setReplaceOnInput(true);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
   }, [open, quantity]);
 
   if (!open) return null;
@@ -140,21 +136,13 @@ export default function QuantityEditModal({ quantity, open, onClose, onSave, onR
           ];
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default"
-        aria-label="Закрыть"
-        onClick={onClose}
-      />
-
-      <div
-        className="relative w-full max-w-sm rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="quantity-modal-title"
-      >
+    <AppModal
+      open={open}
+      onClose={onClose}
+      labelledBy="quantity-modal-title"
+      overlayClassName={MODAL_OVERLAY_SHEET}
+      panelClassName={MODAL_PANEL_SHEET}
+    >
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 pb-4 pt-5">
           <div className="min-w-0">
             <p id="quantity-modal-title" className="text-sm font-semibold text-slate-800">
@@ -286,7 +274,6 @@ export default function QuantityEditModal({ quantity, open, onClose, onSave, onR
             Отмена
           </button>
         </div>
-      </div>
-    </div>
+    </AppModal>
   );
 }

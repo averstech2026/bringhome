@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { RotateCcw } from 'lucide-react';
+import AppModal from '../ui/AppModal';
 import { DEFAULT_AI_LIMITS, normalizeAiUsage, resolveAiLimits } from '../../utils/aiLimits';
 import { resolveUiTheme } from '../../utils/uiThemes';
 import { PRIMARY_BTN } from '../list/cardStyles';
@@ -80,15 +80,6 @@ export default function UserFormModal({
     setError('');
   }, [open, isEdit, user]);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
   if (!open) return null;
 
   const setField = (key, value) => {
@@ -147,23 +138,15 @@ export default function UserFormModal({
       ? 'Создайте аккаунт администратора с неограниченным доступом к ИИ.'
       : 'Создайте аккаунт и сразу настройте роль и лимиты ИИ.';
 
-  return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default"
-        aria-label="Закрыть"
-        onClick={onClose}
-        disabled={saving || resettingToday}
-      />
-
-      <div
-        className="relative flex w-full max-w-md max-h-[90vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="user-form-title"
-      >
+  return (
+    <AppModal
+      open={open}
+      onClose={onClose}
+      labelledBy="user-form-title"
+      closeOnBackdrop={!saving && !resettingToday}
+      disableClose={saving || resettingToday}
+      panelClassName="relative flex w-full max-w-md max-h-[90vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+    >
         <header className="flex-shrink-0 border-b border-slate-100 bg-white p-5">
           <h2 id="user-form-title" className="text-base font-semibold text-slate-900">
             {title}
@@ -341,8 +324,6 @@ export default function UserFormModal({
             </button>
           </footer>
         </form>
-      </div>
-    </div>,
-    document.body,
+    </AppModal>
   );
 }

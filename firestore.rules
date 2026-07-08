@@ -104,16 +104,47 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
+    function isNotificationRecipient(data) {
+      return request.auth.uid in data.get('receiverIds', []);
+    }
+
+    function isAdminAnnouncementCreate() {
+      return isAdmin()
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.receiverIds is list
+        && request.resource.data.receiverIds.size() > 0
+        && request.resource.data.type == 'admin_announcement'
+        && request.resource.data.body is string
+        && request.resource.data.readByUids is list
+        && request.resource.data.readByUids.size() == 0;
+    }
+
     match /notifications/{notificationId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn()
-        && request.resource.data.userId is string
-        && request.resource.data.type is string
-        && request.resource.data.isRead == false;
-      allow update: if isSignedIn()
-        && resource.data.userId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead'])
-        && request.resource.data.isRead == true;
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || isNotificationRecipient(resource.data)
+        || (isAdmin() && resource.data.senderId == request.auth.uid)
+      );
+      allow create: if isSignedIn() && (
+        isAdminAnnouncementCreate()
+        || (
+          request.resource.data.userId is string
+          && request.resource.data.type is string
+          && request.resource.data.isRead == false
+        )
+      );
+      allow update: if isSignedIn() && (
+        (
+          resource.data.userId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead'])
+          && request.resource.data.isRead == true
+        )
+        || (
+          isNotificationRecipient(resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readByUids'])
+          && request.auth.uid in request.resource.data.readByUids
+        )
+      );
     }
 
     match /custom_products_dictionary/{productId} {

@@ -1,5 +1,4 @@
-import { useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import ConfirmModal from '../ui/ConfirmModal';
 import { PRIMARY_BTN } from '../list/cardStyles';
 
 function resolveMessage(listTitle, creatorName, adminArchivingOthers) {
@@ -24,67 +23,23 @@ export default function ArchiveListConfirmModal({
   onConfirm,
   onCancel,
 }) {
-  useEffect(() => {
-    if (!open) return undefined;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  const confirmClassName = adminArchivingOthers
+    ? 'rounded-full bg-slate-800 py-3 text-sm font-semibold text-white transition hover:bg-slate-900 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100'
+    : `${PRIMARY_BTN} !bg-amber-500 !py-3 text-sm shadow-[0_4px_14px_rgba(245,158,11,0.28)] hover:!bg-amber-600 hover:shadow-[0_6px_20px_rgba(245,158,11,0.34)] disabled:opacity-50`;
 
-  if (!open) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default"
-        aria-label="Закрыть"
-        onClick={onCancel}
-        disabled={archiving}
-      />
-
-      <div
-        className="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="archive-list-title"
-      >
-        <h2 id="archive-list-title" className="text-base font-semibold text-slate-900">
-          Архивировать список?
-        </h2>
-        <p
-          className={`mt-1.5 text-sm ${adminArchivingOthers ? 'text-slate-600' : 'text-slate-500'}`}
-        >
-          {resolveMessage(listTitle, creatorName, adminArchivingOthers)}
-        </p>
-
-        <div className="mt-5 space-y-2">
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={archiving}
-            className={
-              adminArchivingOthers
-                ? 'w-full rounded-full bg-slate-800 py-3 text-sm font-semibold text-white transition hover:bg-slate-900 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100'
-                : `${PRIMARY_BTN} !bg-amber-500 !py-3 text-sm shadow-[0_4px_14px_rgba(245,158,11,0.28)] hover:!bg-amber-600 hover:shadow-[0_6px_20px_rgba(245,158,11,0.34)] disabled:opacity-50`
-            }
-          >
-            {archiving ? 'Архивируем…' : 'В архив'}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={archiving}
-            className="w-full rounded-full border border-gray-200 py-3 text-sm font-medium text-slate-600 transition hover:bg-gray-50 disabled:opacity-50"
-          >
-            Отмена
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+  return (
+    <ConfirmModal
+      open={open}
+      title="Архивировать список?"
+      titleId="archive-list-title"
+      message={resolveMessage(listTitle, creatorName, adminArchivingOthers)}
+      messageClassName={`mt-1.5 text-sm ${adminArchivingOthers ? 'text-slate-600' : 'text-slate-500'}`}
+      confirmLabel="В архив"
+      confirming={archiving}
+      confirmingLabel="Архивируем…"
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+      confirmClassName={confirmClassName}
+    />
   );
 }

@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from 'react';
-import { createPortal } from 'react-dom';
+import { useMemo } from 'react';
 import { X } from 'lucide-react';
+import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_WIDE } from '../ui/AppModal';
 import CheckToggle from './CheckToggle';
 import { getQuantityDisplay } from '../../utils/quantity';
 import {
@@ -104,15 +104,6 @@ export default function AiPreviewModal({
   onClose,
   adding = false,
 }) {
-  useEffect(() => {
-    if (!open) return undefined;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
   const grouped = useMemo(() => {
     const normalized = items.map((item) => ({
       ...item,
@@ -126,22 +117,14 @@ export default function AiPreviewModal({
   const selectedCount = items.filter((p) => selectedIds.has(p._previewId)).length;
   const allSelected = selectedCount === items.length;
 
-  return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default"
-        aria-label="Закрыть"
-        onClick={onClose}
-      />
-
-      <div
-        className="relative z-10 flex max-h-[92vh] w-full max-w-lg flex-col rounded-t-2xl bg-white shadow-2xl sm:max-h-[85vh] sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ai-preview-title"
-      >
+  return (
+    <AppModal
+      open={open}
+      onClose={onClose}
+      labelledBy="ai-preview-title"
+      overlayClassName={MODAL_OVERLAY_SHEET}
+      panelClassName={MODAL_PANEL_WIDE}
+    >
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 pb-4 pt-5 sm:px-6 sm:pt-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
@@ -199,8 +182,6 @@ export default function AiPreviewModal({
               : `Добавить в список (+${selectedCount} ${pluralItems(selectedCount)})`}
           </button>
         </div>
-      </div>
-    </div>,
-    document.body,
+    </AppModal>
   );
 }

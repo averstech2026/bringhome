@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Check, Hand, X } from 'lucide-react';
 import { CATEGORIES, CATEGORY_EMOJI } from '../../utils/categories';
+import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_SHEET } from '../ui/AppModal';
 import { PRIMARY_BTN } from './cardStyles';
 import { formatBookerLabel } from '../../utils/booking';
 
@@ -35,16 +36,11 @@ export default function ItemDetailsModal({
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    if (!open || !item) return undefined;
+    if (!open || !item) return;
     setComment(item.comment || '');
     setBookedBy(item.bookedBy || null);
     setCategory(item.category || 'Прочее');
     setChecked(Boolean(item.checked));
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
   }, [open, item]);
 
   if (!open || !item) return null;
@@ -89,21 +85,13 @@ export default function ItemDetailsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default"
-        aria-label="Закрыть"
-        onClick={onClose}
-      />
-
-      <div
-        className="relative w-full max-w-sm rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="item-details-title"
-      >
+    <AppModal
+      open={open}
+      onClose={onClose}
+      labelledBy="item-details-title"
+      overlayClassName={MODAL_OVERLAY_SHEET}
+      panelClassName={MODAL_PANEL_SHEET}
+    >
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 pb-4 pt-5">
           <div className="min-w-0">
             <p id="item-details-title" className="truncate text-sm font-semibold text-slate-800">
@@ -214,7 +202,6 @@ export default function ItemDetailsModal({
             Отмена
           </button>
         </div>
-      </div>
-    </div>
+    </AppModal>
   );
 }

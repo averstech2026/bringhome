@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
+import ConfirmModal from '../components/ui/ConfirmModal';
 import { useAuth } from '../hooks/useAuth';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useUserProfile } from '../hooks/useUserProfile';
@@ -75,61 +75,6 @@ function getAvatarErrorMessage(err) {
     return 'Сессия истекла. Выйдите и войдите снова.';
   }
   return message || 'Не удалось сохранить фото';
-}
-
-function SignOutConfirmModal({ open, onConfirm, onCancel }) {
-  useEffect(() => {
-    if (!open) return undefined;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
-  if (!open) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default"
-        aria-label="Закрыть"
-        onClick={onCancel}
-      />
-
-      <div
-        className="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="sign-out-title"
-      >
-        <h2 id="sign-out-title" className="text-base font-semibold text-slate-900">
-          Выйти из аккаунта?
-        </h2>
-        <p className="mt-1.5 text-sm text-slate-500">Вы уверены, что хотите выйти?</p>
-
-        <div className="mt-5 space-y-2">
-          <button
-            type="button"
-            onClick={onConfirm}
-            className={`${PRIMARY_BTN} !bg-red-500 !py-3 text-sm hover:!bg-red-600`}
-          >
-            Да, выйти
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="w-full rounded-full border border-gray-200 py-3 text-sm font-medium text-slate-600 transition hover:bg-gray-50"
-          >
-            Отмена
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
 }
 
 export default function SettingsPage() {
@@ -637,13 +582,18 @@ export default function SettingsPage() {
         </section>
       </div>
 
-      <SignOutConfirmModal
+      <ConfirmModal
         open={signOutOpen}
+        title="Выйти из аккаунта?"
+        titleId="sign-out-title"
+        message="Вы уверены, что хотите выйти?"
+        confirmLabel="Да, выйти"
         onConfirm={() => {
           setSignOutOpen(false);
           signOut();
         }}
         onCancel={() => setSignOutOpen(false)}
+        destructive
       />
     </div>
   );

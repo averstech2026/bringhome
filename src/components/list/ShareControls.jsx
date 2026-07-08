@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'lucide-react';
 import { getFamilyMembers } from '../../services/usersService';
+import { useToast } from '../ui/ToastProvider';
 import BorderGapCard from './BorderGapCard';
 import { FamilyToggle, MemberAvatar } from './accessControls';
-import { HINT_TEXT } from './cardStyles';
 
 function ShareLinkRow({ onCopy, disabled, highlighted = false }) {
   return (
@@ -40,7 +40,7 @@ export default function ShareControls({
   disabled = false,
 }) {
   const [members, setMembers] = useState([]);
-  const [message, setMessage] = useState('');
+  const toast = useToast();
 
   const isOwner = list.createdBy === currentUserId;
   const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}#/list/${listId}`;
@@ -64,8 +64,7 @@ export default function ShareControls({
 
   const copyLink = async () => {
     await navigator.clipboard.writeText(shareUrl);
-    setMessage('Ссылка скопирована!');
-    setTimeout(() => setMessage(''), 2000);
+    toast.success('Ссылка скопирована!', { durationMs: 2000 });
   };
 
   const toggleHint = isPublic
@@ -124,9 +123,6 @@ export default function ShareControls({
         </div>
       </BorderGapCard>
 
-      {message && (
-        <p className={`mt-2 ${HINT_TEXT} text-center text-emerald-600`}>{message}</p>
-      )}
     </section>
   );
 }
