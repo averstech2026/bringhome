@@ -72,9 +72,10 @@ async function squareIcon(image, box, size, { maskable = false } = {}) {
   return cropped.resize(size, size, { fit: 'cover' }).png().toBuffer();
 }
 
-async function fullLogoSquare(image, size) {
+async function fullLogoSquare(image, size, { maskable = false } = {}) {
   const meta = await image.metadata();
-  const scale = (size * 0.88) / meta.width;
+  const fill = maskable ? 0.68 : 0.88;
+  const scale = (size * fill) / meta.width;
   const h = Math.round(meta.height * scale);
   const resized = await image.clone().resize(Math.round(meta.width * scale), h).png().toBuffer();
   return sharp({
@@ -120,10 +121,10 @@ async function main() {
   await mkdir(join(publicDir, 'icons'), { recursive: true });
 
   const outputs = [
-    ['pwa-192x192.png', await squareIcon(image, box, 192)],
-    ['pwa-512x512.png', await squareIcon(image, box, 512)],
-    ['pwa-512x512-maskable.png', await squareIcon(image, box, 512, { maskable: true })],
-    ['apple-touch-icon.png', await squareIcon(image, box, 180)],
+    ['pwa-192x192.png', await fullLogoSquare(image, 192)],
+    ['pwa-512x512.png', await fullLogoSquare(image, 512)],
+    ['pwa-512x512-maskable.png', await fullLogoSquare(image, 512, { maskable: true })],
+    ['apple-touch-icon.png', await fullLogoSquare(image, 180)],
     ['icons/logo.png', await fullLogoSquare(image, 512)],
     ['icons/badge.png', await makeBadge(image, box, 96)],
     ['favicon-32.png', await makeFavicon(image, box)],
