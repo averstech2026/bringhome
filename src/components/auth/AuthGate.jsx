@@ -33,7 +33,7 @@ export default function AuthGate() {
           <h1 className="text-2xl font-bold text-slate-900">КупиДомой</h1>
           <AiBadge />
         </div>
-        <p className="mt-1 text-sm text-slate-500">Семейный умный список покупок</p>
+        <p className="mt-1 text-sm text-slate-500">Умный список покупок</p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-3">
           <input

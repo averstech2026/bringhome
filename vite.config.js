@@ -29,9 +29,9 @@ export default defineConfig(({ mode }) => {
         injectRegister: null,
         includeAssets: ['favicon-32.png', 'apple-touch-icon.png', 'masked-icon.svg'],
         manifest: {
-          name: 'КупиДомой — Семейные списки продуктов',
+          name: 'КупиДомой — Умный список покупок',
           short_name: 'КупиДомой',
-          description: 'Умные списки покупок для всей семьи с поддержкой ИИ',
+          description: 'Умный список покупок с поддержкой ИИ',
           theme_color: '#ffffff',
           background_color: '#ffffff',
           display: 'standalone',
