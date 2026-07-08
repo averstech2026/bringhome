@@ -80,6 +80,48 @@ function writeStoredDeviceToken(token) {
   }
 }
 
+/** Текущее разрешение браузера на уведомления: 'granted' | 'denied' | 'default'. */
+export function getNotificationPermissionState() {
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'denied';
+  return Notification.permission;
+}
+
+export const PUSH_BLOCKED_HINT =
+  'Уведомления заблокированы для этого сайта. В Chrome: значок замка или «i» слева от адреса → ' +
+  '«Разрешения» / «Настройки сайта» → Уведомления → «Разрешить». Обновите страницу и включите пуши снова.';
+
+/** Понятное сообщение вместо сырого messaging/permission-blocked. */
+export function formatPushError(err) {
+  const code = err?.code || '';
+  const message = err?.message || '';
+  if (code === 'messaging/permission-blocked' || message.includes('permission-blocked')) {
+    return PUSH_BLOCKED_HINT;
+  }
+  if (code === 'messaging/permission-default' || message.includes('permission-default')) {
+    return 'Разрешите уведомления в запросе браузера и попробуйте снова';
+  }
+  if (message === 'Вы не разрешили уведомления в браузере') {
+    return getNotificationPermissionState() === 'denied' ? PUSH_BLOCKED_HINT : message;
+  }
+  return message || 'Не удалось настроить пуш-уведомления';
+}
+
+async function ensureNotificationPermission() {
+  const current = getNotificationPermissionState();
+  if (current === 'granted') return;
+  if (current === 'denied') {
+    throw Object.assign(new Error(PUSH_BLOCKED_HINT), { code: 'messaging/permission-blocked' });
+  }
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    const blocked = permission === 'denied' || getNotificationPermissionState() === 'denied';
+    throw Object.assign(
+      new Error(blocked ? PUSH_BLOCKED_HINT : 'Вы не разрешили уведомления в браузере'),
+      { code: blocked ? 'messaging/permission-blocked' : 'messaging/permission-default' },
+    );
+  }
+}
+
 /** Поддерживает ли окружение веб-пуши (Safari в приватном режиме и пр. — нет). */
 export async function isPushSupported() {
   try {
@@ -126,16 +168,18 @@ async function requestDeviceToken() {
     throw new Error('Не задан VITE_FIREBASE_VAPID_KEY — добавьте ключ в .env');
   }
 
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') {
-    throw new Error('Вы не разрешили уведомления в браузере');
-  }
+  await ensureNotificationPermission();
 
   const serviceWorkerRegistration = await registerServiceWorker();
-  const token = await getToken(messaging, {
-    vapidKey: VAPID_KEY,
-    serviceWorkerRegistration,
-  });
+  let token;
+  try {
+    token = await getToken(messaging, {
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration,
+    });
+  } catch (err) {
+    throw Object.assign(new Error(formatPushError(err)), { code: err?.code });
+  }
 
   if (!token) {
     throw new Error('Не удалось получить токен устройства для уведомлений');
@@ -217,13 +261,22 @@ export async function syncPushTokenOnLogin(uid, profile) {
  * Диагностика: отправляет тестовый пуш самому себе (на токены текущего юзера).
  * Полезно проверить всю цепочку без второго аккаунта.
  */
-export async function sendTestPush(uid, { photoUrl } = {}) {
+export async function sendTestPush(uid, { photoUrl, _retry = false } = {}) {
   if (!PUSH_API_URL) {
     throw new Error('VITE_YANDEX_PUSH_URL не задан — задеплойте прокси и заполните URL');
   }
-  const tokens = await getUserTokens(uid);
+  let tokens = await getUserTokens(uid);
   if (tokens.length === 0) {
-    throw new Error('Нет сохранённых токенов — переключите тумблер пушей заново');
+    // Токен мог быть удалён после UNREGISTERED — пробуем освежить без ручного тумблера.
+    try {
+      await enablePushNotifications(uid);
+      tokens = await getUserTokens(uid);
+    } catch (err) {
+      throw new Error(formatPushError(err));
+    }
+    if (tokens.length === 0) {
+      throw new Error('Нет сохранённых токенов — включите пуш-уведомления в профиле');
+    }
   }
 
   const avatar = safeRemoteImage(photoUrl) || safeRemoteImage(auth?.currentUser?.photoURL);
@@ -238,9 +291,15 @@ export async function sendTestPush(uid, { photoUrl } = {}) {
     const hint = result.errors?.[0]?.status;
     if (invalid > 0) {
       await removeInvalidFcmTokens(uid, result.invalidTokens);
-      throw new Error(
-        'Токен устройства устарел — выключите и снова включите пуш-уведомления',
-      );
+      if (!_retry) {
+        try {
+          await enablePushNotifications(uid);
+          return sendTestPush(uid, { photoUrl, _retry: true });
+        } catch (err) {
+          throw new Error(formatPushError(err));
+        }
+      }
+      throw new Error('Не удалось обновить токен устройства — проверьте разрешения браузера');
     }
     throw new Error(
       hint

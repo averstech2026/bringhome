@@ -13,6 +13,9 @@ import {
   disablePushNotifications,
   sendTestPush,
   onForegroundPush,
+  formatPushError,
+  getNotificationPermissionState,
+  PUSH_BLOCKED_HINT,
 } from '../services/pushNotification';
 import { UserAvatar } from '../components/profile/UserAvatar';
 import PageHeader from '../components/layout/PageHeader';
@@ -103,6 +106,7 @@ export default function SettingsPage() {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushSupported, setPushSupported] = useState(true);
+  const [pushPermission, setPushPermission] = useState('default');
   const [pushTesting, setPushTesting] = useState(false);
 
   const name = profile?.displayName || user?.displayName || 'Пользователь';
@@ -127,8 +131,14 @@ export default function SettingsPage() {
     isPushSupported().then((supported) => {
       if (active) setPushSupported(supported);
     });
+    const syncPermission = () => {
+      if (active) setPushPermission(getNotificationPermissionState());
+    };
+    syncPermission();
+    document.addEventListener('visibilitychange', syncPermission);
     return () => {
       active = false;
+      document.removeEventListener('visibilitychange', syncPermission);
     };
   }, []);
 
@@ -282,7 +292,8 @@ export default function SettingsPage() {
       setTimeout(() => setSuccess(''), 2500);
     } catch (err) {
       setPushEnabled(previous);
-      setError(err?.message || 'Не удалось изменить настройку уведомлений');
+      setPushPermission(getNotificationPermissionState());
+      setError(formatPushError(err));
     } finally {
       setPushBusy(false);
     }
@@ -299,7 +310,7 @@ export default function SettingsPage() {
       setSuccess(`Тестовый пуш отправлен (доставок: ${result.sent ?? 0})`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err?.message || 'Не удалось отправить тестовый пуш');
+      setError(formatPushError(err));
     } finally {
       setPushTesting(false);
     }
@@ -462,6 +473,9 @@ export default function SettingsPage() {
                 <p className="mt-1 text-xs text-amber-600">
                   Этот браузер не поддерживает пуш-уведомления
                 </p>
+              )}
+              {pushSupported && pushPermission === 'denied' && (
+                <p className="mt-1 text-xs text-amber-700">{PUSH_BLOCKED_HINT}</p>
               )}
             </div>
             <SettingsSwitch
