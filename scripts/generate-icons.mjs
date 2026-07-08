@@ -14,7 +14,7 @@ const publicDir = join(root, 'public');
 const defaultSrc = join(publicDir, 'brand', 'logo-source.png');
 
 const srcPath = process.argv[2] || defaultSrc;
-const BG = '#f3f3f3';
+const BG = '#ffffff';
 
 /** Находит квадратную область градиентной иконки «AI» в исходном PNG. */
 async function detectAiIconBox(image) {
