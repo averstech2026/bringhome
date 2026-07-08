@@ -20,6 +20,7 @@ import { PRIMARY_BTN } from '../components/list/cardStyles';
 import { getProfileThemeButtonClass, PROFILE_THEME_OPTIONS, resolveUiTheme } from '../utils/uiThemes';
 
 const PUSH_LOGO = `${import.meta.env.BASE_URL}icons/logo.png`;
+const PUSH_BADGE = `${import.meta.env.BASE_URL}icons/badge.png`;
 
 function scrollThemeButtonIntoView(container, button) {
   if (!container || !button) return;
@@ -140,7 +141,7 @@ export default function SettingsPage() {
         new Notification(note.title || 'КупиДомой', {
           body: note.body || '',
           icon: data.icon || note.icon || PUSH_LOGO,
-          badge: data.badge || PUSH_LOGO,
+          badge: data.badge || PUSH_BADGE,
           image: data.image || note.image || undefined,
         });
       }

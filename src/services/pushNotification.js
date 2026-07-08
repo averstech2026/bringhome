@@ -29,8 +29,20 @@ import {
 } from './notificationsService';
 
 const BASE_URL = import.meta.env.BASE_URL || '/';
-// Крупная иконка и badge в пуше — полный логотип приложения.
+// Крупная иконка уведомления — полный логотип приложения.
 const APP_ICON = `${BASE_URL}icons/logo.png`;
+// Badge в статус-баре: FCM требует ≤72×72 px и монохром — не logo.png (иначе INVALID_ARGUMENT).
+const APP_BADGE = `${BASE_URL}icons/badge.png`;
+
+/** Абсолютный https-URL ассета — FCM webpush не принимает относительные пути. */
+function resolveAppAssetUrl(relativePath) {
+  if (typeof window === 'undefined') return relativePath;
+  try {
+    return new URL(relativePath, window.location.origin).href;
+  } catch {
+    return relativePath;
+  }
+}
 
 // FCM ограничивает размер сообщения (~4 КБ), а аватары хранятся как data URL до 120 КБ —
 // такой аватар не влезет в payload и «уронит» доставку. Поэтому в пуш кладём только
@@ -222,7 +234,19 @@ export async function sendTestPush(uid, { photoUrl } = {}) {
     data: { type: 'test' },
   });
   if ((result.sent ?? 0) === 0) {
-    throw new Error('Прокси принял запрос, но доставок 0 — проверьте логи функции');
+    const invalid = result.invalidTokens?.length ?? 0;
+    const hint = result.errors?.[0]?.status;
+    if (invalid > 0) {
+      await removeInvalidFcmTokens(uid, result.invalidTokens);
+      throw new Error(
+        'Токен устройства устарел — выключите и снова включите пуш-уведомления',
+      );
+    }
+    throw new Error(
+      hint
+        ? `Пуш не доставлен (FCM: ${hint}) — проверьте настройки прокси`
+        : 'Прокси принял запрос, но доставок 0 — проверьте логи функции',
+    );
   }
   return result;
 }
@@ -289,6 +313,18 @@ export async function getTargetUserTokens(list, excludeUid) {
   return [...new Set(tokens)];
 }
 
+/** Удаляет из Firestore токены, которые FCM пометил недействительными. */
+async function removeInvalidFcmTokens(uid, tokens) {
+  const unique = [...new Set((tokens || []).filter(Boolean))];
+  if (!uid || unique.length === 0) return;
+  const ref = doc(db, COLLECTIONS.USERS, uid);
+  for (const token of unique) {
+    await updateDoc(ref, { fcmTokens: arrayRemove(token) });
+  }
+  const stored = readStoredDeviceToken();
+  if (stored && unique.includes(stored)) writeStoredDeviceToken(null);
+}
+
 /** Токены одного пользователя (если у него включены пуши). */
 async function getUserTokens(uid) {
   if (!uid) return [];
@@ -312,10 +348,10 @@ async function postToProxy(tokens, { title = 'КупиДомой', body, data = 
   const currentUser = auth?.currentUser;
   if (!currentUser) return { sent: 0, skipped: true };
 
-  // icon и badge — полный логотип; image — крупное превью (аватар отправителя, если https).
+  // icon — полный логотип; badge — мелкий монохром (≤72×72); image — превью аватара.
   const payloadData = {
-    icon: icon || APP_ICON,
-    badge: badge || APP_ICON,
+    icon: resolveAppAssetUrl(icon || APP_ICON),
+    badge: resolveAppAssetUrl(badge || APP_BADGE),
     ...(image ? { image } : {}),
     ...data,
   };
@@ -338,7 +374,12 @@ async function postToProxy(tokens, { title = 'КупиДомой', body, data = 
       return { sent: 0 };
     }
     const result = await response.json().catch(() => ({}));
-    return { sent: result.sent ?? 0 };
+    return {
+      sent: result.sent ?? 0,
+      failed: result.failed ?? 0,
+      invalidTokens: Array.isArray(result.invalidTokens) ? result.invalidTokens : [],
+      errors: Array.isArray(result.errors) ? result.errors : [],
+    };
   } catch (err) {
     console.warn('[push] Ошибка отправки пуша', err);
     return { sent: 0 };

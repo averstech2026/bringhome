@@ -119,9 +119,10 @@ async function sendToToken(accessToken, projectId, token, message) {
 
   const errBody = await res.json().catch(() => ({}));
   const status = errBody?.error?.details?.[0]?.errorCode || errBody?.error?.status || res.status;
-  // Токены, которые больше не действительны — сообщаем клиенту, чтобы он их подчистил.
-  const invalid = status === 'UNREGISTERED' || status === 'INVALID_ARGUMENT' || res.status === 404;
-  return { ok: false, invalid, token, status };
+  const message = errBody?.error?.message || '';
+  // Только протухший/несуществующий токен — не INVALID_ARGUMENT (это ошибка payload, не токена).
+  const invalid = status === 'UNREGISTERED' || res.status === 404;
+  return { ok: false, invalid, token, status, message };
 }
 
 export async function handler(event) {
@@ -187,11 +188,14 @@ export async function handler(event) {
 
     const sent = results.filter((r) => r.ok).length;
     const invalidTokens = results.filter((r) => !r.ok && r.invalid).map((r) => r.token);
+    const errors = results
+      .filter((r) => !r.ok)
+      .map((r) => ({ status: r.status, message: r.message || '' }));
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ sent, failed: tokens.length - sent, invalidTokens }),
+      body: JSON.stringify({ sent, failed: tokens.length - sent, invalidTokens, errors }),
     };
   } catch (err) {
     return {
