@@ -112,6 +112,80 @@ function ListParticipantsAvatars({ list, authorsById }) {
   );
 }
 
+function ListStatusBlock({ completionDateLabel, checked, total }) {
+  const hasProgress = total > 0;
+
+  return (
+    <div className="w-28 shrink-0 text-right">
+      {(completionDateLabel || hasProgress) && (
+        <span
+          className="inline-flex items-center justify-end gap-1 whitespace-nowrap text-xs font-medium tabular-nums text-slate-400"
+          title={completionDateLabel ? `Завершено ${completionDateLabel}` : undefined}
+        >
+          {completionDateLabel && (
+            <>
+              <CheckCircle2
+                className="h-3.5 w-3.5 shrink-0 text-slate-400"
+                strokeWidth={2}
+                aria-hidden
+              />
+              <span>{completionDateLabel}</span>
+            </>
+          )}
+          {completionDateLabel && hasProgress && (
+            <span className="text-slate-300" aria-hidden>
+              •
+            </span>
+          )}
+          {hasProgress && (
+            <span>{checked}/{total}</span>
+          )}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ListAvatarsBlock({ list, authorsById, creatorOnly, creator, creatorName }) {
+  return (
+    <div className="flex w-20 shrink-0 items-center justify-end">
+      {creatorOnly ? (
+        <div className="flex min-w-0 items-center justify-end gap-1">
+          {creatorName && (
+            <span className="max-w-[3rem] truncate text-[10px] font-medium text-slate-400">
+              {creatorName.split(' ')[0]}
+            </span>
+          )}
+          <ListAuthorAvatar author={creator} isOwner />
+        </div>
+      ) : (
+        <ListParticipantsAvatars list={list} authorsById={authorsById} />
+      )}
+    </div>
+  );
+}
+
+function ListAccessBlock({ list, customBadge, creatorOnly }) {
+  if (creatorOnly) {
+    return <div className="w-6 shrink-0" aria-hidden />;
+  }
+
+  return (
+    <div className="flex w-6 shrink-0 items-center justify-center">
+      {customBadge ? (
+        <span
+          className={`${CARD_BADGE} max-w-full truncate rounded-md px-1 py-0.5 text-[10px] ${customBadge.className}`}
+          title={customBadge.label}
+        >
+          {customBadge.label}
+        </span>
+      ) : (
+        <ListAccessIcon list={list} />
+      )}
+    </div>
+  );
+}
+
 function ListStatusMeta({
   list,
   progress,
@@ -126,53 +200,20 @@ function ListStatusMeta({
   const creatorName = creator?.displayName || creator?.email?.split('@')[0] || null;
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-2">
-      {(completionDateLabel || total > 0) && (
-        <span className="flex shrink-0 items-center justify-end gap-2 whitespace-nowrap text-xs font-medium tabular-nums text-slate-400">
-          {completionDateLabel && (
-            <span
-              className="inline-flex items-center gap-1"
-              title={`Завершено ${completionDateLabel}`}
-            >
-              <CheckCircle2
-                className="h-3.5 w-3.5 shrink-0 text-slate-400"
-                strokeWidth={2}
-                aria-hidden
-              />
-              <span>{completionDateLabel}</span>
-            </span>
-          )}
-          {completionDateLabel && total > 0 && (
-            <span className="text-slate-300" aria-hidden>
-              •
-            </span>
-          )}
-          {total > 0 && (
-            <span>{checked}/{total}</span>
-          )}
-        </span>
-      )}
-      <div className="flex shrink-0 items-center gap-1.5">
-        {creatorOnly ? (
-          <>
-            {creatorName && (
-              <span className="max-w-[4.5rem] truncate text-[10px] font-medium text-slate-400">
-                {creatorName.split(' ')[0]}
-              </span>
-            )}
-            <ListAuthorAvatar author={creator} isOwner />
-          </>
-        ) : (
-          <ListParticipantsAvatars list={list} authorsById={authorsById} />
-        )}
-        {customBadge ? (
-          <span className={`${CARD_BADGE} shrink-0 rounded-md px-2 py-0.5 ${customBadge.className}`}>
-            {customBadge.label}
-          </span>
-        ) : (
-          !creatorOnly && <ListAccessIcon list={list} />
-        )}
-      </div>
+    <div className="flex shrink-0 items-center">
+      <ListStatusBlock
+        completionDateLabel={completionDateLabel}
+        checked={checked}
+        total={total}
+      />
+      <ListAvatarsBlock
+        list={list}
+        authorsById={authorsById}
+        creatorOnly={creatorOnly}
+        creator={creator}
+        creatorName={creatorName}
+      />
+      <ListAccessBlock list={list} customBadge={customBadge} creatorOnly={creatorOnly} />
     </div>
   );
 }
@@ -329,7 +370,7 @@ export default function ListCard({
           to={listHref}
           className={`min-w-0 flex-1 px-1 py-1.5 ${CARD_PRESS}`}
         >
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
               <ListTitle title={list.title} showUnread={showUnread} />
               <ListSubtitle description={list.description} />

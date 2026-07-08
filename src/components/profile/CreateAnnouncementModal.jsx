@@ -3,6 +3,9 @@ import { getFamilyMembers } from '../../services/usersService';
 import { createAdminAnnouncement } from '../../services/notificationsService';
 import { UserAvatar } from './UserAvatar';
 
+const CHECKBOX_CLASS =
+  'h-5 w-5 shrink-0 cursor-pointer rounded-md border-gray-300 accent-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 transition-colors';
+
 function AnnouncementSwitch({ enabled, onChange, disabled = false }) {
   return (
     <button
@@ -151,9 +154,9 @@ export default function CreateAnnouncementModal({
                   checked={allSelected}
                   onChange={toggleAll}
                   disabled={loadingMembers || recipientMembers.length === 0}
-                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  className={CHECKBOX_CLASS}
                 />
-                Выбрать всех
+                <span className="leading-none">Выбрать всех</span>
               </label>
             </div>
 
@@ -164,7 +167,7 @@ export default function CreateAnnouncementModal({
             ) : recipientMembers.length === 0 ? (
               <p className="mt-3 text-sm text-slate-400">Участники не найдены</p>
             ) : (
-              <ul className="mt-3 max-h-40 space-y-2 overflow-y-auto">
+              <ul className="mt-2 space-y-1.5">
                 {recipientMembers.map((member) => {
                   const checked = selectedIds.has(member.id);
                   const name = member.displayName || member.email?.split('@')[0] || 'Участник';
@@ -172,7 +175,7 @@ export default function CreateAnnouncementModal({
                   return (
                     <li key={member.id}>
                       <label
-                        className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2.5 transition ${
+                        className={`flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2 transition ${
                           checked
                             ? 'border-emerald-200 bg-emerald-50/60'
                             : 'border-slate-100 bg-slate-50'
@@ -182,14 +185,14 @@ export default function CreateAnnouncementModal({
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleMember(member.id)}
-                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                          className={CHECKBOX_CLASS}
                         />
                         <UserAvatar
                           photoUrl={member.avatarUrl}
                           name={name}
-                          className="h-9 w-9 text-sm"
+                          className="h-8 w-8 shrink-0 text-xs"
                         />
-                        <span className="min-w-0 truncate text-sm font-medium text-slate-800">
+                        <span className="min-w-0 truncate text-sm font-medium leading-none text-slate-800">
                           {name}
                         </span>
                       </label>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Megaphone } from 'lucide-react';
+import { Megaphone, Plus } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -184,18 +184,19 @@ export default function NotificationsList({ userId }) {
   return (
     <div className="space-y-4">
       {isAdmin && (
-        <NotificationFilterTabs value={filter} onChange={setFilter} />
-      )}
-
-      {isAdmin && (
-        <button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-emerald-200 bg-white py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50 active:bg-emerald-100/80"
-        >
-          <span className="text-base leading-none" aria-hidden>+</span>
-          Новое уведомление
-        </button>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <NotificationFilterTabs value={filter} onChange={setFilter} />
+          </div>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:bg-slate-50 hover:text-slate-900"
+          >
+            <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
+            Новое уведомление
+          </button>
+        </div>
       )}
 
       {loading ? (
