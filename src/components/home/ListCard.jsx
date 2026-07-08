@@ -1,8 +1,6 @@
 import { Link } from 'react-router-dom';
-import { CheckCircle2 } from 'lucide-react';
 import {
   CARD_SURFACE,
-  CARD_PAD,
   CARD_TITLE,
   CARD_BADGE,
   CARD_PRESS,
@@ -19,6 +17,7 @@ const TYPE_PROGRESS = {
 };
 
 const PARTICIPANT_AVATAR_CLASS = 'h-5 w-5';
+const LIST_META_COLUMN = 'w-28';
 
 function OwnerStarBadge() {
   return (
@@ -112,37 +111,46 @@ function ListParticipantsAvatars({ list, authorsById }) {
   );
 }
 
-function ListCompletionBlock({ completionDateLabel }) {
-  if (!completionDateLabel) return null;
+function ListStatusBlock({ showCompletionDate, completionDateLabel, checked, total }) {
+  const hasProgress = total > 0;
+
+  if (!showCompletionDate) {
+    if (!hasProgress) return null;
+    return (
+      <span className="whitespace-nowrap text-xs font-medium tabular-nums text-slate-400">
+        {checked}/{total}
+      </span>
+    );
+  }
+
+  if (!completionDateLabel && !hasProgress) return null;
 
   return (
     <span
-      className="inline-flex h-3.5 shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium leading-none text-slate-400"
-      title={`Завершено ${completionDateLabel}`}
+      className="inline-flex items-center justify-end gap-1 whitespace-nowrap text-xs font-medium tabular-nums text-slate-400"
+      title={completionDateLabel ? `Завершено ${completionDateLabel}` : undefined}
     >
-      <CheckCircle2
-        className="h-3.5 w-3.5 shrink-0"
-        strokeWidth={2}
-        aria-hidden
-      />
-      <span className="leading-none">{completionDateLabel}</span>
-    </span>
-  );
-}
-
-function ListProgressCount({ checked, total }) {
-  if (total <= 0) return null;
-
-  return (
-    <span className="shrink-0 whitespace-nowrap text-xs font-medium tabular-nums text-slate-400">
-      {checked}/{total}
+      {completionDateLabel && (
+        <>
+          <span aria-hidden>🏁</span>
+          <span>{completionDateLabel}</span>
+        </>
+      )}
+      {completionDateLabel && hasProgress && (
+        <span className="text-slate-300" aria-hidden>
+          •
+        </span>
+      )}
+      {hasProgress && (
+        <span>{checked}/{total}</span>
+      )}
     </span>
   );
 }
 
 function ListAvatarsBlock({ list, authorsById, creatorOnly, creator, creatorName }) {
   return (
-    <div className="flex w-20 shrink-0 items-center justify-end">
+    <div className="flex min-w-0 flex-1 items-center justify-end">
       {creatorOnly ? (
         <div className="flex min-w-0 items-center justify-end gap-1">
           {creatorName && (
@@ -184,16 +192,13 @@ function ListTopMeta({
   list,
   customBadge,
   authorsById,
-  showCompletionDate = false,
   creatorOnly = false,
 }) {
   const creator = authorsById[list.createdBy];
   const creatorName = creator?.displayName || creator?.email?.split('@')[0] || null;
-  const completionDateLabel = showCompletionDate ? formatCompletedListDateLabel(list) : null;
 
   return (
-    <div className="flex shrink-0 items-center gap-1.5">
-      <ListCompletionBlock completionDateLabel={completionDateLabel} />
+    <div className={`flex shrink-0 items-center justify-end gap-1.5 ${LIST_META_COLUMN}`}>
       <ListAvatarsBlock
         list={list}
         authorsById={authorsById}
@@ -206,13 +211,26 @@ function ListTopMeta({
   );
 }
 
-function ListProgressRow({ list, progress }) {
+function ListProgressRow({ list, progress, showCompletionDate = false }) {
   const { total = 0, checked = 0 } = progress || {};
+  const completionDateLabel = showCompletionDate ? formatCompletedListDateLabel(list) : null;
+  const statusNode = (
+    <ListStatusBlock
+      showCompletionDate={showCompletionDate}
+      completionDateLabel={completionDateLabel}
+      checked={checked}
+      total={total}
+    />
+  );
 
   return (
-    <div className="mt-1.5 flex items-center gap-2">
-      <ListProgress progress={progress} listType={list.type} className="min-w-0 flex-1" />
-      <ListProgressCount checked={checked} total={total} />
+    <div className="relative mt-1.5 flex h-5 items-center">
+      <ListProgress progress={progress} listType={list.type} className="w-full" />
+      {statusNode && (
+        <div className={`absolute right-0 ${LIST_META_COLUMN} text-right`}>
+          <span className="bg-white pl-1.5">{statusNode}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -262,9 +280,11 @@ function ListSubtitle({ description }) {
 function UnreadListBadge() {
   return (
     <span
-      className="ml-2 inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-500 align-middle animate-pulse"
+      className="ml-1.5 shrink-0 rounded bg-emerald-500 px-1 py-px text-[9px] font-bold uppercase leading-none text-white"
       aria-label="Новый список"
-    />
+    >
+      NEW
+    </span>
   );
 }
 
@@ -341,14 +361,14 @@ export default function ListCard({
 
   return (
     <div
-      className={`flex min-w-0 items-stretch gap-2 ${CARD_SURFACE} ${CARD_PAD} ${
+      className={`flex min-w-0 items-stretch gap-2 ${CARD_SURFACE} px-3 py-1.5 ${
         archived ? 'opacity-70' : ''
       } ${dimmed ? 'opacity-60' : ''}`}
     >
       {archived ? (
         <Link
           to={listHref}
-          className={`min-w-0 flex-1 px-1 py-1.5 ${CARD_PRESS}`}
+          className={`min-w-0 flex-1 px-1 py-1 ${CARD_PRESS}`}
         >
           <div className="flex min-w-0 items-center justify-between gap-3">
             <div className="min-w-0 flex-1 shrink">
@@ -367,7 +387,7 @@ export default function ListCard({
       ) : (
         <Link
           to={listHref}
-          className={`min-w-0 flex-1 px-1 py-1.5 ${CARD_PRESS}`}
+          className={`min-w-0 flex-1 px-1 py-1 ${CARD_PRESS}`}
         >
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
@@ -378,11 +398,14 @@ export default function ListCard({
               list={list}
               customBadge={customBadge}
               authorsById={authorsById}
-              showCompletionDate={showCompletionDate}
               creatorOnly={creatorOnly}
             />
           </div>
-          <ListProgressRow list={list} progress={progress} />
+          <ListProgressRow
+            list={list}
+            progress={progress}
+            showCompletionDate={showCompletionDate}
+          />
         </Link>
       )}
 
