@@ -29,10 +29,8 @@ import {
 } from './notificationsService';
 
 const BASE_URL = import.meta.env.BASE_URL || '/';
-// Крупная иконка уведомления по умолчанию (когда аватар отправителя недоступен).
+// Крупная иконка и badge в пуше — полный логотип приложения.
 const APP_ICON = `${BASE_URL}icons/logo.png`;
-// Мелкая монохромная иконка в статус-баре (Android/Chrome тонируют её по alpha-каналу).
-const APP_BADGE = `${BASE_URL}icons/badge.png`;
 
 // FCM ограничивает размер сообщения (~4 КБ), а аватары хранятся как data URL до 120 КБ —
 // такой аватар не влезет в payload и «уронит» доставку. Поэтому в пуш кладём только
@@ -219,7 +217,7 @@ export async function sendTestPush(uid, { photoUrl } = {}) {
   const avatar = safeRemoteImage(photoUrl) || safeRemoteImage(auth?.currentUser?.photoURL);
   const result = await postToProxy(tokens, {
     body: '🔔 Тестовое уведомление — всё работает!',
-    icon: avatar || APP_ICON,
+    icon: APP_ICON,
     ...(avatar ? { image: avatar } : {}),
     data: { type: 'test' },
   });
@@ -314,11 +312,10 @@ async function postToProxy(tokens, { title = 'КупиДомой', body, data = 
   const currentUser = auth?.currentUser;
   if (!currentUser) return { sent: 0, skipped: true };
 
-  // icon — крупная иконка (аватар отправителя или логотип), badge — монохромный значок
-  // в статус-баре, image — большое превью (аватар отправителя, если это https-ссылка).
+  // icon и badge — полный логотип; image — крупное превью (аватар отправителя, если https).
   const payloadData = {
     icon: icon || APP_ICON,
-    badge: badge || APP_BADGE,
+    badge: badge || APP_ICON,
     ...(image ? { image } : {}),
     ...data,
   };
@@ -356,13 +353,12 @@ function resolveListTitle(list) {
 }
 
 /**
- * Иконки для персонализированного пуша: если у отправителя есть https-аватар —
- * показываем его крупной иконкой и превью, иначе — фирменную иконку приложения.
+ * Иконка пуша — всегда полный логотип; аватар отправителя — только крупное превью (image).
  */
 function authorImages(author) {
   const avatar = safeRemoteImage(author?.photoUrl);
   return {
-    icon: avatar || APP_ICON,
+    icon: APP_ICON,
     image: avatar || undefined,
   };
 }

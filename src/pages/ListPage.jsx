@@ -9,6 +9,7 @@ import { useListDraft, toDraftItem } from '../hooks/useListDraft';
 import { usePendingListItems, isPendingListItem } from '../hooks/usePendingListItems';
 import { usePendingListAccess } from '../hooks/usePendingListAccess';
 import { mergeItemsBatch } from '../utils/mergeItems';
+import { applyPendingItemEdits, listItemsHaveChanges } from '../utils/listItemChanges';
 import { decodeListTypeFromUrl, encodeListTypeForUrl, formatListTitle } from '../services/listsService';
 import {
   notifyListCreated,
@@ -76,10 +77,12 @@ export default function ListPage() {
 
   const {
     pendingItems,
+    pendingEdits,
     resetPendingItems,
     mergePendingItems,
     togglePendingItem,
     updatePendingItemQuantity,
+    updatePendingLiveItemQuantity,
     removePendingItem,
     updatePendingItemCategory,
     updatePendingItemComment,
@@ -228,16 +231,23 @@ export default function ListPage() {
     : list;
   const displayItems = useMemo(() => {
     if (isDraft) return draftItems;
-    if (deferAdds) return mergeItemsBatch(liveItems, pendingItems);
+    if (deferAdds) {
+      const editedLiveItems = applyPendingItemEdits(liveItems, pendingEdits);
+      return mergeItemsBatch(editedLiveItems, pendingItems);
+    }
     return liveItems;
-  }, [isDraft, deferAdds, draftItems, liveItems, pendingItems]);
+  }, [isDraft, deferAdds, draftItems, liveItems, pendingItems, pendingEdits]);
 
   const items = displayItems;
   const loading = isDraft ? false : !accessChecked || listLoading || itemsLoading;
 
   const isDirty = isDraft
     ? draftItems.length > 0
-    : isEditMode && (pendingItems.length > 0 || isAccessDirty(list));
+    : isEditMode && (
+        pendingItems.length > 0
+        || isAccessDirty(list)
+        || listItemsHaveChanges(liveItems, applyPendingItemEdits(liveItems, pendingEdits))
+      );
 
   const scrollToShareAndHighlight = useCallback(() => {
     window.setTimeout(() => {
@@ -344,7 +354,7 @@ export default function ListPage() {
       updatePendingItemQuantity(itemId, quantity);
       return;
     }
-    await updateItemQuantity(itemId, quantity);
+    updatePendingLiveItemQuantity(itemId, quantity);
   };
 
   const handleDeferredRemove = async (itemId) => {
@@ -435,9 +445,11 @@ export default function ListPage() {
   const handleSaveChanges = async () => {
     if (!listId || !list) return;
 
-    const hasItems = pendingItems.length > 0;
+    const hasNewItems = pendingItems.length > 0;
     const hasAccess = isAccessDirty(list);
-    if (!hasItems && !hasAccess) return;
+    const pendingEditEntries = Object.entries(pendingEdits);
+    const hasItemEdits = pendingEditEntries.length > 0;
+    if (!hasNewItems && !hasAccess && !hasItemEdits) return;
 
     const previousAllowed = Array.isArray(list.allowedUsers) ? list.allowedUsers : [];
     let updatedAllowed = previousAllowed;
@@ -445,7 +457,7 @@ export default function ListPage() {
 
     setSavingChanges(true);
     try {
-      if (hasItems) {
+      if (hasNewItems) {
         await addItemsBatch(
           listId,
           pendingItems.map(({ name, quantity, category, comment, checked, checkedBy, bookedBy }) => ({
@@ -458,6 +470,18 @@ export default function ListPage() {
             bookedBy,
           })),
         );
+      }
+
+      if (hasItemEdits) {
+        await Promise.all(
+          pendingEditEntries.map(([itemId, edits]) => {
+            if (edits.quantity === undefined) return Promise.resolve();
+            return updateItemQuantity(itemId, edits.quantity);
+          }),
+        );
+      }
+
+      if (hasNewItems || hasItemEdits) {
         resetPendingItems();
       }
 
@@ -499,7 +523,7 @@ export default function ListPage() {
       }
 
       setNotifyOnSave(false);
-      scrollToShareAndHighlight();
+      navigate(-1);
     } catch (err) {
       toast.error(err?.message || 'Не удалось сохранить изменения');
     } finally {
@@ -566,7 +590,7 @@ export default function ListPage() {
   const saveBusy = persisting || savingChanges;
   const saveLabel = isDraft
     ? (persisting ? 'Создаём…' : 'Создать список')
-    : (savingChanges ? 'Сохраняем…' : 'Сохранить изменения');
+    : (savingChanges ? 'Сохранение...' : 'Сохранить изменения');
 
   const itemHandlers = isDraft
     ? {

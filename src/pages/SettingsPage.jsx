@@ -19,6 +19,8 @@ import PageHeader from '../components/layout/PageHeader';
 import { PRIMARY_BTN } from '../components/list/cardStyles';
 import { getProfileThemeButtonClass, PROFILE_THEME_OPTIONS, resolveUiTheme } from '../utils/uiThemes';
 
+const PUSH_LOGO = `${import.meta.env.BASE_URL}icons/logo.png`;
+
 function scrollThemeButtonIntoView(container, button) {
   if (!container || !button) return;
 
@@ -137,8 +139,8 @@ export default function SettingsPage() {
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         new Notification(note.title || 'КупиДомой', {
           body: note.body || '',
-          icon: data.icon || note.icon || undefined,
-          badge: data.badge || undefined,
+          icon: data.icon || note.icon || PUSH_LOGO,
+          badge: data.badge || PUSH_LOGO,
           image: data.image || note.image || undefined,
         });
       }

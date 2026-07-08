@@ -7,9 +7,11 @@ export function isPendingListItem(itemId) {
 
 export function usePendingListItems() {
   const [pendingItems, setPendingItems] = useState([]);
+  const [pendingEdits, setPendingEdits] = useState({});
 
   const resetPendingItems = useCallback(() => {
     setPendingItems([]);
+    setPendingEdits({});
   }, []);
 
   const mergePendingItems = useCallback((additionalItems = []) => {
@@ -35,6 +37,13 @@ export function usePendingListItems() {
     setPendingItems((prev) =>
       prev.map((item) => (item.id === itemId ? { ...item, quantity } : item)),
     );
+  }, []);
+
+  const updatePendingLiveItemQuantity = useCallback((itemId, quantity) => {
+    setPendingEdits((prev) => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], quantity },
+    }));
   }, []);
 
   const removePendingItem = useCallback((itemId) => {
@@ -80,10 +89,12 @@ export function usePendingListItems() {
 
   return {
     pendingItems,
+    pendingEdits,
     resetPendingItems,
     mergePendingItems,
     togglePendingItem,
     updatePendingItemQuantity,
+    updatePendingLiveItemQuantity,
     removePendingItem,
     updatePendingItemCategory,
     updatePendingItemComment,
