@@ -171,7 +171,11 @@ export async function handler(event) {
     const message = {
       notification: { title, body: text },
       data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
+      // Высокий приоритет: Android доставляет сразу (не группирует и не откладывает
+      // ради экономии батареи), а Urgency: high просит push-сервис доставить срочно.
+      android: { priority: 'high' },
       webpush: {
+        headers: { Urgency: 'high', TTL: '86400' },
         notification: webpushNotification,
         ...(link ? { fcm_options: { link } } : {}),
       },
