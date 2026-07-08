@@ -168,7 +168,7 @@ export default function CreateAnnouncementModal({
         <div className="overflow-y-auto px-5 py-4">
           <div>
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              <p className="text-xs font-semibold text-slate-400">
                 Кому
               </p>
               <label
@@ -229,7 +229,7 @@ export default function CreateAnnouncementModal({
           </div>
 
           <div className="mt-5">
-            <label htmlFor="announcement-message" className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <label htmlFor="announcement-message" className="text-xs font-semibold text-slate-400">
               Сообщение
             </label>
             <textarea
