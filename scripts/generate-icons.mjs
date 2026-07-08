@@ -127,7 +127,7 @@ async function main() {
     ['apple-touch-icon.png', await fullLogoSquare(image, 180)],
     ['icons/logo.png', await fullLogoSquare(image, 512)],
     ['icons/badge.png', await makeBadge(image, box, 96)],
-    ['favicon-32.png', await makeFavicon(image, box)],
+    ['favicon-32.png', await fullLogoSquare(image, 32, { fill: 0.9 })],
   ];
 
   for (const [rel, buf] of outputs) {
