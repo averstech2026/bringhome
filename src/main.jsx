@@ -1,9 +1,14 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
+import { registerSW } from 'virtual:pwa-register';
 import { AuthProvider } from './hooks/useAuth';
 import App from './App.jsx';
 import './index.css';
+
+// Регистрируем PWA service worker (offline-кэш + фоновые push) и включаем
+// автообновление. immediate: true — регистрируем сразу при загрузке страницы.
+registerSW({ immediate: true });
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

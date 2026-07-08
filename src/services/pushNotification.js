@@ -20,7 +20,6 @@ import app, {
   auth,
   db,
   COLLECTIONS,
-  firebaseConfig,
   VAPID_KEY,
   PUSH_API_URL,
 } from '../firebase';
@@ -82,25 +81,15 @@ export async function isPushSupported() {
   }
 }
 
-function buildServiceWorkerUrl() {
-  const params = new URLSearchParams({
-    apiKey: firebaseConfig.apiKey || '',
-    authDomain: firebaseConfig.authDomain || '',
-    projectId: firebaseConfig.projectId || '',
-    messagingSenderId: firebaseConfig.messagingSenderId || '',
-    appId: firebaseConfig.appId || '',
-  });
-  return `${BASE_URL}firebase-messaging-sw.js?${params.toString()}`;
-}
-
+// Единый SW регистрируется через virtual:pwa-register (см. src/main.jsx).
+// Здесь только дожидаемся активной регистрации, чтобы передать её в getToken:
+// у приложения один service worker на scope, и это как раз он (с логикой FCM внутри).
 async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return undefined;
   try {
-    return await navigator.serviceWorker.register(buildServiceWorkerUrl(), {
-      scope: BASE_URL,
-    });
+    return await navigator.serviceWorker.ready;
   } catch (err) {
-    console.warn('[push] Не удалось зарегистрировать service worker', err);
+    console.warn('[push] Не удалось получить регистрацию service worker', err);
     return undefined;
   }
 }
