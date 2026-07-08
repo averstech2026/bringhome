@@ -111,39 +111,26 @@ function ListParticipantsAvatars({ list, authorsById }) {
   );
 }
 
-function ListStatusBlock({ showCompletionDate, completionDateLabel, checked, total }) {
-  const hasProgress = total > 0;
-
-  if (!showCompletionDate) {
-    if (!hasProgress) return null;
-    return (
-      <span className="whitespace-nowrap text-xs font-medium tabular-nums text-slate-400">
-        {checked}/{total}
-      </span>
-    );
-  }
-
-  if (!completionDateLabel && !hasProgress) return null;
+function ListCompletionDateBadge({ completionDateLabel }) {
+  if (!completionDateLabel) return null;
 
   return (
     <span
-      className="inline-flex items-center justify-end gap-1 whitespace-nowrap text-xs font-medium tabular-nums text-slate-400"
-      title={completionDateLabel ? `Завершено ${completionDateLabel}` : undefined}
+      className="ml-1.5 inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-xs font-medium tabular-nums text-slate-400"
+      title={`Завершено ${completionDateLabel}`}
     >
-      {completionDateLabel && (
-        <>
-          <span aria-hidden>🏁</span>
-          <span>{completionDateLabel}</span>
-        </>
-      )}
-      {completionDateLabel && hasProgress && (
-        <span className="text-slate-300" aria-hidden>
-          •
-        </span>
-      )}
-      {hasProgress && (
-        <span>{checked}/{total}</span>
-      )}
+      <span aria-hidden>🏁</span>
+      <span>{completionDateLabel}</span>
+    </span>
+  );
+}
+
+function ListProgressCounter({ checked, total }) {
+  if (total <= 0) return null;
+
+  return (
+    <span className="ml-1.5 shrink-0 whitespace-nowrap text-xs font-medium tabular-nums text-slate-400">
+      {checked}/{total}
     </span>
   );
 }
@@ -211,26 +198,13 @@ function ListTopMeta({
   );
 }
 
-function ListProgressRow({ list, progress, showCompletionDate = false }) {
+function ListProgressRow({ list, progress }) {
   const { total = 0, checked = 0 } = progress || {};
-  const completionDateLabel = showCompletionDate ? formatCompletedListDateLabel(list) : null;
-  const statusNode = (
-    <ListStatusBlock
-      showCompletionDate={showCompletionDate}
-      completionDateLabel={completionDateLabel}
-      checked={checked}
-      total={total}
-    />
-  );
 
   return (
-    <div className="relative mt-1.5 flex h-5 items-center">
-      <ListProgress progress={progress} listType={list.type} className="w-full" />
-      {statusNode && (
-        <div className={`absolute right-0 ${LIST_META_COLUMN} text-right`}>
-          <span className="bg-white pl-1.5">{statusNode}</span>
-        </div>
-      )}
+    <div className="mt-1.5 flex items-center">
+      <ListProgress progress={progress} listType={list.type} className="flex-1" />
+      <ListProgressCounter checked={checked} total={total} />
     </div>
   );
 }
@@ -288,10 +262,11 @@ function UnreadListBadge() {
   );
 }
 
-function ListTitle({ title, showUnread }) {
+function ListTitle({ title, showUnread, completionDateLabel }) {
   return (
     <span className={`${CARD_TITLE} inline-flex min-w-0 max-w-full items-center`}>
       <span className="truncate">{title}</span>
+      <ListCompletionDateBadge completionDateLabel={completionDateLabel} />
       {showUnread && <UnreadListBadge />}
     </span>
   );
@@ -306,7 +281,7 @@ function ListProgress({ progress, listType, className = '' }) {
 
   return (
     <div
-      className={`h-1.5 w-full min-w-[5rem] overflow-hidden rounded-full bg-gray-100 ${className}`}
+      className={`h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100 ${className}`}
       role="progressbar"
       aria-valuenow={checked}
       aria-valuemin={0}
@@ -358,6 +333,7 @@ export default function ListCard({
   const isArchivedList = archived || list.archived || list.status === 'archived';
   const listHref = isArchivedList ? `/list/${list.id}?archived=1` : `/list/${list.id}`;
   const showUnread = !isArchivedList && isListUnviewedByUser(list, currentUserId);
+  const completionDateLabel = showCompletionDate ? formatCompletedListDateLabel(list) : null;
 
   return (
     <div
@@ -391,7 +367,11 @@ export default function ListCard({
         >
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <ListTitle title={list.title} showUnread={showUnread} />
+              <ListTitle
+                title={list.title}
+                showUnread={showUnread}
+                completionDateLabel={completionDateLabel}
+              />
               <ListSubtitle description={list.description} />
             </div>
             <ListTopMeta
@@ -401,11 +381,7 @@ export default function ListCard({
               creatorOnly={creatorOnly}
             />
           </div>
-          <ListProgressRow
-            list={list}
-            progress={progress}
-            showCompletionDate={showCompletionDate}
-          />
+          <ListProgressRow list={list} progress={progress} />
         </Link>
       )}
 
