@@ -1,7 +1,14 @@
-export default function AiBadge() {
+const AI_BADGE_ICON = `${import.meta.env.BASE_URL}icons/ai-badge.png`;
+
+export default function AiBadge({ className = 'h-[18px] w-[18px]' }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-gradient-to-r from-violet-400/90 to-fuchsia-400/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-      AI
-    </span>
+    <img
+      src={AI_BADGE_ICON}
+      alt="AI"
+      className={`shrink-0 rounded-[4px] object-cover ${className}`}
+      width={18}
+      height={18}
+      decoding="async"
+    />
   );
 }

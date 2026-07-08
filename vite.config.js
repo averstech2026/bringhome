@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
         // SW регистрируем вручную (см. src/main.jsx: registerSW из virtual:pwa-register),
         // чтобы не плодить дублирующую регистрацию.
         injectRegister: null,
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+        includeAssets: ['favicon-32.png', 'apple-touch-icon.png', 'masked-icon.svg'],
         manifest: {
           name: 'КупиДомой — Семейные списки продуктов',
           short_name: 'КупиДомой',
@@ -50,10 +50,10 @@ export default defineConfig(({ mode }) => {
               type: 'image/png',
             },
             {
-              src: 'pwa-512x512.png',
+              src: 'pwa-512x512-maskable.png',
               sizes: '512x512',
               type: 'image/png',
-              purpose: 'any maskable',
+              purpose: 'maskable',
             },
           ],
         },
