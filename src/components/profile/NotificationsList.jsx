@@ -184,17 +184,15 @@ export default function NotificationsList({ userId }) {
   return (
     <div className="space-y-4">
       {isAdmin && (
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <NotificationFilterTabs value={filter} onChange={setFilter} />
-          </div>
+        <div className="flex w-full items-center justify-between gap-2">
+          <NotificationFilterTabs value={filter} onChange={setFilter} />
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-4 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
+            className="flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-slate-200/80 bg-white px-3 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
           >
             <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
-            Новое уведомление
+            Создать
           </button>
         </div>
       )}
