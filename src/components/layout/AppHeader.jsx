@@ -7,6 +7,7 @@ import { useUserProfile } from '../../hooks/useUserProfile';
 import { UserAvatar } from '../profile/UserAvatar';
 import { getUserPhotoUrl } from '../../utils/userPhoto';
 import AiBadge from './AiBadge';
+import NotificationBell from '../notifications/NotificationBell';
 export default function AppHeader({ variant = 'default' }) {
   const { user } = useAuth();
   const { profile } = useUserProfile(user);
@@ -24,15 +25,18 @@ export default function AppHeader({ variant = 'default' }) {
           <AiBadge />
         </Link>
 
-        <Link
-          to="/settings"
-          aria-label="Профиль"
-          className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 transition-opacity duration-200 hover:opacity-80 active:opacity-70 focus:outline-none"
-        >
-          <span className="max-w-[100px] truncate text-sm text-slate-600">{name}</span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-gray-400 stroke-[1.75]" aria-hidden />
-          <UserAvatar photoUrl={photoUrl} name={name} className="h-8 w-8 text-xs" />
-        </Link>
+        <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1">
+          <NotificationBell userId={user?.uid} />
+          <Link
+            to="/settings"
+            aria-label="Профиль"
+            className="flex min-w-0 items-center gap-1.5 transition-opacity duration-200 hover:opacity-80 active:opacity-70 focus:outline-none"
+          >
+            <span className="max-w-[100px] truncate text-sm font-medium text-slate-900">{name}</span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-slate-900 stroke-[1.75]" aria-hidden />
+            <UserAvatar photoUrl={photoUrl} name={name} className="h-8 w-8 text-xs" />
+          </Link>
+        </div>
       </ScreenTopBar>
     );
   }
@@ -45,15 +49,18 @@ export default function AppHeader({ variant = 'default' }) {
           <AiBadge />
         </Link>
 
-        <Link
-          to="/settings"
-          aria-label="Профиль"
-          className="flex items-center gap-1.5 transition-opacity duration-200 hover:opacity-80 active:opacity-70 focus:outline-none"
-        >
-          <span className="max-w-[100px] truncate text-sm text-slate-600">{name}</span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-gray-400 stroke-[1.75]" aria-hidden />
-          <UserAvatar photoUrl={photoUrl} name={name} />
-        </Link>
+        <div className="flex items-center gap-1">
+          <NotificationBell userId={user?.uid} />
+          <Link
+            to="/settings"
+            aria-label="Профиль"
+            className="flex items-center gap-1.5 transition-opacity duration-200 hover:opacity-80 active:opacity-70 focus:outline-none"
+          >
+            <span className="max-w-[100px] truncate text-sm font-medium text-slate-900">{name}</span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-slate-900 stroke-[1.75]" aria-hidden />
+            <UserAvatar photoUrl={photoUrl} name={name} />
+          </Link>
+        </div>
       </div>
     </header>
   );

@@ -23,6 +23,10 @@ import app, {
   VAPID_KEY,
   PUSH_API_URL,
 } from '../firebase';
+import {
+  createNotification,
+  createNotificationsForUsers,
+} from './notificationsService';
 
 const BASE_URL = import.meta.env.BASE_URL || '/';
 // Крупная иконка уведомления по умолчанию (когда аватар отправителя недоступен).
@@ -365,11 +369,29 @@ function authorImages(author) {
 
 // --- Сценарии уведомлений ---
 
+function listLink(listId) {
+  return listId ? `/list/${listId}` : '/';
+}
+
 /** Сценарий А: создан новый список — всем участникам с доступом, кроме автора. */
 export async function notifyListCreated({ list, author }) {
-  const tokens = await getTargetUserTokens(list, author?.uid);
+  const excluded = toExcludeSet(author?.uid);
+  const users = await getAccessibleUsers(list);
+  const targetUids = users.filter((u) => !excluded.has(u.uid)).map((u) => u.uid);
+  const tokens = targetUids.flatMap((uid) => users.find((u) => u.uid === uid)?.tokens || []);
+
+  const body = `📝 ${resolveAuthorName(author)} создал список «${resolveListTitle(list)}»`;
+  const link = listLink(list?.id);
+
+  createNotificationsForUsers(targetUids, {
+    type: 'list_created',
+    title: 'КупиДомой',
+    body,
+    link,
+  }).catch((err) => console.warn('[notifications] Не удалось сохранить уведомления', err));
+
   return postToProxy(tokens, {
-    body: `📝 ${resolveAuthorName(author)} создал список «${resolveListTitle(list)}»`,
+    body,
     ...authorImages(author),
     data: { type: 'list_created', listId: list?.id || '' },
   });
@@ -381,9 +403,23 @@ export async function notifyListCreated({ list, author }) {
  */
 export async function notifyListUpdated({ list, author, excludeUids = [] }) {
   const exclude = [author?.uid, ...(Array.isArray(excludeUids) ? excludeUids : [excludeUids])];
-  const tokens = await getTargetUserTokens(list, exclude);
+  const excluded = toExcludeSet(exclude);
+  const users = await getAccessibleUsers(list);
+  const targetUids = users.filter((u) => !excluded.has(u.uid)).map((u) => u.uid);
+  const tokens = targetUids.flatMap((uid) => users.find((u) => u.uid === uid)?.tokens || []);
+
+  const body = `🔄 ${resolveAuthorName(author)} обновил список «${resolveListTitle(list)}»`;
+  const link = listLink(list?.id);
+
+  createNotificationsForUsers(targetUids, {
+    type: 'list_updated',
+    title: 'КупиДомой',
+    body,
+    link,
+  }).catch((err) => console.warn('[notifications] Не удалось сохранить уведомления', err));
+
   return postToProxy(tokens, {
-    body: `🔄 ${resolveAuthorName(author)} обновил список «${resolveListTitle(list)}»`,
+    body,
     ...authorImages(author),
     data: { type: 'list_updated', listId: list?.id || '' },
   });
@@ -392,9 +428,21 @@ export async function notifyListUpdated({ list, author, excludeUids = [] }) {
 /** Сценарий В: пользователю открыли доступ — персонально только ему. */
 export async function notifyUserAddedToList({ list, author, newUid }) {
   if (!newUid || newUid === author?.uid) return { sent: 0, skipped: true };
+
+  const body = `👋 ${resolveAuthorName(author)} открыл вам доступ к списку «${resolveListTitle(list)}»`;
+  const link = listLink(list?.id);
+
+  createNotification({
+    userId: newUid,
+    type: 'list_shared',
+    title: 'КупиДомой',
+    body,
+    link,
+  }).catch((err) => console.warn('[notifications] Не удалось сохранить уведомление', err));
+
   const tokens = await getUserTokens(newUid);
   return postToProxy(tokens, {
-    body: `👋 ${resolveAuthorName(author)} открыл вам доступ к списку «${resolveListTitle(list)}»`,
+    body,
     ...authorImages(author),
     data: { type: 'list_shared', listId: list?.id || '' },
   });

@@ -21,7 +21,7 @@ import RequestCustomTypeModal from '../components/home/RequestCustomTypeModal';
 import ThemeToast from '../components/ui/ThemeToast';
 import { HINT_TEXT, PAGE_SECTION_TITLE } from '../components/list/cardStyles';
 import { resolveListStatus } from '../utils/listStatus';
-import { canArchiveList } from '../utils/listPermissions';
+import { canArchiveList, isListOwner, isListSharedWithUser } from '../utils/listPermissions';
 import { clearRepeatDraft } from '../utils/repeatDraftStorage';
 import { encodeListTypeForUrl } from '../utils/listTypes';
 
@@ -153,9 +153,32 @@ export default function HomePage() {
   const activeLists = lists.filter(
     (list) => resolveListStatus(list, listProgress[list.id]) === 'active',
   );
+  const myActiveLists = activeLists.filter((list) => isListOwner(list, user?.uid));
+  const sharedActiveLists = activeLists.filter((list) => {
+    if (isListOwner(list, user?.uid)) return false;
+    if (isListSharedWithUser(list, user?.uid)) return true;
+    return isAdmin;
+  });
   const completedLists = lists.filter(
     (list) => resolveListStatus(list, listProgress[list.id]) === 'completed',
   );
+
+  const renderActiveListGroup = (groupLists, subtitle) => {
+    if (groupLists.length === 0) return null;
+
+    return (
+      <div className={subtitle === 'Доступные мне' && myActiveLists.length > 0 ? 'mt-5' : 'mt-4'}>
+        <h3 className="mb-2 pl-1 text-xs font-medium text-slate-400/90">
+          {subtitle}
+        </h3>
+        <ul className="space-y-2.5">
+          {groupLists.map((list) => (
+            <li key={list.id}>{renderListCard(list)}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
 
   const renderListCard = (list, { dimmed = false, showCompletionDate = false } = {}) => {
     const manageable = canManageList(list);
@@ -169,6 +192,7 @@ export default function HomePage() {
         list={listWithAuthor}
         progress={listProgress[list.id]}
         authorsById={authorsById}
+        currentUserId={user?.uid}
         busy={busyId === list.id}
         dimmed={dimmed}
         showCompletionDate={showCompletionDate}
@@ -211,11 +235,10 @@ export default function HomePage() {
         ) : lists.length > 0 ? (
           <>
             {activeLists.length > 0 && (
-              <ul className="mt-4 space-y-2.5">
-                {activeLists.map((list) => (
-                  <li key={list.id}>{renderListCard(list)}</li>
-                ))}
-              </ul>
+              <>
+                {renderActiveListGroup(myActiveLists, 'Мои списки')}
+                {renderActiveListGroup(sharedActiveLists, 'Доступные мне')}
+              </>
             )}
 
             {completedLists.length > 0 && (

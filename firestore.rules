@@ -81,6 +81,10 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['allowedUsers']) &&
           request.auth.uid in listAllowedUsers(request.resource.data) &&
           !(request.auth.uid in listAllowedUsers(resource.data))
+        ) ||
+        (
+          canReadList(resource.data) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewedBy'])
         )
       );
       allow delete: if isSignedIn() && (
@@ -98,6 +102,18 @@ service cloud.firestore {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.userId is string
+        && request.resource.data.type is string
+        && request.resource.data.isRead == false;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead'])
+        && request.resource.data.isRead == true;
     }
 
     match /custom_products_dictionary/{productId} {

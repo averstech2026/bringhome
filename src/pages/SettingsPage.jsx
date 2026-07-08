@@ -5,6 +5,7 @@ import { LogOut } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { useNotifications } from '../hooks/useNotifications';
 import { updateUserAvatar, removeUserAvatar, updateOwnUiTheme } from '../services/usersService';
 import {
   isPushSupported,
@@ -135,6 +136,7 @@ export default function SettingsPage() {
   const { user, signOut, reloadUser } = useAuth();
   const { settings, updateSetting } = useAppSettings();
   const { profile, isAdmin, reload, loading: profileLoading } = useUserProfile(user);
+  const { unreadCount } = useNotifications(user?.uid);
   const fileInputRef = useRef(null);
   const avatarMenuRef = useRef(null);
   const themeCarouselRef = useRef(null);
@@ -596,35 +598,43 @@ export default function SettingsPage() {
         </section>
         )}
 
-        <section className="mt-6 overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-          <Link
-            to="/admin/lists"
-            className="flex items-center justify-between px-4 py-4 transition hover:bg-black/[0.02] active:bg-black/[0.04]"
-          >
-            <span className="text-[15px] text-slate-800">Все списки группы</span>
-            <ChevronRightIcon />
-          </Link>
+        <section className="mt-6 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
+          {[
+            {
+              to: '/settings/notifications',
+              label: 'Уведомления',
+              badge: unreadCount,
+            },
+            {
+              to: '/admin/lists',
+              label: 'Все списки группы',
+            },
+            ...(isAdmin
+              ? [
+                  { to: '/admin/ai-stats', label: 'Статистика ИИ' },
+                  { to: '/admin/users', label: 'Управление пользователями' },
+                ]
+              : []),
+          ].map((item, index, items) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={`flex items-center justify-between px-6 py-4 transition-colors hover:bg-slate-50/80 active:bg-slate-50/80 ${
+                index < items.length - 1 ? 'border-b border-slate-100' : ''
+              }`}
+            >
+              <span className="flex items-center gap-2 text-[15px] text-slate-800">
+                {item.label}
+                {item.badge > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold leading-none text-white">
+                    {item.badge > 9 ? '9+' : item.badge}
+                  </span>
+                )}
+              </span>
+              <ChevronRightIcon />
+            </Link>
+          ))}
         </section>
-
-        {isAdmin && (
-          <section className="mt-6 overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-            <Link
-              to="/admin/ai-stats"
-              className="flex items-center justify-between px-4 py-4 transition hover:bg-black/[0.02] active:bg-black/[0.04]"
-            >
-              <span className="text-[15px] text-slate-800">Статистика ИИ</span>
-              <ChevronRightIcon />
-            </Link>
-            <div className="mx-4 border-t border-gray-100" />
-            <Link
-              to="/admin/users"
-              className="flex items-center justify-between px-4 py-4 transition hover:bg-black/[0.02] active:bg-black/[0.04]"
-            >
-              <span className="text-[15px] text-slate-800">Управление пользователями</span>
-              <ChevronRightIcon />
-            </Link>
-          </section>
-        )}
       </div>
 
       <SignOutConfirmModal

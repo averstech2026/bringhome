@@ -8,7 +8,11 @@ import { getStorage } from 'firebase/storage';
  *
  * lists: {
  *   id, title, description?, type ("home" | "cottage"), isPublic, createdBy,
- *   groupId, allowedUsers: string[], createdAt
+ *   groupId, allowedUsers: string[], viewedBy?: { [uid]: boolean }, createdAt
+ * }
+ *
+ * notifications: {
+ *   userId, type, title, body, link, isRead, createdAt
  * }
  *
  * items: {
@@ -80,6 +84,7 @@ export const COLLECTIONS = {
   PRODUCT_HISTORY: 'product_history',
   CUSTOM_PRODUCTS_DICTIONARY: 'custom_products_dictionary',
   USERS: 'users',
+  NOTIFICATIONS: 'notifications',
   CONFIG: 'config',
 };
 

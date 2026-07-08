@@ -38,13 +38,12 @@ function mergeListsById(...groups) {
   return [...byId.values()];
 }
 
-function ListFilterTabs({ value, onChange, showAllTab }) {
-  const tabs = showAllTab
-    ? [
-        { id: 'all', label: 'Все' },
-        { id: 'mine', label: 'Мои' },
-      ]
-    : [{ id: 'mine', label: 'Мои' }];
+function ListFilterTabs({ value, onChange }) {
+  const tabs = [
+    { id: 'all', label: 'Все' },
+    { id: 'mine', label: 'Мои' },
+    { id: 'others', label: 'Чужие' },
+  ];
 
   return (
     <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -55,10 +54,10 @@ function ListFilterTabs({ value, onChange, showAllTab }) {
             key={tab.id}
             type="button"
             onClick={() => onChange(tab.id)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${
+            className={`shrink-0 rounded-xl px-4 py-1.5 text-sm transition-all ${
               active
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                ? 'border border-slate-200/60 bg-slate-100 font-semibold text-slate-900'
+                : 'border border-transparent bg-white text-slate-500 hover:text-slate-800'
             }`}
           >
             {tab.label}
@@ -86,7 +85,6 @@ export default function AdminGroupListsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const groupId = getFamilyGroupId(profile);
-  const showAllTab = isAdmin;
 
   useEffect(() => {
     setFilter(isAdmin ? 'all' : 'mine');
@@ -143,6 +141,9 @@ export default function AdminGroupListsPage() {
   const filteredLists = useMemo(() => {
     if (filter === 'mine') {
       return lists.filter((list) => list.createdBy === user?.uid);
+    }
+    if (filter === 'others') {
+      return lists.filter((list) => list.createdBy !== user?.uid);
     }
     return lists;
   }, [lists, filter, user?.uid]);
@@ -228,7 +229,9 @@ export default function AdminGroupListsPage() {
   const subtitle =
     filter === 'mine'
       ? 'Ваши списки, включая завершённые и архивные'
-      : 'Все списки семьи, включая те, куда вас не пригласили напрямую';
+      : filter === 'others'
+        ? 'Списки других участников семьи'
+        : 'Все списки семьи, включая те, куда вас не пригласили напрямую';
 
   return (
     <div className="flex min-h-full flex-col px-4 pb-10 pt-0">
@@ -238,7 +241,7 @@ export default function AdminGroupListsPage() {
         <p className="text-sm text-slate-500">{subtitle}</p>
 
         <div className="mt-4">
-          <ListFilterTabs value={filter} onChange={setFilter} showAllTab={showAllTab} />
+          <ListFilterTabs value={filter} onChange={setFilter} />
         </div>
 
         <section className="mt-6">
@@ -258,7 +261,11 @@ export default function AdminGroupListsPage() {
                 </ul>
               ) : (
                 <p className={`mt-4 ${HINT_TEXT}`}>
-                  {filter === 'mine' ? 'Нет ваших актуальных списков' : 'Нет актуальных списков'}
+                  {filter === 'mine'
+                    ? 'Нет ваших актуальных списков'
+                    : filter === 'others'
+                      ? 'Нет чужих актуальных списков'
+                      : 'Нет актуальных списков'}
                 </p>
               )}
 

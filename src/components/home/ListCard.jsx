@@ -9,6 +9,7 @@ import {
 } from '../list/cardStyles';
 import { getListProgressClass, getListTypeBadgeProps, isBuiltinListType } from '../../utils/listTypes';
 import { formatCompletedListDateLabel } from '../../utils/groupCompletedLists';
+import { isListUnviewedByUser } from '../../utils/listPermissions';
 import ListAccessIcon from './ListAccessIcon';
 
 const TYPE_PROGRESS = {
@@ -218,6 +219,24 @@ function ListSubtitle({ description }) {
   );
 }
 
+function UnreadListBadge() {
+  return (
+    <span
+      className="ml-2 inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-500 align-middle animate-pulse"
+      aria-label="Новый список"
+    />
+  );
+}
+
+function ListTitle({ title, showUnread }) {
+  return (
+    <span className={`${CARD_TITLE} inline-flex min-w-0 max-w-full items-center`}>
+      <span className="truncate">{title}</span>
+      {showUnread && <UnreadListBadge />}
+    </span>
+  );
+}
+
 function ListProgress({ progress, listType, className = '' }) {
   const { total = 0, checked = 0, percent = 0 } = progress || {};
   const fillClass = isBuiltinListType(listType)
@@ -260,6 +279,7 @@ export default function ListCard({
   list,
   progress,
   authorsById,
+  currentUserId,
   archived = false,
   dimmed = false,
   onArchive,
@@ -277,6 +297,7 @@ export default function ListCard({
   const hasActions = onRepeat || showArchive || onRestore || onDelete;
   const isArchivedList = archived || list.archived || list.status === 'archived';
   const listHref = isArchivedList ? `/list/${list.id}?archived=1` : `/list/${list.id}`;
+  const showUnread = !isArchivedList && isListUnviewedByUser(list, currentUserId);
 
   return (
     <div
@@ -291,7 +312,7 @@ export default function ListCard({
         >
           <div className="flex min-w-0 items-center justify-between gap-3">
             <div className="min-w-0 flex-1 shrink">
-              <span className={`${CARD_TITLE} block truncate text-slate-600`}>{list.title}</span>
+              <ListTitle title={list.title} showUnread={showUnread} />
               <ListSubtitle description={list.description} />
             </div>
             <div className="flex shrink-0 items-center justify-end gap-1.5">
@@ -310,7 +331,7 @@ export default function ListCard({
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <span className={`${CARD_TITLE} block truncate`}>{list.title}</span>
+              <ListTitle title={list.title} showUnread={showUnread} />
               <ListSubtitle description={list.description} />
             </div>
             <ListStatusMeta

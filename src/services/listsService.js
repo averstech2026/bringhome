@@ -48,6 +48,7 @@ export async function createList({
     createdBy,
     groupId,
     allowedUsers: resolvedAllowed,
+    viewedBy: { [createdBy]: true },
     status: 'active',
     archived: false,
     createdAt: serverTimestamp(),
@@ -57,6 +58,14 @@ export async function createList({
 
 export async function updateList(listId, data) {
   await updateDoc(doc(db, COLLECTIONS.LISTS, listId), data);
+}
+
+/** Отмечает список просмотренным текущим пользователем */
+export async function markListViewed(listId, userId) {
+  if (!listId || !userId) return;
+  await updateDoc(doc(db, COLLECTIONS.LISTS, listId), {
+    [`viewedBy.${userId}`]: true,
+  });
 }
 
 export async function toggleListPublic(listId, isPublic) {

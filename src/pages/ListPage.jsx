@@ -18,7 +18,7 @@ import {
 import { getFamilyGroupId } from '../utils/familyGroup';
 import ListDescriptionModal, { ListDescriptionButton } from '../components/list/ListDescriptionModal';
 import ScreenTopPanel, { ScreenTopBar } from '../components/layout/ScreenTopPanel';
-import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, syncListStatus, clearAllListItems, updateList, updateItemsBookingBatch, addItemsBatch, toggleItem, updateItemQuantity, updateItemCategory, updateItemComment, updateItemBooking, deleteItem } from '../services/listsService';
+import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, syncListStatus, clearAllListItems, updateList, markListViewed, updateItemsBookingBatch, addItemsBatch, toggleItem, updateItemQuantity, updateItemCategory, updateItemComment, updateItemBooking, deleteItem } from '../services/listsService';
 import { groupItemsByCategory, getListProgress } from '../utils/groupByCategory';
 import StatusBar from '../components/list/StatusBar';
 import CategoryGroup from '../components/list/CategoryGroup';
@@ -164,6 +164,11 @@ export default function ListPage() {
       cancelled = true;
     };
   }, [listId, user, isDraft, isArchivedView, isAdmin]);
+
+  useEffect(() => {
+    if (!canLoadList || !user?.uid || isArchivedView) return;
+    markListViewed(listId, user.uid).catch(() => {});
+  }, [canLoadList, listId, user?.uid, isArchivedView]);
 
   useEffect(() => {
     resetPendingItems();

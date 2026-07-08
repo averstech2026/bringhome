@@ -2,6 +2,19 @@ export function isListOwner(list, userId) {
   return Boolean(userId && list && list.createdBy === userId);
 }
 
+/** Список расшарен с пользователем (в allowedUsers), но он не владелец */
+export function isListSharedWithUser(list, userId) {
+  if (!userId || !list || list.createdBy === userId) return false;
+  const allowed = Array.isArray(list.allowedUsers) ? list.allowedUsers : [];
+  return allowed.includes(userId);
+}
+
+/** Пользователь ещё не открывал список (viewedBy[uid] !== true) */
+export function isListUnviewedByUser(list, userId) {
+  if (!userId || !list) return false;
+  return list.viewedBy?.[userId] !== true;
+}
+
 export function canArchiveList(list, userId, isAppAdmin = false) {
   if (!userId || !list) return false;
   if (isAppAdmin) return true;

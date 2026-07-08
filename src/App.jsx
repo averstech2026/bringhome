@@ -16,6 +16,7 @@ import AdminUsersPage from './pages/AdminUsersPage';
 import AdminGroupListsPage from './pages/AdminGroupListsPage';
 import AdminAiStatsPage from './pages/AdminAiStatsPage';
 import SettingsPage from './pages/SettingsPage';
+import NotificationsPage from './pages/NotificationsPage';
 import AppHeader from './components/layout/AppHeader';
 import { APP_BACKGROUND, CARD_SURFACE, PRIMARY_BTN } from './components/list/cardStyles';
 
@@ -110,6 +111,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/settings/notifications" element={<NotificationsPage />} />
       <Route path="/list/:listId" element={<ListPage />} />
       <Route
         path="/admin/users"
