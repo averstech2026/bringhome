@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Megaphone, Plus } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
@@ -8,15 +8,17 @@ import { canManageNotifications } from '../../utils/notificationAdmin';
 import CreateAnnouncementModal from './CreateAnnouncementModal';
 
 const APP_ICON = `${import.meta.env.BASE_URL || '/'}icons/logo.png`;
+const PAGE_SIZE = 20;
 
 function NotificationFilterTabs({ value, onChange }) {
   const tabs = [
+    { id: 'all', label: 'Все' },
     { id: 'incoming', label: 'Входящие' },
     { id: 'outgoing', label: 'Исходящие' },
   ];
 
   return (
-    <div className="inline-flex h-9 items-center rounded-full bg-slate-100/80 p-1">
+    <div className="inline-flex h-9 min-w-0 flex-1 items-center rounded-full bg-slate-100/80 p-1">
       {tabs.map((tab) => {
         const active = value === tab.id;
         return (
@@ -24,7 +26,7 @@ function NotificationFilterTabs({ value, onChange }) {
             key={tab.id}
             type="button"
             onClick={() => onChange(tab.id)}
-            className={`flex h-full items-center justify-center rounded-full px-3 text-sm transition-colors ${
+            className={`flex h-full flex-1 items-center justify-center rounded-full px-2 text-sm transition-colors ${
               active
                 ? 'bg-white font-semibold text-slate-900 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
@@ -60,6 +62,22 @@ function getAnnouncementLabel(notification) {
   return 'Объявление от администратора';
 }
 
+function DirectionBadge({ direction }) {
+  if (direction === 'outgoing') {
+    return (
+      <span className="rounded bg-emerald-50/50 px-2 py-0.5 text-xs text-emerald-600">
+        Исходящее
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+      Входящее
+    </span>
+  );
+}
+
 function NotificationIcon({ notification, read }) {
   if (notification.type === 'admin_announcement') {
     return (
@@ -89,7 +107,7 @@ function NotificationIcon({ notification, read }) {
   return <span className="w-2 shrink-0" aria-hidden />;
 }
 
-function IncomingNotificationItem({ notification, read, onSelect }) {
+function IncomingNotificationItem({ notification, read, onSelect, showDirectionBadge }) {
   const isAnnouncement = notification.type === 'admin_announcement';
 
   return (
@@ -110,15 +128,16 @@ function IncomingNotificationItem({ notification, read, onSelect }) {
         <p className={`text-sm leading-snug text-slate-800 ${isAnnouncement ? 'mt-1' : ''}`}>
           {notification.body}
         </p>
-        <p className="mt-1 text-[11px] text-slate-400">
+        <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
           {formatNotificationTime(notification.createdAt)}
+          {showDirectionBadge && <DirectionBadge direction="incoming" />}
         </p>
       </div>
     </button>
   );
 }
 
-function OutgoingNotificationItem({ notification }) {
+function OutgoingNotificationItem({ notification, showDirectionBadge }) {
   const recipientCount = notification.receiverIds?.length || 0;
 
   return (
@@ -129,8 +148,9 @@ function OutgoingNotificationItem({ notification }) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm leading-snug text-slate-800">{notification.body}</p>
-          <p className="mt-1.5 text-[11px] text-slate-400">
+          <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
             {formatNotificationTime(notification.createdAt)}
+            {showDirectionBadge && <DirectionBadge direction="outgoing" />}
             {recipientCount > 0 && (
               <span className="text-slate-300"> · </span>
             )}
@@ -159,16 +179,30 @@ export default function NotificationsList({ userId }) {
   const { user } = useAuth();
   const { profile } = useUserProfile(user);
   const isAdmin = canManageNotifications({ profile, uid: userId });
-  const [filter, setFilter] = useState('incoming');
+  const [filter, setFilter] = useState('all');
   const [createOpen, setCreateOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  const mode = isAdmin && filter === 'outgoing' ? 'outgoing' : 'incoming';
+  const mode = isAdmin
+    ? (filter === 'all' ? 'all' : filter === 'outgoing' ? 'outgoing' : 'incoming')
+    : 'incoming';
+
   const { notifications, loading, markRead, isRead } = useNotifications(userId, { mode });
 
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [filter]);
+
   const visibleNotifications = useMemo(() => {
-    if (!isAdmin || filter === 'incoming') return notifications;
-    return notifications.filter((notification) => notification.senderId === userId);
-  }, [notifications, isAdmin, filter, userId]);
+    if (filter === 'outgoing' && isAdmin) {
+      return notifications.filter((notification) => notification.senderId === userId);
+    }
+    return notifications;
+  }, [notifications, filter, isAdmin, userId]);
+
+  const displayedNotifications = visibleNotifications.slice(0, visibleCount);
+  const hasMore = visibleNotifications.length > visibleCount;
+  const showDirectionBadge = isAdmin && filter === 'all';
 
   const senderDisplayName = profile?.displayName || user?.displayName || 'Администратор';
 
@@ -180,6 +214,10 @@ export default function NotificationsList({ userId }) {
       navigate(notification.link);
     }
   };
+
+  const emptyMessage = filter === 'outgoing'
+    ? 'Исходящих уведомлений пока нет'
+    : 'Пока нет уведомлений';
 
   return (
     <div className="space-y-4">
@@ -203,24 +241,46 @@ export default function NotificationsList({ userId }) {
         </div>
       ) : visibleNotifications.length === 0 ? (
         <p className="py-16 text-center text-sm text-slate-400">
-          {filter === 'outgoing' ? 'Исходящих уведомлений пока нет' : 'Пока нет уведомлений'}
+          {emptyMessage}
         </p>
       ) : (
-        <ul className="space-y-3">
-          {visibleNotifications.map((notification) => (
-            <li key={notification.id}>
-              {filter === 'outgoing' ? (
-                <OutgoingNotificationItem notification={notification} />
-              ) : (
-                <IncomingNotificationItem
-                  notification={notification}
-                  read={isRead(notification)}
-                  onSelect={handleSelect}
-                />
-              )}
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="space-y-3">
+            {displayedNotifications.map((notification) => {
+              const isOutgoing = filter === 'outgoing' || notification.direction === 'outgoing';
+
+              return (
+                <li key={notification.id}>
+                  {isOutgoing ? (
+                    <OutgoingNotificationItem
+                      notification={notification}
+                      showDirectionBadge={showDirectionBadge}
+                    />
+                  ) : (
+                    <IncomingNotificationItem
+                      notification={notification}
+                      read={isRead(notification)}
+                      onSelect={handleSelect}
+                      showDirectionBadge={showDirectionBadge}
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+
+          {hasMore && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+                className="flex h-9 items-center justify-center rounded-full border border-slate-200/80 bg-white px-4 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
+              >
+                Показать еще
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       <CreateAnnouncementModal
