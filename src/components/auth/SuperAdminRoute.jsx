@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { useAuth } from '../../hooks/useAuth';
 
-export default function AdminRoute({ children }) {
+export default function SuperAdminRoute({ children }) {
   const { user } = useAuth();
   const { isSuperAdmin, loading } = useUserProfile(user);
 

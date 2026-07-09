@@ -1,4 +1,89 @@
-export const DEFAULT_AI_LIMITS = { daily: 5, weekly: 20, monthly: 50 };
+export const DEFAULT_AI_LIMIT_MONTH = 50;
+
+/** @deprecated используйте DEFAULT_AI_LIMIT_MONTH */
+export const DEFAULT_AI_LIMITS = {
+  daily: 5,
+  weekly: 20,
+  monthly: DEFAULT_AI_LIMIT_MONTH,
+};
+
+import { isFamilyAdmin, isSuperAdmin } from './roles';
+
+function isFamilyScoped(user) {
+  return Boolean(user?.familyId || user?.groupId);
+}
+
+function hasStoredAiLimits(user) {
+  const raw = user?.aiLimits;
+  return Boolean(raw && (raw.daily != null || raw.weekly != null || raw.monthly != null));
+}
+
+function parseStoredAiLimits(raw) {
+  return {
+    daily: Math.max(0, Number(raw.daily ?? DEFAULT_AI_LIMITS.daily)),
+    weekly: Math.max(0, Number(raw.weekly ?? DEFAULT_AI_LIMITS.weekly)),
+    monthly: Math.max(0, Number(raw.monthly ?? DEFAULT_AI_LIMITS.monthly)),
+  };
+}
+
+export function resolveFamilyAiLimitMonth(family) {
+  if (family?.aiLimitMonth != null && family.aiLimitMonth !== '') {
+    return Math.max(0, Number(family.aiLimitMonth));
+  }
+  if (family?.limits?.aiRequests != null && family.limits.aiRequests !== '') {
+    return Math.max(0, Number(family.limits.aiRequests));
+  }
+  return DEFAULT_AI_LIMIT_MONTH;
+}
+
+/** Персональный месячный лимит (поле aiLimitMonth в настройках семьи). */
+export function getPersonalAiLimitMonth(user) {
+  if (!user) return null;
+
+  if ('aiLimitMonth' in user) {
+    if (user.aiLimitMonth == null || user.aiLimitMonth === '') return null;
+    return Math.max(0, Number(user.aiLimitMonth));
+  }
+
+  return null;
+}
+
+export function hasPersonalAiLimitMonth(user) {
+  return getPersonalAiLimitMonth(user) != null;
+}
+
+export function resolveEffectiveAiLimitMonth(user, family = null) {
+  const personal = getPersonalAiLimitMonth(user);
+  if (personal != null) return personal;
+  if (family) return resolveFamilyAiLimitMonth(family);
+  return DEFAULT_AI_LIMIT_MONTH;
+}
+
+/** Детальные день/неделя/месяц — только для участников с лимитом от владельца платформы. */
+export function hasGranularAiLimits(user) {
+  if (!hasStoredAiLimits(user)) return false;
+  if ('aiLimitMonth' in user) return false;
+  if (isFamilyAdmin(user) && isFamilyScoped(user)) return false;
+  return true;
+}
+
+export function formatUserAiMonthLabel(user, family = null) {
+  const usage = normalizeAiUsage(user?.aiUsage);
+  const limits = resolveAiLimits(user, family);
+
+  if (hasGranularAiLimits(user)) {
+    return `ИИ/день: ${usage.daily.count} / ${limits.daily} · ИИ/мес: ${usage.monthly.count} / ${limits.monthly}`;
+  }
+
+  const used = usage.monthly.count;
+  const limit = resolveEffectiveAiLimitMonth(user, family);
+
+  if (hasPersonalAiLimitMonth(user)) {
+    return `ИИ/мес: ${used} / ${limit}`;
+  }
+
+  return `ИИ/мес: ${used} / ${limit} (из общего)`;
+}
 
 export function getPeriodKeys(date = new Date()) {
   const year = date.getFullYear();
@@ -18,12 +103,25 @@ export function getPeriodKeys(date = new Date()) {
   };
 }
 
-export function resolveAiLimits(profile) {
-  return {
-    daily: Number(profile?.aiLimits?.daily ?? DEFAULT_AI_LIMITS.daily),
-    weekly: Number(profile?.aiLimits?.weekly ?? DEFAULT_AI_LIMITS.weekly),
-    monthly: Number(profile?.aiLimits?.monthly ?? DEFAULT_AI_LIMITS.monthly),
-  };
+/** Эффективные лимиты: персональный aiLimitMonth, aiLimits (владелец) или общий лимит семьи. */
+export function resolveAiLimits(profile, family = null) {
+  const personalMonth = getPersonalAiLimitMonth(profile);
+  if (personalMonth != null) {
+    return deriveAiLimitsFromMonthly(personalMonth);
+  }
+
+  if (isFamilyAdmin(profile) && isFamilyScoped(profile)) {
+    return deriveAiLimitsFromMonthly(resolveFamilyAiLimitMonth(family));
+  }
+
+  if (hasStoredAiLimits(profile)) {
+    if (isSuperAdmin(profile) || !isFamilyAdmin(profile)) {
+      return parseStoredAiLimits(profile.aiLimits);
+    }
+  }
+
+  const monthly = resolveEffectiveAiLimitMonth(profile, family);
+  return deriveAiLimitsFromMonthly(monthly);
 }
 
 export function normalizeAiUsage(raw, date = new Date()) {
@@ -48,35 +146,40 @@ export function normalizeAiUsage(raw, date = new Date()) {
 }
 
 export function isUnlimitedAiUser(profile) {
-  return profile?.role === 'admin' && profile?.disabled !== true;
+  return isSuperAdmin(profile);
 }
 
-export function checkAiUsageAllowed(profile, date = new Date()) {
+export function checkAiUsageAllowed(profile, family = null, date = new Date()) {
   if (isUnlimitedAiUser(profile)) {
-    return { allowed: true, unlimited: true, limits: null, usage: null };
+    return { allowed: true, unlimited: true, limitMonth: null, usage: null };
   }
 
-  const limits = resolveAiLimits(profile);
+  const limits = resolveAiLimits(profile, family);
   const usage = normalizeAiUsage(profile?.aiUsage, date);
 
   if (usage.daily.count >= limits.daily) {
-    return { allowed: false, reason: 'daily', limits, usage };
+    return { allowed: false, reason: 'daily', limitMonth: limits.monthly, limits, usage };
   }
   if (usage.weekly.count >= limits.weekly) {
-    return { allowed: false, reason: 'weekly', limits, usage };
+    return { allowed: false, reason: 'weekly', limitMonth: limits.monthly, limits, usage };
   }
   if (usage.monthly.count >= limits.monthly) {
-    return { allowed: false, reason: 'monthly', limits, usage };
+    return { allowed: false, reason: 'monthly', limitMonth: limits.monthly, limits, usage };
   }
 
-  return { allowed: true, limits, usage };
+  return { allowed: true, limitMonth: limits.monthly, limits, usage };
 }
 
-export function getRemainingDaily(profile, date = new Date()) {
+export function getRemainingMonthly(profile, family = null, date = new Date()) {
   if (isUnlimitedAiUser(profile)) return null;
-  const limits = resolveAiLimits(profile);
+  const limitMonth = resolveEffectiveAiLimitMonth(profile, family);
   const usage = normalizeAiUsage(profile?.aiUsage, date);
-  return Math.max(0, limits.daily - usage.daily.count);
+  return Math.max(0, limitMonth - usage.monthly.count);
+}
+
+/** @deprecated используйте getRemainingMonthly */
+export function getRemainingDaily(profile, family = null, date = new Date()) {
+  return getRemainingMonthly(profile, family, date);
 }
 
 export function buildNextAiUsage(currentUsage, date = new Date()) {
@@ -101,5 +204,15 @@ export function buildResetDailyAiUsage(currentUsage, date = new Date()) {
     weekly: current.weekly,
     monthly: current.monthly,
     total: current.total,
+  };
+}
+
+/** Раскладывает месячный лимит на день / неделю / месяц (legacy). */
+export function deriveAiLimitsFromMonthly(monthly) {
+  const monthlyValue = Math.max(0, Number(monthly || 0));
+  return {
+    daily: Math.min(DEFAULT_AI_LIMITS.daily, Math.max(1, Math.floor(monthlyValue / 10))),
+    weekly: Math.min(DEFAULT_AI_LIMITS.weekly, Math.max(5, Math.floor(monthlyValue / 3))),
+    monthly: monthlyValue,
   };
 }

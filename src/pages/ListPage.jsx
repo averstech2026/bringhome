@@ -16,7 +16,7 @@ import {
   notifyListUpdated,
   notifyUserAddedToList,
 } from '../services/pushNotification';
-import { getFamilyGroupId } from '../utils/familyGroup';
+import { getFamilyId } from '../utils/familyGroup';
 import ListDescriptionModal, { ListDescriptionButton } from '../components/list/ListDescriptionModal';
 import ScreenTopPanel, { ScreenTopBar } from '../components/layout/ScreenTopPanel';
 import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, syncListStatus, clearAllListItems, updateList, markListViewed, updateItemsBookingBatch, addItemsBatch, toggleItem, updateItemQuantity, updateItemCategory, updateItemComment, updateItemBooking, deleteItem } from '../services/listsService';
@@ -49,11 +49,15 @@ export default function ListPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, displayName } = useAuth();
-  const { profile, isAdmin } = useUserProfile(user);
+  const { profile, isSuperAdmin } = useUserProfile(user);
   const userPhotoUrl = getUserPhotoUrl(user, profile);
 
   const isDraft = listId === 'new';
   const isArchivedView = searchParams.get('archived') === '1';
+  const isAdminView = searchParams.get('adminView') === '1' && isSuperAdmin;
+  const isReadOnlyView = isArchivedView || isAdminView;
+  const adminBackTo = location.state?.backTo || '/admin/dashboard?tab=families';
+  const backTarget = isAdminView ? adminBackTo : isArchivedView ? '/settings' : '/';
   const listType = decodeListTypeFromUrl(searchParams.get('type'));
 
   const {
@@ -135,7 +139,7 @@ export default function ListPage() {
 
     const checkAccess = isArchivedView
       ? ensureArchivedListAccess(listId)
-      : ensureListAccess(listId, user.uid, { isAdmin });
+      : ensureListAccess(listId, user.uid, { isAdmin: isSuperAdmin });
 
     checkAccess
       .then(({ allowed, reason }) => {
@@ -168,12 +172,12 @@ export default function ListPage() {
     return () => {
       cancelled = true;
     };
-  }, [listId, user, isDraft, isArchivedView, isAdmin]);
+  }, [listId, user, isDraft, isArchivedView, isAdminView, isSuperAdmin]);
 
   useEffect(() => {
-    if (!canLoadList || !user?.uid || isArchivedView) return;
+    if (!canLoadList || !user?.uid || isReadOnlyView) return;
     markListViewed(listId, user.uid).catch(() => {});
-  }, [canLoadList, listId, user?.uid, isArchivedView]);
+  }, [canLoadList, listId, user?.uid, isReadOnlyView]);
 
   useEffect(() => {
     resetPendingItems();
@@ -190,7 +194,7 @@ export default function ListPage() {
     if (!isDraft || !user) return undefined;
 
     let cancelled = false;
-    getFamilyMembers()
+    getFamilyMembers(getFamilyId(profile))
       .then((members) => {
         if (!cancelled) setFamilyMembers(members);
       })
@@ -221,7 +225,7 @@ export default function ListPage() {
     [user],
   );
 
-  const deferAdds = !isDraft && !isArchivedView;
+  const deferAdds = !isDraft && !isReadOnlyView;
   const isEditMode = deferAdds;
 
   const activeList = isDraft ? draftList : list;
@@ -413,7 +417,7 @@ export default function ListPage() {
   };
 
   const handleCreateList = async () => {
-    const groupId = getFamilyGroupId(profile);
+    const familyId = getFamilyId(profile);
     // Доступ выбран на экране создания: при «для всей семьи» открываем всем,
     // иначе — только отмеченным участникам. Автора добавит сам сервис.
     const allowedUsers = draftIsPublic
@@ -421,21 +425,21 @@ export default function ListPage() {
       : [...new Set([user.uid, ...draftSharedWith])];
 
     const newListId = await persistWithItems(user.uid, draftItems, {
-      groupId,
+      groupId: familyId,
+      familyId,
       isPublic: draftIsPublic,
       allowedUsers,
     });
 
     if (newListId) {
-      // Сценарий А: уведомляем участников с доступом к списку, кроме автора.
-      // Не блокируем UI и глушим ошибки — создание списка важнее доставки пуша.
       notifyListCreated({
         list: {
           id: newListId,
           title: formatListTitle(listType),
           isPublic: draftIsPublic,
           allowedUsers,
-          groupId,
+          familyId,
+          groupId: familyId,
         },
         author: { uid: user.uid, name: profile?.displayName || displayName, photoUrl: userPhotoUrl },
       }).catch((err) => console.warn('[push] Не удалось отправить уведомление', err));
@@ -502,7 +506,8 @@ export default function ListPage() {
         title: list.title,
         isPublic: updatedIsPublic,
         allowedUsers: updatedAllowed,
-        groupId: list.groupId,
+        groupId: list.groupId || list.familyId,
+        familyId: list.familyId || list.groupId,
       };
       const newMembers = updatedAllowed.filter(
         (uid) => uid !== author.uid && !previousAllowed.includes(uid),
@@ -556,7 +561,7 @@ export default function ListPage() {
   };
 
   const handleComplete = async () => {
-    if (!listId || isDraft || isArchivedView || !allDone || total === 0) return;
+    if (!listId || isDraft || isReadOnlyView || !allDone || total === 0) return;
 
     setCompleting(true);
     try {
@@ -586,7 +591,7 @@ export default function ListPage() {
 
   const listDescription = isDraft ? draftDescription : list?.description || '';
 
-  const showFooter = isDraft || isArchivedView || isEditMode;
+  const showFooter = !isAdminView && (isDraft || isArchivedView || isEditMode);
   const saveBusy = persisting || savingChanges;
   const saveLabel = isDraft
     ? (persisting ? 'Создаём…' : 'Создать список')
@@ -635,8 +640,8 @@ export default function ListPage() {
             Задеплойте правила Firestore: firebase deploy --only firestore:rules
           </p>
         )}
-        <Link to={isArchivedView ? '/settings' : '/'} className="mt-4 text-sm font-medium text-slate-700">
-          {isArchivedView ? 'В профиль' : 'На главную'}
+        <Link to={backTarget} className="mt-4 text-sm font-medium text-slate-700">
+          {isAdminView ? 'К семье' : isArchivedView ? 'В профиль' : 'На главную'}
         </Link>
       </div>
     );
@@ -648,7 +653,7 @@ export default function ListPage() {
         <ScreenTopBar>
             <button
               type="button"
-              onClick={() => navigate(isArchivedView ? '/settings' : '/')}
+              onClick={() => navigate(backTarget)}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-800 transition hover:bg-black/[0.04] active:bg-black/[0.06]"
               aria-label="Назад"
             >
@@ -670,16 +675,28 @@ export default function ListPage() {
               </div>
 
               <div className="ml-auto flex shrink-0 items-center gap-2">
-                {!isDraft && !isArchivedView && <ListAccessIcon list={displayList || activeList} />}
+                {!isDraft && !isReadOnlyView && <ListAccessIcon list={displayList || activeList} />}
                 <ListTypeBadge type={activeList.type} />
 
-                {isArchivedView && (
+                {isAdminView && (
+                  <span className="inline-flex shrink-0 items-center rounded-md bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
+                    Просмотр
+                  </span>
+                )}
+
+                {isArchivedView && !isAdminView && (
                   <span className="inline-flex shrink-0 items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
                     В архиве
                   </span>
                 )}
 
-                {!isDraft && !isArchivedView && allDone && total > 0 && (
+                {isArchivedView && isAdminView && (
+                  <span className="inline-flex shrink-0 items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                    Архив
+                  </span>
+                )}
+
+                {!isDraft && !isReadOnlyView && allDone && total > 0 && (
                   <button
                     type="button"
                     onClick={handleComplete}
@@ -701,7 +718,7 @@ export default function ListPage() {
       <main className={`flex flex-1 flex-col gap-3 pt-3 ${showFooter ? 'pb-28' : 'pb-10'}`}>
         <StatusBar
           items={items}
-          onClear={!isArchivedView ? handleClearList : undefined}
+          onClear={!isReadOnlyView ? handleClearList : undefined}
           clearing={clearing || persisting || savingChanges}
         />
 
@@ -710,8 +727,8 @@ export default function ListPage() {
             <p className={HINT_TEXT}>
               {isDraft
                 ? 'Список пуст — добавьте продукты ниже'
-                : isArchivedView
-                  ? 'В архивном списке нет товаров'
+                : isReadOnlyView
+                  ? 'В списке нет товаров'
                   : 'Список пуст — добавьте продукты ниже'}
             </p>
           ) : (
@@ -724,14 +741,14 @@ export default function ListPage() {
                   displayName={displayName}
                   userPhotoUrl={userPhotoUrl}
                   isFirst={index === 0}
-                  readOnly={isArchivedView}
+                  readOnly={isReadOnlyView}
                   onToggle={itemHandlers.onToggle}
                   onQuantityChange={itemHandlers.onQuantityChange}
                   onRemove={itemHandlers.onRemove}
                   onCategoryChange={itemHandlers.onCategoryChange}
                   onCommentChange={itemHandlers.onCommentChange}
                   onBookingToggle={itemHandlers.onBookingToggle}
-                  onCategoryBooking={!isArchivedView ? handleCategoryBooking : undefined}
+                  onCategoryBooking={!isReadOnlyView ? handleCategoryBooking : undefined}
                   disabled={persisting || savingChanges}
                 />
               ))}
@@ -739,7 +756,7 @@ export default function ListPage() {
           )}
         </div>
 
-        {!isArchivedView && (
+        {!isReadOnlyView && (
           <>
             <AddItemForm
               listId={isDraft || deferAdds ? null : listId}
@@ -839,7 +856,7 @@ export default function ListPage() {
         </footer>
       )}
 
-      {isArchivedView && list && (
+      {isArchivedView && !isAdminView && list && (
         <RepeatListModal
           list={list}
           open={repeatOpen}
@@ -853,7 +870,7 @@ export default function ListPage() {
         open={descriptionOpen}
         listTitle={activeList.title}
         value={listDescription}
-        readOnly={isArchivedView}
+        readOnly={isReadOnlyView}
         disabled={persisting}
         onClose={() => setDescriptionOpen(false)}
         onSave={handleSaveDescription}

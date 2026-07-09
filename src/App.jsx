@@ -7,16 +7,21 @@ import { useUserProfile } from './hooks/useUserProfile';
 import { isAppInitialized } from './services/usersService';
 import { syncPushTokenOnLogin } from './services/pushNotification';
 import AuthGate from './components/auth/AuthGate';
-import AdminRoute from './components/auth/AdminRoute';
+import SuperAdminRoute from './components/auth/SuperAdminRoute';
+import FamilyAdminRoute from './components/auth/FamilyAdminRoute';
 import AiBadge from './components/layout/AiBadge';
 import HomePage from './pages/HomePage';
 import ListPage from './pages/ListPage';
 import AdminSetupPage from './pages/AdminSetupPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminGroupListsPage from './pages/AdminGroupListsPage';
-import AdminAiStatsPage from './pages/AdminAiStatsPage';
 import SettingsPage from './pages/SettingsPage';
+import MyFeedbacksPage from './pages/MyFeedbacksPage';
 import NotificationsPage from './pages/NotificationsPage';
+import RegisterPage from './pages/RegisterPage';
+import FamilyManagementPage from './pages/FamilyManagementPage';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import SuperAdminFamilyDetailPage from './pages/SuperAdminFamilyDetailPage';
 import AppHeader from './components/layout/AppHeader';
 import { APP_BACKGROUND, CARD_SURFACE, PRIMARY_BTN } from './components/list/cardStyles';
 
@@ -93,12 +98,26 @@ function InitCheckFailed({ onRetry, retrying }) {
   );
 }
 
+function LoggedOutRoutes() {
+  const location = useLocation();
+
+  if (location.pathname === '/register') {
+    return <RegisterPage />;
+  }
+
+  return (
+    <>
+      <LoggedOutRedirect />
+      <AuthGate />
+    </>
+  );
+}
 function LoggedOutRedirect() {
   const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (location.pathname !== '/') {
+    if (location.pathname !== '/' && location.pathname !== '/register') {
       navigate('/', { replace: true });
     }
   }, [location.pathname, navigate]);
@@ -111,23 +130,44 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/settings/feedbacks" element={<MyFeedbacksPage />} />
       <Route path="/settings/notifications" element={<NotificationsPage />} />
       <Route path="/list/:listId" element={<ListPage />} />
       <Route
         path="/admin/users"
         element={
-          <AdminRoute>
+          <SuperAdminRoute>
             <AdminUsersPage />
-          </AdminRoute>
+          </SuperAdminRoute>
         }
       />
       <Route path="/admin/lists" element={<AdminGroupListsPage />} />
       <Route
         path="/admin/ai-stats"
+        element={<Navigate to="/admin/dashboard?tab=families" replace />}
+      />
+      <Route
+        path="/admin/dashboard"
         element={
-          <AdminRoute>
-            <AdminAiStatsPage />
-          </AdminRoute>
+          <SuperAdminRoute>
+            <SuperAdminDashboard />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/admin/dashboard/families/:familyId"
+        element={
+          <SuperAdminRoute>
+            <SuperAdminFamilyDetailPage />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/family/manage"
+        element={
+          <FamilyAdminRoute>
+            <FamilyManagementPage />
+          </FamilyAdminRoute>
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -141,7 +181,8 @@ function AppShell() {
     location.pathname === '/' ||
     location.pathname.startsWith('/list/') ||
     location.pathname.startsWith('/settings') ||
-    location.pathname.startsWith('/admin/');
+    location.pathname.startsWith('/admin/') ||
+    location.pathname.startsWith('/family/');
 
   return (
     <div className={`mx-auto min-h-full max-w-lg ${APP_BACKGROUND}`}>
@@ -217,12 +258,7 @@ export default function App() {
   }
 
   if (!user) {
-    return (
-      <>
-        <LoggedOutRedirect />
-        <AuthGate />
-      </>
-    );
+    return <LoggedOutRoutes />;
   }
 
   if (profileLoading) {

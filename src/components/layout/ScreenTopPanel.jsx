@@ -10,11 +10,11 @@ export default function ScreenTopPanel({ children, className = '' }) {
   );
 }
 
-/** Фиксированная высота строки плашки: pt-3 + h-10 + pb-4 */
+/** Строка плашки: pt-3 + min-h-10 + pb-4 */
 export function ScreenTopBar({ children, className = '' }) {
   return (
     <div className={`${SCREEN_TOP_INNER} ${className}`}>
-      <div className="flex h-10 items-center gap-2">{children}</div>
+      <div className="flex min-h-10 items-center gap-2">{children}</div>
     </div>
   );
 }

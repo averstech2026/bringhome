@@ -14,7 +14,7 @@ function sortByCreatedAt(items) {
   });
 }
 
-export function useNotifications(userId, { mode = 'incoming' } = {}) {
+export function useNotifications(userId, { mode = 'incoming', familyId = null } = {}) {
   const [incomingNotifications, setIncomingNotifications] = useState([]);
   const [outgoingNotifications, setOutgoingNotifications] = useState([]);
   const [loadingIncoming, setLoadingIncoming] = useState(true);
@@ -31,11 +31,11 @@ export function useNotifications(userId, { mode = 'incoming' } = {}) {
     }
 
     setLoadingIncoming(true);
-    return subscribeToNotifications(userId, (items) => {
+    return subscribeToNotifications(userId, familyId, (items) => {
       setIncomingNotifications(items);
       setLoadingIncoming(false);
     });
-  }, [userId, needsIncoming]);
+  }, [userId, familyId, needsIncoming]);
 
   useEffect(() => {
     if (!userId || !needsOutgoing) {

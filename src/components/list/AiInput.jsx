@@ -3,12 +3,13 @@ import { useLocation } from 'react-router-dom';
 import { ClipboardPaste, Sparkles, Sword, Wand2 } from 'lucide-react';
 import { parseProductsWithAI } from '../../services/aiService';
 import { getAiUsageStatus, recordAiUsage } from '../../services/aiUsageService';
+import { getFamily } from '../../services/familiesService';
 import { addItemsBatch } from '../../services/listsService';
 import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import {
   checkAiUsageAllowed,
-  getRemainingDaily,
+  getRemainingMonthly,
   isUnlimitedAiUser,
 } from '../../utils/aiLimits';
 import {
@@ -71,6 +72,7 @@ export default function AiInput({
   const [pasteHint, setPasteHint] = useState('');
   const toast = useToast();
   const [limitPhrase, setLimitPhrase] = useState(null);
+  const [family, setFamily] = useState(null);
 
   const sectionRef = useRef(null);
   const textareaRef = useRef(null);
@@ -78,8 +80,30 @@ export default function AiInput({
   const { user } = useAuth();
   const { profile, isAdmin, reload: reloadProfile } = useUserProfile(user);
 
-  const usageStatus = useMemo(() => checkAiUsageAllowed(profile), [profile]);
-  const remainingDaily = useMemo(() => getRemainingDaily(profile), [profile]);
+  const familyId = profile?.familyId || profile?.groupId || null;
+
+  useEffect(() => {
+    if (!familyId) {
+      setFamily(null);
+      return undefined;
+    }
+
+    let active = true;
+    getFamily(familyId)
+      .then((data) => {
+        if (active) setFamily(data);
+      })
+      .catch(() => {
+        if (active) setFamily(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [familyId]);
+
+  const usageStatus = useMemo(() => checkAiUsageAllowed(profile, family), [profile, family]);
+  const remainingMonthly = useMemo(() => getRemainingMonthly(profile, family), [profile, family]);
   const limitExhausted = !isAdmin && !usageStatus.allowed;
   const showUsageBadge = !isUnlimitedAiUser(profile);
   const uiTheme = useMemo(() => resolveUiTheme(profile), [profile]);
@@ -359,7 +383,7 @@ export default function AiInput({
               >
                 {limitExhausted
                   ? 'Лимит исчерпан'
-                  : `${remainingDaily ?? 0}/${usageStatus.limits?.daily ?? 0}`}
+                  : `${remainingMonthly ?? 0}/${usageStatus.limitMonth ?? 0}`}
               </span>
             )}
           </button>

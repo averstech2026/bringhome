@@ -31,7 +31,7 @@ export default function AdminSetupPage() {
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg">
         <h1 className="text-2xl font-bold text-slate-900">Первый запуск</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Создайте администраторский аккаунт для управления пользователями
+          Создайте аккаунт владельца платформы для управления семьями и инвайтами
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-3">
@@ -70,7 +70,7 @@ export default function AdminSetupPage() {
             disabled={loading}
             className="w-full rounded-full bg-brand-600 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50"
           >
-            {loading ? 'Создание…' : 'Создать админ-аккаунт'}
+            {loading ? 'Создание…' : 'Создать аккаунт владельца'}
           </button>
         </form>
       </div>

@@ -1,9 +1,13 @@
 import { Link } from 'react-router-dom';
 import { Bell } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
+import { useUserProfile } from '../../hooks/useUserProfile';
 import { useNotifications } from '../../hooks/useNotifications';
 
 export default function NotificationBell({ userId }) {
-  const { unreadCount } = useNotifications(userId);
+  const { user } = useAuth();
+  const { familyId } = useUserProfile(user);
+  const { unreadCount } = useNotifications(userId, { familyId });
 
   if (!userId) return null;
 

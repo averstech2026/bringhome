@@ -4,15 +4,14 @@ import { useAuth } from '../hooks/useAuth';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useAppSettings } from '../hooks/useAppSettings';
 import {
-  getGroupLists,
-  getUserLists,
-  getUserArchivedLists,
+  getFamilyLists,
+  getHomePageLists,
   getItemsProgressByListIds,
   deleteList,
   getListItemsForRepeat,
 } from '../services/listsService';
 import { getFamilyMembers } from '../services/usersService';
-import { getFamilyGroupId } from '../utils/familyGroup';
+import { getFamilyId } from '../utils/familyGroup';
 import { resolveListStatus } from '../utils/listStatus';
 import { getListSortTimestamp, sortCompletedListsByDate } from '../utils/groupCompletedLists';
 import { saveRepeatDraft } from '../utils/repeatDraftStorage';
@@ -29,15 +28,6 @@ function sortActiveLists(lists) {
   return [...lists].sort((a, b) => getListSortTimestamp(b) - getListSortTimestamp(a));
 }
 
-function mergeListsById(...groups) {
-  const byId = new Map();
-  for (const group of groups) {
-    for (const list of group) {
-      byId.set(list.id, list);
-    }
-  }
-  return [...byId.values()];
-}
 
 function ListFilterTabs({ value, onChange }) {
   const tabs = [
@@ -72,7 +62,7 @@ function ListFilterTabs({ value, onChange }) {
 export default function AdminGroupListsPage() {
   const { user } = useAuth();
   const toast = useToast();
-  const { profile, isAdmin } = useUserProfile(user);
+  const { profile, familyId, isFamilyAdmin, isSuperAdmin } = useUserProfile(user);
   const { settings } = useAppSettings();
   const navigate = useNavigate();
 
@@ -86,32 +76,25 @@ export default function AdminGroupListsPage() {
   const [repeatTarget, setRepeatTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const groupId = getFamilyGroupId(profile);
+  const resolvedFamilyId = familyId || getFamilyId(profile);
 
   useEffect(() => {
-    setFilter(isAdmin ? 'all' : 'mine');
-  }, [isAdmin]);
+    setFilter('all');
+  }, [resolvedFamilyId]);
 
   const loadData = async () => {
-    if (!user?.uid) return;
+    if (!user?.uid || !resolvedFamilyId) return;
 
     setLoading(true);
     setError('');
 
     try {
-      const members = await getFamilyMembers();
+      const members = await getFamilyMembers(resolvedFamilyId);
       setAuthorsById(Object.fromEntries(members.map((member) => [member.id, member])));
 
-      let loadedLists;
-      if (isAdmin) {
-        loadedLists = await getGroupLists(groupId);
-      } else {
-        const [active, archived] = await Promise.all([
-          getUserLists(user.uid),
-          getUserArchivedLists(user.uid),
-        ]);
-        loadedLists = mergeListsById(active, archived);
-      }
+      const loadedLists = isFamilyAdmin || isSuperAdmin
+        ? await getFamilyLists(resolvedFamilyId, { includeArchived: true })
+        : await getHomePageLists(user.uid, resolvedFamilyId, { includeArchived: true });
 
       setLists(loadedLists);
 
@@ -138,7 +121,7 @@ export default function AdminGroupListsPage() {
   useEffect(() => {
     if (!profile || !user?.uid) return;
     loadData();
-  }, [profile, groupId, isAdmin, user?.uid]);
+  }, [profile, resolvedFamilyId, user?.uid]);
 
   const filteredLists = useMemo(() => {
     if (filter === 'mine') {
@@ -237,7 +220,7 @@ export default function AdminGroupListsPage() {
 
   return (
     <div className="flex min-h-full flex-col px-4 pb-10 pt-0">
-      <PageHeader title="Все списки группы" backTo="/settings" />
+      <PageHeader title="Все списки семьи" backTo="/settings" />
 
       <div className="pt-4">
         <p className="text-sm text-slate-500">{subtitle}</p>

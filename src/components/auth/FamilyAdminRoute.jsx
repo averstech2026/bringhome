@@ -2,9 +2,9 @@ import { Navigate } from 'react-router-dom';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { useAuth } from '../../hooks/useAuth';
 
-export default function AdminRoute({ children }) {
+export default function FamilyAdminRoute({ children }) {
   const { user } = useAuth();
-  const { isSuperAdmin, loading } = useUserProfile(user);
+  const { isFamilyAdmin, isSuperAdmin, loading } = useUserProfile(user);
 
   if (loading) {
     return (
@@ -14,7 +14,7 @@ export default function AdminRoute({ children }) {
     );
   }
 
-  if (!isSuperAdmin) {
+  if (!isFamilyAdmin && !isSuperAdmin) {
     return <Navigate to="/" replace />;
   }
 

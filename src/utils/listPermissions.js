@@ -1,3 +1,5 @@
+import { ROLES, normalizeRole } from './roles';
+
 export function isListOwner(list, userId) {
   return Boolean(userId && list && list.createdBy === userId);
 }
@@ -42,11 +44,15 @@ export function getListArchiveAdmins(list, membersById = {}) {
 
   if (list.isPublic) {
     Object.values(membersById)
-      .filter((member) => member.role === 'admin')
+      .filter((member) => {
+        const role = normalizeRole(member.role);
+        return role === ROLES.SUPER_ADMIN || role === ROLES.FAMILY_ADMIN;
+      })
       .forEach((member) => addMember(member.id));
   } else {
     (list.allowedUsers || []).forEach((id) => {
-      if (membersById[id]?.role === 'admin') addMember(id);
+      const role = normalizeRole(membersById[id]?.role);
+      if (role === ROLES.SUPER_ADMIN || role === ROLES.FAMILY_ADMIN) addMember(id);
     });
   }
 

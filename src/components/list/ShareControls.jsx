@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'lucide-react';
 import { getFamilyMembers } from '../../services/usersService';
+import { getListFamilyId } from '../../utils/familyGroup';
 import { useToast } from '../ui/ToastProvider';
 import BorderGapCard from './BorderGapCard';
 import { FamilyToggle, MemberAvatar } from './accessControls';
@@ -47,8 +48,9 @@ export default function ShareControls({
 
   useEffect(() => {
     if (!isOwner) return;
-    getFamilyMembers().then(setMembers).catch(() => setMembers([]));
-  }, [isOwner, currentUserAvatarUrl]);
+    const familyId = getListFamilyId(list);
+    getFamilyMembers(familyId).then(setMembers).catch(() => setMembers([]));
+  }, [isOwner, currentUserAvatarUrl, list]);
 
   if (!isOwner) return null;
 

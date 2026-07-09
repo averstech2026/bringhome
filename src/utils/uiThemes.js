@@ -115,7 +115,8 @@ export function getProfileThemeButtonClass(themeId, active) {
 
 export function resolveUiTheme(profile) {
   const theme = profile?.uiTheme;
-  return UI_THEME_IDS.includes(theme) ? theme : 'default';
+  if (UI_THEME_IDS.includes(theme)) return theme;
+  return profile?.isChild ? 'hogwarts' : 'default';
 }
 
 export function getAiInputTheme(themeId) {

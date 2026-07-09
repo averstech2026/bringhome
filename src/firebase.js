@@ -8,12 +8,13 @@ import { getStorage } from 'firebase/storage';
  *
  * lists: {
  *   id, title, description?, type ("home" | "cottage"), isPublic, createdBy,
- *   groupId, allowedUsers: string[], viewedBy?: { [uid]: boolean }, createdAt
+ *   familyId, groupId?, allowedUsers: string[], viewedBy?: { [uid]: boolean }, createdAt
  * }
  *
  * notifications: {
  *   userId?, type, title, body, link, isRead?, createdAt,
  *   senderId?, senderDisplayName?, receiverIds?: string[],
+ *   familyId?: string, familyName?: string,
  *   readByUids?: string[], sendAsPush?: boolean
  * }
  *
@@ -31,10 +32,25 @@ import { getStorage } from 'firebase/storage';
  * }
  *
  * users: {
- *   email, displayName, role ("admin" | "user"), disabled,
- *   groupId?, avatarUrl, aiLimits?, aiUsage?, isChild?, uiTheme?,
+ *   email, displayName, role ("super_admin" | "family_admin" | "member"), disabled,
+ *   familyId, groupId?, avatarUrl, aiLimitMonth?, aiLimits?, aiUsage?, isChild?, uiTheme?,
  *   pushEnabled?: boolean, fcmTokens?: string[],
  *   createdAt, createdBy
+ * }
+ *
+ * families: {
+ *   id, name, ownerId, aiLimitMonth?, limits: { maxUsers, maxLists, aiRequests }, createdAt, createdBy?
+ * }
+ *
+ * invites: {
+ *   id, familyId?, isUsed, familyLimits: { maxUsers, maxLists, aiRequests },
+ *   usedByEmail?, usedByUid?, createdAt, createdBy?
+ * }
+ *
+ * feedbacks: {
+ *   id, type: "feedback", fromUser, fromFamily, fromUserName?, fromFamilyName?,
+ *   category ("error" | "idea"), text, status ("new"|"read"|"noted"|"backlog"|"completed"),
+ *   isRead, statusSeenByAuthor?, createdAt
  * }
  *
  * config/setup: { initialized, adminUid, createdAt }
@@ -88,6 +104,9 @@ export const COLLECTIONS = {
   USERS: 'users',
   NOTIFICATIONS: 'notifications',
   CONFIG: 'config',
+  FAMILIES: 'families',
+  INVITES: 'invites',
+  FEEDBACKS: 'feedbacks',
 };
 
 export default app;

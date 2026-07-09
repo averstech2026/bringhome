@@ -4,13 +4,14 @@ import AppModal from '../ui/AppModal';
 import { DEFAULT_AI_LIMITS, normalizeAiUsage, resolveAiLimits } from '../../utils/aiLimits';
 import { resolveUiTheme } from '../../utils/uiThemes';
 import { PRIMARY_BTN } from '../list/cardStyles';
+import { ROLES, normalizeRole } from '../../utils/roles';
 import { IsChildToggle, UiThemeSelect } from './UiProfileFields';
 
 const EMPTY_FORM = {
   displayName: '',
   email: '',
   password: '',
-  role: 'user',
+  role: 'member',
   isChild: false,
   uiTheme: 'default',
   daily: String(DEFAULT_AI_LIMITS.daily),
@@ -40,13 +41,13 @@ function SectionHeading({ children }) {
   return <h3 className="text-sm font-semibold text-slate-900">{children}</h3>;
 }
 
-function userToForm(user) {
-  const limits = resolveAiLimits(user);
+function userToForm(user, family = null) {
+  const limits = resolveAiLimits(user, family);
   return {
     displayName: user.displayName || '',
     email: user.email || '',
     password: '',
-    role: user.role === 'admin' ? 'admin' : 'user',
+    role: normalizeRole(user.role) === ROLES.SUPER_ADMIN ? ROLES.SUPER_ADMIN : ROLES.MEMBER,
     isChild: user.isChild === true,
     uiTheme: resolveUiTheme(user),
     daily: String(limits.daily),
@@ -59,6 +60,7 @@ export default function UserFormModal({
   open,
   mode = 'create',
   user = null,
+  family = null,
   currentUserId,
   saving = false,
   canResetTodayLimit = false,
@@ -72,13 +74,15 @@ export default function UserFormModal({
   const isEdit = mode === 'edit';
   const isSelf = isEdit && user?.id === currentUserId;
   const todayUsage = user ? normalizeAiUsage(user.aiUsage) : null;
-  const todayLimit = user ? resolveAiLimits(user).daily : DEFAULT_AI_LIMITS.daily;
+  const todayLimit = form.role !== 'admin'
+    ? Math.max(0, Number(form.daily) || DEFAULT_AI_LIMITS.daily)
+    : DEFAULT_AI_LIMITS.daily;
 
   useEffect(() => {
     if (!open) return;
-    setForm(isEdit && user ? userToForm(user) : EMPTY_FORM);
+    setForm(isEdit && user ? userToForm(user, family) : EMPTY_FORM);
     setError('');
-  }, [open, isEdit, user]);
+  }, [open, isEdit, user, family]);
 
   if (!open) return null;
 
@@ -285,7 +289,7 @@ export default function UserFormModal({
                       </button>
                     </div>
                     <p className="mt-1 text-xs text-slate-400">
-                      Обнуляет только дневной счётчик. Лимиты 5/20/50 останутся без изменений.
+                      Обнуляет только дневной счётчик. Лимиты {form.daily}/{form.weekly}/{form.monthly} останутся без изменений.
                     </p>
                   </div>
                 )}

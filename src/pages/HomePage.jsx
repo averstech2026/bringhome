@@ -4,8 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useUserProfile } from '../hooks/useUserProfile';
 import {
-  getUserLists,
-  getAllLists,
+  getHomePageLists,
   getItemsProgressByListIds,
   archiveList,
   updateList,
@@ -29,7 +28,7 @@ import { encodeListTypeForUrl } from '../utils/listTypes';
 export default function HomePage() {
   const { user } = useAuth();
   const { settings } = useAppSettings();
-  const { isAdmin, loading: profileLoading } = useUserProfile(user);
+  const { isSuperAdmin, isFamilyAdmin, loading: profileLoading, familyId } = useUserProfile(user);
   const toast = useToast();
   const [lists, setLists] = useState([]);
   const [authorsById, setAuthorsById] = useState({});
@@ -44,19 +43,22 @@ export default function HomePage() {
   const location = useLocation();
 
   const canManageList = useCallback(
-    (list) => canArchiveList(list, user?.uid, isAdmin),
-    [isAdmin, user?.uid],
+    (list) => canArchiveList(list, user?.uid, isSuperAdmin),
+    [isSuperAdmin, user?.uid],
   );
 
   const loadLists = useCallback(async () => {
-    if (!user?.uid) return;
+    if (!user?.uid || !familyId) return;
 
     setLoading(true);
     setLoadError('');
     try {
-      const active = isAdmin
-        ? await getAllLists()
-        : await getUserLists(user.uid);
+      const familyLists = await getHomePageLists(user.uid, familyId, { isFamilyAdmin });
+      const active = familyLists.filter((list) => {
+        if (list.isPublic) return true;
+        if (list.createdBy === user.uid) return true;
+        return list.allowedUsers?.includes(user.uid);
+      });
 
       setLists(active);
 
@@ -81,7 +83,7 @@ export default function HomePage() {
       }
 
       try {
-        const members = await getFamilyMembers();
+        const members = await getFamilyMembers(familyId);
         setAuthorsById(Object.fromEntries(members.map((member) => [member.id, member])));
       } catch {
         setAuthorsById({});
@@ -91,7 +93,7 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, [user?.uid, isAdmin]);
+  }, [user?.uid, familyId, isFamilyAdmin]);
 
   useEffect(() => {
     if (!user?.uid || profileLoading) return;
@@ -111,7 +113,7 @@ export default function HomePage() {
   const handleArchiveRequest = (list) => {
     if (!user?.uid || !list) return;
 
-    if (!canArchiveList(list, user.uid, isAdmin)) {
+    if (!canArchiveList(list, user.uid, isSuperAdmin)) {
       setArchiveAccessList(list);
       return;
     }
@@ -123,7 +125,7 @@ export default function HomePage() {
     const list = archiveConfirmTarget;
     if (!list?.id || !user?.uid || busyId) return;
 
-    if (!canArchiveList(list, user.uid, isAdmin)) {
+    if (!canArchiveList(list, user.uid, isSuperAdmin)) {
       setArchiveConfirmTarget(null);
       setArchiveAccessList(list);
       return;
@@ -156,7 +158,7 @@ export default function HomePage() {
   const sharedActiveLists = activeLists.filter((list) => {
     if (isListOwner(list, user?.uid)) return false;
     if (isListSharedWithUser(list, user?.uid)) return true;
-    return isAdmin;
+    return isSuperAdmin;
   });
   const completedLists = lists.filter(
     (list) => resolveListStatus(list, listProgress[list.id]) === 'completed',
@@ -212,7 +214,7 @@ export default function HomePage() {
         variant="toolbar"
         onCreate={handleCreate}
         onCreateCustom={handleCreateCustom}
-        canCreateCustom={isAdmin}
+        canCreateCustom={isSuperAdmin}
         onRequestCustom={() => setRequestCustomOpen(true)}
       />
 
@@ -269,7 +271,7 @@ export default function HomePage() {
         }
         adminArchivingOthers={Boolean(
           archiveConfirmTarget
-          && isAdmin
+          && isSuperAdmin
           && archiveConfirmTarget.createdBy
           && archiveConfirmTarget.createdBy !== user?.uid,
         )}

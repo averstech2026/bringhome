@@ -14,7 +14,7 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '../firebase';
-import { DEFAULT_GROUP_ID } from '../utils/familyGroup';
+import { DEFAULT_GROUP_ID, getListFamilyId } from '../utils/familyGroup';
 import { findActiveItemByName, normalizeItemName } from '../utils/mergeItems';
 import { addQuantities, parseQuantity, resetBaseQuantity } from '../utils/quantity';
 import { computeListStatusFromItems } from '../utils/listStatus';
@@ -33,9 +33,11 @@ export async function createList({
   isPublic = false,
   description = '',
   groupId = DEFAULT_GROUP_ID,
+  familyId = groupId,
   allowedUsers,
 }) {
   const resolvedType = normalizeListTypeForCreate(type);
+  const resolvedFamilyId = familyId || groupId || DEFAULT_GROUP_ID;
   // Автор всегда имеет доступ; остальных участников выбирают ещё на экране создания.
   const resolvedAllowed = Array.isArray(allowedUsers) && allowedUsers.length > 0
     ? [...new Set([createdBy, ...allowedUsers.filter(Boolean)])]
@@ -46,7 +48,8 @@ export async function createList({
     type: resolvedType,
     isPublic,
     createdBy,
-    groupId,
+    familyId: resolvedFamilyId,
+    groupId: resolvedFamilyId,
     allowedUsers: resolvedAllowed,
     viewedBy: { [createdBy]: true },
     status: 'active',
@@ -175,14 +178,104 @@ function isListArchived(list) {
   return Boolean(list.archived || list.status === 'archived');
 }
 
-export async function getUserLists(userId, { includeArchived = false } = {}) {
-  const q = query(
-    collection(db, COLLECTIONS.LISTS),
-    where('allowedUsers', 'array-contains', userId),
-  );
+export async function getUserLists(userId, { includeArchived = false, familyId } = {}) {
+  const constraints = [where('allowedUsers', 'array-contains', userId)];
+  if (familyId) {
+    constraints.unshift(where('familyId', '==', familyId));
+  }
+
+  const q = query(collection(db, COLLECTIONS.LISTS), ...constraints);
   const snapshot = await getDocs(q);
   return snapshot.docs
     .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((list) => {
+      if (familyId && getListFamilyId(list) !== familyId) return false;
+      return includeArchived || !isListArchived(list);
+    })
+    .sort((a, b) => {
+      const ta = a.createdAt?.toMillis?.() ?? 0;
+      const tb = b.createdAt?.toMillis?.() ?? 0;
+      return tb - ta;
+    });
+}
+
+export async function getPublicFamilyLists(familyId, { includeArchived = false } = {}) {
+  if (!familyId) return [];
+
+  const snapshot = await getDocs(
+    query(
+      collection(db, COLLECTIONS.LISTS),
+      where('familyId', '==', familyId),
+      where('isPublic', '==', true),
+    ),
+  );
+
+  return snapshot.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((list) => includeArchived || !isListArchived(list))
+    .sort((a, b) => {
+      const ta = a.createdAt?.toMillis?.() ?? 0;
+      const tb = b.createdAt?.toMillis?.() ?? 0;
+      return tb - ta;
+    });
+}
+
+/** Списки для главного экрана: учитывает роль и ограничения Firestore rules */
+export async function getHomePageLists(userId, familyId, { isFamilyAdmin = false, includeArchived = false } = {}) {
+  if (!userId || !familyId) return [];
+
+  if (isFamilyAdmin) {
+    return getFamilyLists(familyId, { includeArchived });
+  }
+
+  const [personalLists, publicLists] = await Promise.all([
+    getUserLists(userId, { familyId, includeArchived }),
+    getPublicFamilyLists(familyId, { includeArchived }),
+  ]);
+
+  const listsById = new Map();
+  for (const list of [...personalLists, ...publicLists]) {
+    listsById.set(list.id, list);
+  }
+
+  return [...listsById.values()].sort((a, b) => {
+    const ta = a.createdAt?.toMillis?.() ?? 0;
+    const tb = b.createdAt?.toMillis?.() ?? 0;
+    return tb - ta;
+  });
+}
+
+export async function getFamilyLists(familyId, { includeArchived = false } = {}) {
+  if (!familyId) return [];
+
+  const snapshot = await getDocs(
+    query(collection(db, COLLECTIONS.LISTS), where('familyId', '==', familyId)),
+  );
+
+  const listsById = new Map(
+    snapshot.docs.map((d) => [d.id, { id: d.id, ...d.data() }]),
+  );
+
+  if (familyId === DEFAULT_GROUP_ID) {
+    const legacySnapshot = await getDocs(
+      query(collection(db, COLLECTIONS.LISTS), where('groupId', '==', familyId)),
+    );
+    for (const docSnap of legacySnapshot.docs) {
+      if (!docSnap.data().familyId && !listsById.has(docSnap.id)) {
+        listsById.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+      }
+    }
+
+    const noFamilySnapshot = await getDocs(collection(db, COLLECTIONS.LISTS));
+    for (const docSnap of noFamilySnapshot.docs) {
+      const data = docSnap.data();
+      if (!data.familyId && !data.groupId && !listsById.has(docSnap.id)) {
+        listsById.set(docSnap.id, { id: docSnap.id, ...data });
+      }
+    }
+  }
+
+  return [...listsById.values()]
     .filter((list) => includeArchived || !isListArchived(list))
     .sort((a, b) => {
       const ta = a.createdAt?.toMillis?.() ?? 0;
@@ -204,30 +297,7 @@ export async function getAllLists({ includeArchived = false } = {}) {
 }
 
 export async function getGroupLists(groupId, { includeArchived = true } = {}) {
-  const snapshot = await getDocs(
-    query(collection(db, COLLECTIONS.LISTS), where('groupId', '==', groupId)),
-  );
-
-  const listsById = new Map(
-    snapshot.docs.map((d) => [d.id, { id: d.id, ...d.data() }]),
-  );
-
-  if (groupId === DEFAULT_GROUP_ID) {
-    const legacySnapshot = await getDocs(collection(db, COLLECTIONS.LISTS));
-    for (const docSnap of legacySnapshot.docs) {
-      if (!docSnap.data().groupId && !listsById.has(docSnap.id)) {
-        listsById.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
-      }
-    }
-  }
-
-  return [...listsById.values()]
-    .filter((list) => includeArchived || !isListArchived(list))
-    .sort((a, b) => {
-      const ta = getListSortTime(a);
-      const tb = getListSortTime(b);
-      return tb - ta;
-    });
+  return getFamilyLists(groupId, { includeArchived });
 }
 
 function getListSortTime(list) {
@@ -249,15 +319,20 @@ export async function getArchivedLists() {
     });
 }
 
-export async function getUserArchivedLists(userId) {
-  const q = query(
-    collection(db, COLLECTIONS.LISTS),
-    where('allowedUsers', 'array-contains', userId),
-  );
+export async function getUserArchivedLists(userId, { familyId } = {}) {
+  const constraints = [where('allowedUsers', 'array-contains', userId)];
+  if (familyId) {
+    constraints.unshift(where('familyId', '==', familyId));
+  }
+
+  const q = query(collection(db, COLLECTIONS.LISTS), ...constraints);
   const snapshot = await getDocs(q);
   return snapshot.docs
     .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((list) => isListArchived(list))
+    .filter((list) => {
+      if (familyId && getListFamilyId(list) !== familyId) return false;
+      return isListArchived(list);
+    })
     .sort((a, b) => {
       const ta = a.archivedAt?.toMillis?.() ?? a.createdAt?.toMillis?.() ?? 0;
       const tb = b.archivedAt?.toMillis?.() ?? b.createdAt?.toMillis?.() ?? 0;
@@ -477,14 +552,17 @@ export async function createActualList({
   items = [],
   description = '',
   groupId,
+  familyId,
   isPublic = false,
   allowedUsers,
 }) {
+  const resolvedFamilyId = familyId || groupId;
   const listId = await createList({
     type: normalizeListTypeForCreate(type),
     createdBy,
     description,
-    groupId,
+    groupId: resolvedFamilyId,
+    familyId: resolvedFamilyId,
     isPublic,
     allowedUsers,
   });

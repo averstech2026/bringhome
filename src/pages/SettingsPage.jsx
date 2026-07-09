@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import { LogOut, MessageSquare, Shield } from 'lucide-react';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import { useAuth } from '../hooks/useAuth';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useNotifications } from '../hooks/useNotifications';
+import { useUnreadFeedbacks } from '../hooks/useUnreadFeedbacks';
+import { useUnseenFeedbackStatuses } from '../hooks/useUnseenFeedbackStatuses';
 import { updateUserAvatar, removeUserAvatar, updateOwnUiTheme } from '../services/usersService';
+import { getFamily, updateFamilyName } from '../services/familiesService';
 import {
   isPushSupported,
   enablePushNotifications,
@@ -20,8 +23,13 @@ import {
 import { UserAvatar } from '../components/profile/UserAvatar';
 import PageHeader from '../components/layout/PageHeader';
 import { PRIMARY_BTN } from '../components/list/cardStyles';
+import { useToast } from '../components/ui/ToastProvider';
+import { AVATAR_FILE_TOO_LARGE_MESSAGE, validateAvatarFile } from '../utils/avatarUpload';
 import { getProfileThemeButtonClass, PROFILE_THEME_OPTIONS, resolveUiTheme } from '../utils/uiThemes';
+import packageJson from '../../package.json';
 
+const appVersion = packageJson.version;
+const buildDate = __BUILD_DATE__;
 const PUSH_LOGO = `${import.meta.env.BASE_URL}icons/logo.png`;
 const PUSH_BADGE = `${import.meta.env.BASE_URL}icons/badge.png`;
 
@@ -62,9 +70,9 @@ function SettingsSwitch({ enabled, onChange, disabled = false }) {
   );
 }
 
-function ChevronRightIcon() {
+function ChevronRightIcon({ className = 'text-slate-300' }) {
   return (
-    <svg className="h-4 w-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg className={`h-4 w-4 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
     </svg>
   );
@@ -84,10 +92,16 @@ function getAvatarErrorMessage(err) {
 }
 
 export default function SettingsPage() {
+  const toast = useToast();
   const { user, signOut, reloadUser } = useAuth();
   const { settings, updateSetting } = useAppSettings();
-  const { profile, isAdmin, reload, loading: profileLoading } = useUserProfile(user);
-  const { unreadCount } = useNotifications(user?.uid);
+  const { profile, isSuperAdmin, isFamilyAdmin, familyId, reload, loading: profileLoading } = useUserProfile(user);
+  const { unreadCount } = useNotifications(user?.uid, { familyId });
+  const { unreadCount: feedbackUnreadCount } = useUnreadFeedbacks(isSuperAdmin);
+  const { unseenCount: feedbackStatusUnseenCount } = useUnseenFeedbackStatuses(
+    user?.uid,
+    Boolean(familyId) && !isSuperAdmin,
+  );
   const fileInputRef = useRef(null);
   const avatarMenuRef = useRef(null);
   const themeCarouselRef = useRef(null);
@@ -108,13 +122,52 @@ export default function SettingsPage() {
   const [pushSupported, setPushSupported] = useState(true);
   const [pushPermission, setPushPermission] = useState('default');
   const [pushTesting, setPushTesting] = useState(false);
+  const [familyName, setFamilyName] = useState('');
+  const [savedFamilyName, setSavedFamilyName] = useState('');
+  const [familyNameLoading, setFamilyNameLoading] = useState(false);
+  const [familyNameSaving, setFamilyNameSaving] = useState(false);
+  const [familyNameError, setFamilyNameError] = useState('');
+  const [familyNameSuccess, setFamilyNameSuccess] = useState('');
 
   const name = profile?.displayName || user?.displayName || 'Пользователь';
+  const canEditFamilyName = Boolean(familyId && (isFamilyAdmin || isSuperAdmin));
+  const showFamilyName = Boolean(familyId);
+  const hasFamilyNameChanges = familyName.trim() !== savedFamilyName.trim();
   const savedPhotoUrl = profile?.avatarUrl || null;
   const displayPhotoUrl = previewUrl || savedPhotoUrl;
   const hasSavedAvatar = Boolean(profile?.avatarUrl);
   const hasChanges = Boolean(pendingFile);
   const currentUiTheme = activeUiTheme ?? resolveUiTheme(profile);
+
+  useEffect(() => {
+    if (!showFamilyName) {
+      setFamilyName('');
+      setSavedFamilyName('');
+      return undefined;
+    }
+
+    let active = true;
+    setFamilyNameLoading(true);
+    setFamilyNameError('');
+
+    getFamily(familyId)
+      .then((family) => {
+        if (!active) return;
+        const currentName = family?.name?.trim() || '';
+        setFamilyName(currentName);
+        setSavedFamilyName(currentName);
+      })
+      .catch((err) => {
+        if (active) setFamilyNameError(err?.message || 'Не удалось загрузить название семьи');
+      })
+      .finally(() => {
+        if (active) setFamilyNameLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [showFamilyName, familyId]);
 
   useEffect(() => {
     if (profile) {
@@ -197,13 +250,14 @@ export default function SettingsPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      setError('Выберите изображение');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Файл слишком большой (макс. 5 МБ)');
+    const validationError = validateAvatarFile(file);
+    if (validationError) {
+      if (validationError === AVATAR_FILE_TOO_LARGE_MESSAGE) {
+        toast.error(validationError);
+      } else {
+        setError(validationError);
+      }
+      event.target.value = '';
       return;
     }
 
@@ -335,6 +389,27 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveFamilyName = async () => {
+    if (!canEditFamilyName || familyNameSaving || !hasFamilyNameChanges) return;
+
+    setFamilyNameSaving(true);
+    setFamilyNameError('');
+    setFamilyNameSuccess('');
+
+    try {
+      const trimmed = familyName.trim();
+      await updateFamilyName(familyId, trimmed);
+      setFamilyName(trimmed);
+      setSavedFamilyName(trimmed);
+      setFamilyNameSuccess('Название семьи сохранено');
+      setTimeout(() => setFamilyNameSuccess(''), 2500);
+    } catch (err) {
+      setFamilyNameError(err?.message || 'Не удалось сохранить название семьи');
+    } finally {
+      setFamilyNameSaving(false);
+    }
+  };
+
   return (
     <div className="flex min-h-full flex-col px-4 pb-10 pt-0">
       <PageHeader
@@ -447,7 +522,102 @@ export default function SettingsPage() {
           {success && <p className="mt-2 text-sm text-emerald-600">{success}</p>}
         </section>
 
-        <section className="mt-10 overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        {isSuperAdmin && (
+          <section className="mt-6">
+            <Link
+              to="/admin/dashboard"
+              className="flex h-14 items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-violet-50 via-purple-50 to-violet-50 px-4 shadow-[0_1px_3px_rgba(139,92,246,0.12)] ring-1 ring-violet-100 transition hover:from-violet-100/70 hover:via-purple-100/50 hover:to-violet-100/70 active:scale-[0.99]"
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100/90">
+                  <Shield className="h-4 w-4 text-violet-600" strokeWidth={2.25} aria-hidden />
+                </span>
+                <span className="text-[15px] font-semibold text-violet-800">Панель владельца</span>
+                {feedbackUnreadCount > 0 && (
+                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-violet-500 px-1.5 text-[10px] font-bold leading-none text-white">
+                    {feedbackUnreadCount > 9 ? '9+' : feedbackUnreadCount}
+                  </span>
+                )}
+              </span>
+              <ChevronRightIcon className="shrink-0 text-violet-300" />
+            </Link>
+          </section>
+        )}
+
+        {familyId && !isSuperAdmin && (
+          <section className="mt-6">
+            <Link
+              to="/settings/feedbacks"
+              className="flex h-14 items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-violet-50 via-purple-50 to-violet-50 px-4 shadow-[0_1px_3px_rgba(139,92,246,0.12)] ring-1 ring-violet-100 transition hover:from-violet-100/70 hover:via-purple-100/50 hover:to-violet-100/70 active:scale-[0.99]"
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100/90">
+                  <MessageSquare className="h-4 w-4 text-violet-600" strokeWidth={2.25} aria-hidden />
+                </span>
+                <span className="text-[15px] font-semibold text-violet-800">
+                  Сообщить об ошибке / улучшении
+                </span>
+                {feedbackStatusUnseenCount > 0 && (
+                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-violet-500 px-1.5 text-[10px] font-bold leading-none text-white">
+                    {feedbackStatusUnseenCount > 9 ? '9+' : feedbackStatusUnseenCount}
+                  </span>
+                )}
+              </span>
+              <ChevronRightIcon className="shrink-0 text-violet-300" />
+            </Link>
+          </section>
+        )}
+
+        <section className="mt-6 overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          {showFamilyName && (
+            <>
+              <div className="px-4 py-4">
+                <p className="text-[15px] text-slate-800">Название семьи</p>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  {canEditFamilyName
+                    ? 'Отображается для всех участников вашей семьи'
+                    : 'Общее название вашей семьи'}
+                </p>
+                {familyNameLoading ? (
+                  <div className="mt-3 h-11 animate-pulse rounded-xl bg-slate-100" />
+                ) : canEditFamilyName ? (
+                  <input
+                    type="text"
+                    value={familyName}
+                    onChange={(e) => {
+                      setFamilyName(e.target.value);
+                      setFamilyNameError('');
+                      setFamilyNameSuccess('');
+                    }}
+                    placeholder="Например, Семья Ивановых"
+                    maxLength={80}
+                    className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-brand-500"
+                  />
+                ) : (
+                  <p className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+                    {familyName || 'Без названия'}
+                  </p>
+                )}
+                {canEditFamilyName && hasFamilyNameChanges && !familyNameLoading && (
+                  <button
+                    type="button"
+                    onClick={handleSaveFamilyName}
+                    disabled={familyNameSaving || !familyName.trim()}
+                    className={`mt-3 w-full ${PRIMARY_BTN} !py-3 text-sm disabled:opacity-50`}
+                  >
+                    {familyNameSaving ? 'Сохраняем…' : 'Сохранить'}
+                  </button>
+                )}
+                {familyNameError && <p className="mt-2 text-sm text-red-500">{familyNameError}</p>}
+                {familyNameSuccess && (
+                  <p className="mt-2 text-sm text-emerald-600">{familyNameSuccess}</p>
+                )}
+              </div>
+
+              <div className="mx-4 border-t border-gray-100" />
+            </>
+          )}
+
           <div className="flex items-center justify-between gap-4 px-4 py-4">
             <div className="min-w-0">
               <p className="text-[15px] text-slate-800">Группировать завершенные списки по датам</p>
@@ -514,7 +684,7 @@ export default function SettingsPage() {
             </p>
             {profile?.isChild && (
               <p className="mt-1 text-xs text-amber-700">
-                Защита от товаров 18+ остаётся активной независимо от выбранной темы
+                Детский аккаунт: защита от товаров 18+ активна.
               </p>
             )}
 
@@ -569,12 +739,14 @@ export default function SettingsPage() {
             },
             {
               to: '/admin/lists',
-              label: 'Все списки группы',
+              label: 'Все списки семьи',
             },
-            ...(isAdmin
+            ...(isFamilyAdmin && !isSuperAdmin
+              ? [{ to: '/family/manage', label: 'Управление семьёй' }]
+              : []),
+            ...(isSuperAdmin
               ? [
-                  { to: '/admin/ai-stats', label: 'Статистика ИИ' },
-                  { to: '/admin/users', label: 'Управление пользователями' },
+                  { to: '/admin/users', label: 'Управление семьёй' },
                 ]
               : []),
           ].map((item, index, items) => (
@@ -599,6 +771,19 @@ export default function SettingsPage() {
         </section>
       </div>
 
+      <footer className="mt-auto pt-10 pb-2 text-center">
+        <p className="text-xs text-slate-400">
+          Версия {appVersion}
+          <span className="mx-1.5 text-slate-300" aria-hidden>
+            ·
+          </span>
+          Сборка от {buildDate}
+        </p>
+        <p className="mt-1 text-xs text-slate-400/80">
+          © {new Date().getFullYear()} КупиДомой
+        </p>
+      </footer>
+
       <ConfirmModal
         open={signOutOpen}
         title="Выйти из аккаунта?"
@@ -612,6 +797,7 @@ export default function SettingsPage() {
         onCancel={() => setSignOutOpen(false)}
         destructive
       />
+
     </div>
   );
 }

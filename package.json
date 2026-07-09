@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:pages": "vite build --mode pages",
     "preview": "vite preview",
-    "deploy": "npm run build:pages && gh-pages -d dist",
+    "version:patch": "node scripts/bump-patch-version.mjs",
+    "deploy": "node scripts/bump-patch-version.mjs && npm run build:pages && gh-pages -d dist",
     "secrets:github": "node scripts/set-github-secrets.mjs",
     "icons": "node scripts/generate-icons.mjs"
   },

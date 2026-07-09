@@ -1,21 +1,28 @@
-import { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useUserProfile } from '../hooks/useUserProfile';
 import {
   createUserAsAdmin,
-  getAllUsers,
+  getFamilyMembers,
   isOwnerEmail,
   setUserDisabled,
   updateUserAsAdmin,
 } from '../services/usersService';
+import { getFamily } from '../services/familiesService';
 import { resetTodayAiUsage } from '../services/aiUsageService';
+import { ROLES } from '../utils/roles';
 import UserFormModal from '../components/admin/UserFormModal';
 import { AdminUserCard } from '../components/admin/AdminUserCard';
+import { AddMemberButton } from '../components/admin/AddMemberButton';
+import { FamilySummaryCard } from '../components/admin/FamilySummaryCard';
 import PageHeader from '../components/layout/PageHeader';
 import { PAGE_SECTION_TITLE } from '../components/list/cardStyles';
 
 export default function AdminUsersPage() {
   const { user } = useAuth();
+  const { profile, platformAdminUid, loading: profileLoading } = useUserProfile(user);
+  const scopedFamilyId = profile?.familyId || profile?.groupId || null;
+  const [family, setFamily] = useState(null);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,17 +32,35 @@ export default function AdminUsersPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const loadUsers = () => {
+  const loadUsers = useCallback(() => {
+    if (!scopedFamilyId) {
+      setFamily(null);
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
-    getAllUsers()
-      .then(setUsers)
+    Promise.all([
+      getFamily(scopedFamilyId),
+      getFamilyMembers(scopedFamilyId, {
+        includeDisabled: true,
+        sortBy: 'createdAt',
+        includeLegacy: false,
+      }),
+    ])
+      .then(([familyData, members]) => {
+        setFamily(familyData);
+        setUsers(members.filter((member) => member.familyId === scopedFamilyId));
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  };
+  }, [scopedFamilyId]);
 
   useEffect(() => {
+    if (profileLoading) return;
     loadUsers();
-  }, []);
+  }, [loadUsers, profileLoading]);
 
   const closeModal = () => {
     if (!saving && !resettingToday) setModal(null);
@@ -44,6 +69,7 @@ export default function AdminUsersPage() {
   const canResetTodayLimit =
     modal?.mode === 'edit' &&
     modal?.user?.id !== user?.uid &&
+    modal?.user?.role !== ROLES.SUPER_ADMIN &&
     modal?.user?.role !== 'admin' &&
     !isOwnerEmail(modal?.user?.email);
 
@@ -81,6 +107,7 @@ export default function AdminUsersPage() {
         password: formData.password,
         displayName: formData.displayName,
         createdBy: user.uid,
+        familyId: scopedFamilyId,
         role: formData.role,
         aiLimits: formData.aiLimits,
         isChild: formData.isChild,
@@ -139,40 +166,43 @@ export default function AdminUsersPage() {
 
   return (
     <div className="flex min-h-full flex-col px-4 pb-8 pt-0">
-      <PageHeader title="Пользователи" backTo="/settings" />
+      <PageHeader title="Управление семьёй" backTo="/settings" />
 
       <div className="pt-4">
         <p className="text-sm text-slate-500">Создание и управление аккаунтами</p>
 
+        {family && (
+          <div className="mt-6">
+            <FamilySummaryCard family={family} membersCount={users.length} />
+          </div>
+        )}
+
         <section className="mt-6">
           <div className="flex items-center justify-between gap-3">
-            <h2 className={PAGE_SECTION_TITLE}>Все пользователи</h2>
-            <button
-              type="button"
+            <h2 className={PAGE_SECTION_TITLE}>Участники</h2>
+            <AddMemberButton
               onClick={() => {
                 setSuccess('');
                 setModal({ mode: 'create' });
               }}
-              className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-4 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
-            >
-              <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
-              Пользователь
-            </button>
+            />
           </div>
 
           {success && <p className="mt-3 text-sm text-brand-700">{success}</p>}
 
-          {loading ? (
+          {loading || profileLoading ? (
             <div className="mt-4 flex justify-center">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
             </div>
           ) : (
             <ul className="mt-4 space-y-2.5">
-              {users.map((u) => (
+              {users.map((member) => (
                 <AdminUserCard
-                  key={u.id}
-                  user={u}
-                  busy={busyUserId === u.id}
+                  key={member.id}
+                  user={member}
+                  family={family}
+                  platformAdminUid={platformAdminUid}
+                  busy={busyUserId === member.id}
                   onEditUser={(selectedUser) => setModal({ mode: 'edit', user: selectedUser })}
                   onToggleDisabled={handleToggleDisabled}
                 />
@@ -188,6 +218,7 @@ export default function AdminUsersPage() {
         open={Boolean(modal)}
         mode={modal?.mode || 'create'}
         user={modal?.user || null}
+        family={family}
         currentUserId={user.uid}
         saving={saving}
         canResetTodayLimit={canResetTodayLimit}

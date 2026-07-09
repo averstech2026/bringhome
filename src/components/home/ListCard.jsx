@@ -326,12 +326,14 @@ export default function ListCard({
   busy = false,
   showCompletionDate = false,
   creatorOnly = false,
+  to,
+  linkState,
 }) {
   const customBadge = !isBuiltinListType(list.type) ? getListTypeBadgeProps(list.type) : null;
   const showArchive = onArchive || onArchiveDenied;
   const hasActions = onRepeat || showArchive || onRestore || onDelete;
   const isArchivedList = archived || list.archived || list.status === 'archived';
-  const listHref = isArchivedList ? `/list/${list.id}?archived=1` : `/list/${list.id}`;
+  const listHref = to ?? (isArchivedList ? `/list/${list.id}?archived=1` : `/list/${list.id}`);
   const showUnread = !isArchivedList && isListUnviewedByUser(list, currentUserId);
   const completionDateLabel = showCompletionDate ? formatCompletedListDateLabel(list) : null;
 
@@ -344,6 +346,7 @@ export default function ListCard({
       {archived ? (
         <Link
           to={listHref}
+          state={linkState}
           className={`min-w-0 flex-1 px-1 py-1 ${CARD_PRESS}`}
         >
           <div className="flex min-w-0 items-center justify-between gap-3">
@@ -363,6 +366,7 @@ export default function ListCard({
       ) : (
         <Link
           to={listHref}
+          state={linkState}
           className={`min-w-0 flex-1 px-1 py-1 ${CARD_PRESS}`}
         >
           <div className="flex items-center justify-between gap-2">

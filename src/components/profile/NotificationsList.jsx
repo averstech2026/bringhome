@@ -4,8 +4,9 @@ import { Megaphone, Plus } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { useNotifications } from '../../hooks/useNotifications';
-import { canManageNotifications } from '../../utils/notificationAdmin';
 import CreateAnnouncementModal from './CreateAnnouncementModal';
+import { canSendFamilyAnnouncement } from '../../utils/notificationAdmin';
+import { getFamily } from '../../services/familiesService';
 
 const APP_ICON = `${import.meta.env.BASE_URL || '/'}icons/logo.png`;
 const PAGE_SIZE = 20;
@@ -18,7 +19,7 @@ function NotificationFilterTabs({ value, onChange }) {
   ];
 
   return (
-    <div className="inline-flex h-9 min-w-0 flex-1 items-center rounded-full bg-slate-100/80 p-1">
+    <div className="inline-flex h-9 w-full min-w-0 items-center rounded-full bg-slate-100/80 p-1">
       {tabs.map((tab) => {
         const active = value === tab.id;
         return (
@@ -120,8 +121,11 @@ function IncomingNotificationItem({ notification, read, onSelect, showDirectionB
     >
       <NotificationIcon notification={notification} read={read} />
       <div className="min-w-0 flex-1">
+        {isAnnouncement && notification.title && (
+          <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
+        )}
         {isAnnouncement && (
-          <p className="text-xs font-semibold text-emerald-700">
+          <p className={`text-xs font-semibold text-emerald-700 ${notification.title ? 'mt-1' : ''}`}>
             {getAnnouncementLabel(notification)}
           </p>
         )}
@@ -138,7 +142,10 @@ function IncomingNotificationItem({ notification, read, onSelect, showDirectionB
 }
 
 function OutgoingNotificationItem({ notification, showDirectionBadge }) {
-  const recipientCount = notification.receiverIds?.length || 0;
+  const recipientLabel = notification.familyId === 'global'
+    ? 'Всем пользователям'
+    : (notification.familyName?.trim() || 'Семья');
+  const legacyRecipientCount = notification.receiverIds?.length || 0;
 
   return (
     <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3.5 shadow-sm">
@@ -147,20 +154,27 @@ function OutgoingNotificationItem({ notification, showDirectionBadge }) {
           <img src={APP_ICON} alt="" className="h-5 w-5 rounded-md object-cover" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm leading-snug text-slate-800">{notification.body}</p>
+          {notification.title && (
+            <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
+          )}
+          <p className={`text-sm leading-snug text-slate-800 ${notification.title ? 'mt-1' : ''}`}>
+            {notification.body}
+          </p>
           <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
             {formatNotificationTime(notification.createdAt)}
             {showDirectionBadge && <DirectionBadge direction="outgoing" />}
-            {recipientCount > 0 && (
+            {(notification.familyId || legacyRecipientCount > 0) && (
               <span className="text-slate-300"> · </span>
             )}
-            {recipientCount > 0 && (
+            {notification.familyId ? (
+              <span>{recipientLabel}</span>
+            ) : legacyRecipientCount > 0 ? (
               <span>
-                {recipientCount}
+                {legacyRecipientCount}
                 {' '}
-                {recipientCount === 1 ? 'получатель' : recipientCount < 5 ? 'получателя' : 'получателей'}
+                {legacyRecipientCount === 1 ? 'получатель' : legacyRecipientCount < 5 ? 'получателя' : 'получателей'}
               </span>
-            )}
+            ) : null}
             {notification.sendAsPush && (
               <>
                 <span className="text-slate-300"> · </span>
@@ -174,37 +188,75 @@ function OutgoingNotificationItem({ notification, showDirectionBadge }) {
   );
 }
 
+function FamilyAnnouncementHint() {
+  return (
+    <div className="min-w-0 flex-1">
+      <p className="text-xs font-medium text-slate-700">
+        <span aria-hidden className="mr-1">📢</span>
+        Объявления для семьи
+      </p>
+      <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
+        Сообщение появится в ленте семьи, Push — на устройства.
+      </p>
+    </div>
+  );
+}
+
 export default function NotificationsList({ userId }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { profile } = useUserProfile(user);
-  const isAdmin = canManageNotifications({ profile, uid: userId });
+  const { familyId, profile, isSuperAdmin, platformAdminUid } = useUserProfile(user);
   const [filter, setFilter] = useState('all');
-  const [createOpen, setCreateOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [familyName, setFamilyName] = useState('');
 
-  const mode = isAdmin
-    ? (filter === 'all' ? 'all' : filter === 'outgoing' ? 'outgoing' : 'incoming')
-    : 'incoming';
+  const canSendAnnouncement = canSendFamilyAnnouncement({ profile, platformAdminUid });
+  const senderDisplayName = profile?.displayName || user?.displayName || 'Администратор';
+  const announcementScope = isSuperAdmin ? 'platform' : 'family';
 
-  const { notifications, loading, markRead, isRead } = useNotifications(userId, { mode });
+  useEffect(() => {
+    if (!familyId) {
+      setFamilyName('');
+      return undefined;
+    }
+
+    let active = true;
+    getFamily(familyId)
+      .then((family) => {
+        if (active) setFamilyName(family?.name?.trim() || '');
+      })
+      .catch(() => {
+        if (active) setFamilyName('');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [familyId]);
+
+  const mode = filter === 'all'
+    ? 'all'
+    : filter === 'outgoing'
+      ? 'outgoing'
+      : 'incoming';
+
+  const { notifications, loading, markRead, isRead } = useNotifications(userId, { mode, familyId });
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [filter]);
 
   const visibleNotifications = useMemo(() => {
-    if (filter === 'outgoing' && isAdmin) {
+    if (filter === 'outgoing') {
       return notifications.filter((notification) => notification.senderId === userId);
     }
     return notifications;
-  }, [notifications, filter, isAdmin, userId]);
+  }, [notifications, filter, userId]);
 
   const displayedNotifications = visibleNotifications.slice(0, visibleCount);
   const hasMore = visibleNotifications.length > visibleCount;
-  const showDirectionBadge = isAdmin && filter === 'all';
-
-  const senderDisplayName = profile?.displayName || user?.displayName || 'Администратор';
+  const showDirectionBadge = filter === 'all';
 
   const handleSelect = (notification) => {
     if (!isRead(notification)) {
@@ -221,19 +273,21 @@ export default function NotificationsList({ userId }) {
 
   return (
     <div className="space-y-4">
-      {isAdmin && (
-        <div className="flex w-full items-center justify-between gap-2">
-          <NotificationFilterTabs value={filter} onChange={setFilter} />
+      {canSendAnnouncement && (
+        <div className="flex items-center justify-between gap-3">
+          <FamilyAnnouncementHint />
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-slate-200/80 bg-white px-3 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
+            className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-4 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
           >
             <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
             Создать
           </button>
         </div>
       )}
+
+      <NotificationFilterTabs value={filter} onChange={setFilter} />
 
       {loading ? (
         <div className="flex justify-center py-16">
@@ -288,6 +342,9 @@ export default function NotificationsList({ userId }) {
         onClose={() => setCreateOpen(false)}
         senderId={userId}
         senderDisplayName={senderDisplayName}
+        scope={announcementScope}
+        familyId={familyId}
+        familyName={familyName}
       />
     </div>
   );

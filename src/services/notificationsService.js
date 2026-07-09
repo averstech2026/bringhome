@@ -11,6 +11,7 @@ import {
   arrayUnion,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '../firebase';
+import { notifyAdminAnnouncementPush } from './pushNotification';
 
 export async function createNotification({ userId, type, title, body, link }) {
   if (!userId) return null;
@@ -35,34 +36,54 @@ export async function createNotificationsForUsers(userIds, payload) {
 export async function createAdminAnnouncement({
   senderId,
   senderDisplayName,
-  receiverIds,
+  familyId,
+  familyName,
+  title,
   body,
   sendAsPush = true,
 }) {
-  const unique = [...new Set((receiverIds || []).filter(Boolean))];
   const trimmedBody = body?.trim();
-  if (!senderId || unique.length === 0 || !trimmedBody) {
-    throw new Error('Заполните получателей и текст сообщения');
+  const trimmedTitle = title?.trim();
+  const resolvedFamilyId = familyId?.trim();
+
+  if (!senderId || !resolvedFamilyId || !trimmedBody || !trimmedTitle) {
+    throw new Error('Заполните получателей, заголовок и текст сообщения');
   }
 
   const ref = await addDoc(collection(db, COLLECTIONS.NOTIFICATIONS), {
     senderId,
     senderDisplayName: senderDisplayName || '',
-    receiverIds: unique,
+    familyId: resolvedFamilyId,
+    familyName: familyName || '',
     type: 'admin_announcement',
-    title: 'КупиДомой',
+    title: trimmedTitle,
     body: trimmedBody,
     link: '/settings/notifications',
     sendAsPush: sendAsPush === true,
     readByUids: [],
     createdAt: serverTimestamp(),
   });
+
+  if (sendAsPush) {
+    notifyAdminAnnouncementPush({
+      familyId: resolvedFamilyId,
+      title: trimmedTitle,
+      body: trimmedBody,
+      excludeUid: senderId,
+    }).catch((err) => console.warn('[notifications] Не удалось отправить push', err));
+  }
+
   return ref.id;
+}
+
+function isBroadcastAnnouncement(notification) {
+  return notification?.type === 'admin_announcement'
+    && (Array.isArray(notification.receiverIds) || Boolean(notification.familyId));
 }
 
 export function isNotificationRead(notification, userId) {
   if (!notification || !userId) return true;
-  if (Array.isArray(notification.receiverIds)) {
+  if (isBroadcastAnnouncement(notification)) {
     return (notification.readByUids || []).includes(userId);
   }
   return notification.isRead === true;
@@ -86,15 +107,21 @@ function mergeNotificationSnapshots(...groups) {
   return sortNotifications([...byId.values()]);
 }
 
-export function subscribeToNotifications(userId, onChange) {
+export function subscribeToNotifications(userId, userFamilyId, onChange) {
   if (!userId) {
     onChange([]);
     return () => {};
   }
 
   let legacyItems = [];
-  let broadcastItems = [];
-  const emit = () => onChange(mergeNotificationSnapshots(legacyItems, broadcastItems));
+  let legacyBroadcastItems = [];
+  let globalItems = [];
+  let familyItems = [];
+  const unsubscribers = [];
+
+  const emit = () => onChange(
+    mergeNotificationSnapshots(legacyItems, legacyBroadcastItems, globalItems, familyItems),
+  );
 
   const legacyQuery = query(
     collection(db, COLLECTIONS.NOTIFICATIONS),
@@ -102,13 +129,19 @@ export function subscribeToNotifications(userId, onChange) {
     limit(100),
   );
 
-  const broadcastQuery = query(
+  const legacyBroadcastQuery = query(
     collection(db, COLLECTIONS.NOTIFICATIONS),
     where('receiverIds', 'array-contains', userId),
     limit(100),
   );
 
-  const unsubLegacy = onSnapshot(
+  const globalQuery = query(
+    collection(db, COLLECTIONS.NOTIFICATIONS),
+    where('familyId', '==', 'global'),
+    limit(100),
+  );
+
+  unsubscribers.push(onSnapshot(
     legacyQuery,
     (snapshot) => {
       legacyItems = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
@@ -118,23 +151,54 @@ export function subscribeToNotifications(userId, onChange) {
       legacyItems = [];
       emit();
     },
-  );
+  ));
 
-  const unsubBroadcast = onSnapshot(
-    broadcastQuery,
+  unsubscribers.push(onSnapshot(
+    legacyBroadcastQuery,
     (snapshot) => {
-      broadcastItems = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+      legacyBroadcastItems = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
       emit();
     },
     () => {
-      broadcastItems = [];
+      legacyBroadcastItems = [];
       emit();
     },
-  );
+  ));
+
+  unsubscribers.push(onSnapshot(
+    globalQuery,
+    (snapshot) => {
+      globalItems = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+      emit();
+    },
+    () => {
+      globalItems = [];
+      emit();
+    },
+  ));
+
+  if (userFamilyId) {
+    const familyQuery = query(
+      collection(db, COLLECTIONS.NOTIFICATIONS),
+      where('familyId', '==', userFamilyId),
+      limit(100),
+    );
+
+    unsubscribers.push(onSnapshot(
+      familyQuery,
+      (snapshot) => {
+        familyItems = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        emit();
+      },
+      () => {
+        familyItems = [];
+        emit();
+      },
+    ));
+  }
 
   return () => {
-    unsubLegacy();
-    unsubBroadcast();
+    unsubscribers.forEach((unsub) => unsub());
   };
 }
 
@@ -165,7 +229,7 @@ export function subscribeToSentNotifications(senderId, onChange) {
 export async function markNotificationRead(notificationId, { userId, notification } = {}) {
   if (!notificationId || !userId) return;
 
-  if (Array.isArray(notification?.receiverIds)) {
+  if (isBroadcastAnnouncement(notification)) {
     await updateDoc(doc(db, COLLECTIONS.NOTIFICATIONS, notificationId), {
       readByUids: arrayUnion(userId),
     });

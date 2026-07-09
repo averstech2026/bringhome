@@ -8,6 +8,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
+    define: {
+      __BUILD_DATE__: JSON.stringify(new Date().toLocaleDateString('ru-RU')),
+    },
     plugins: [
       react(),
       tailwindcss(),

@@ -1,33 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Check } from 'lucide-react';
-import { getFamilyMembers } from '../../services/usersService';
+import { useEffect, useState } from 'react';
+import { getAllFamilies, getFamily } from '../../services/familiesService';
 import { createAdminAnnouncement } from '../../services/notificationsService';
-import { UserAvatar } from './UserAvatar';
+import { useToast } from '../ui/ToastProvider';
 
-function AnnouncementCheckbox({ id, checked, disabled = false, onChange }) {
-  return (
-    <>
-      <input
-        id={id}
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={onChange}
-        className="sr-only"
-      />
-      <span
-        aria-hidden
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
-          checked
-            ? 'border-emerald-500 bg-emerald-500'
-            : 'border-slate-200 bg-white'
-        } ${disabled ? 'opacity-40' : ''}`}
-      >
-        {checked && <Check className="h-3.5 w-3.5 stroke-[3] text-white" />}
-      </span>
-    </>
-  );
-}
+const GLOBAL_TARGET = 'global';
 
 function AnnouncementSwitch({ enabled, onChange, disabled = false }) {
   return (
@@ -55,35 +31,54 @@ export default function CreateAnnouncementModal({
   onClose,
   senderId,
   senderDisplayName,
+  scope = 'platform',
+  familyId: fixedFamilyId = null,
+  familyName: fixedFamilyName = '',
 }) {
-  const [members, setMembers] = useState([]);
-  const [loadingMembers, setLoadingMembers] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(new Set());
+  const toast = useToast();
+  const isFamilyScope = scope === 'family';
+  const [families, setFamilies] = useState([]);
+  const [loadingFamilies, setLoadingFamilies] = useState(false);
+  const [targetFamilyId, setTargetFamilyId] = useState(GLOBAL_TARGET);
+  const [resolvedFamilyName, setResolvedFamilyName] = useState(fixedFamilyName);
+  const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [sendAsPush, setSendAsPush] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
 
-  const recipientMembers = useMemo(
-    () => members.filter((member) => member.id !== senderId),
-    [members, senderId],
-  );
-
-  const allSelected = recipientMembers.length > 0
-    && recipientMembers.every((member) => selectedIds.has(member.id));
-
   useEffect(() => {
     if (!open) return;
 
-    setLoadingMembers(true);
-    getFamilyMembers()
-      .then(setMembers)
-      .catch(() => setMembers([]))
-      .finally(() => setLoadingMembers(false));
-  }, [open]);
+    if (isFamilyScope) {
+      setTargetFamilyId(fixedFamilyId || '');
+      if (fixedFamilyName) {
+        setResolvedFamilyName(fixedFamilyName);
+        return undefined;
+      }
+      if (!fixedFamilyId) {
+        setResolvedFamilyName('');
+        return undefined;
+      }
+
+      setLoadingFamilies(true);
+      getFamily(fixedFamilyId)
+        .then((family) => setResolvedFamilyName(family?.name?.trim() || 'Семья'))
+        .catch(() => setResolvedFamilyName('Семья'))
+        .finally(() => setLoadingFamilies(false));
+      return undefined;
+    }
+
+    setLoadingFamilies(true);
+    getAllFamilies()
+      .then(setFamilies)
+      .catch(() => setFamilies([]))
+      .finally(() => setLoadingFamilies(false));
+  }, [open, isFamilyScope, fixedFamilyId, fixedFamilyName]);
 
   const resetForm = () => {
-    setSelectedIds(new Set());
+    setTargetFamilyId(isFamilyScope ? (fixedFamilyId || '') : GLOBAL_TARGET);
+    setTitle('');
     setMessage('');
     setSendAsPush(true);
     setError('');
@@ -95,27 +90,20 @@ export default function CreateAnnouncementModal({
     onClose();
   };
 
-  const toggleMember = (memberId) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(memberId)) next.delete(memberId);
-      else next.add(memberId);
-      return next;
-    });
-  };
-
-  const toggleAll = () => {
-    if (allSelected) {
-      setSelectedIds(new Set());
-      return;
-    }
-    setSelectedIds(new Set(recipientMembers.map((member) => member.id)));
-  };
+  const selectedFamily = families.find((family) => family.id === targetFamilyId);
+  const targetFamilyName = isFamilyScope
+    ? (resolvedFamilyName || fixedFamilyName || 'Семья')
+    : targetFamilyId === GLOBAL_TARGET
+      ? 'Всем пользователям'
+      : (selectedFamily?.name?.trim() || 'Семья');
 
   const handleSubmit = async () => {
-    const receiverIds = [...selectedIds];
-    if (receiverIds.length === 0) {
-      setError('Выберите хотя бы одного получателя');
+    if (!targetFamilyId) {
+      setError('Не удалось определить семью получателей');
+      return;
+    }
+    if (!title.trim()) {
+      setError('Введите заголовок');
       return;
     }
     if (!message.trim()) {
@@ -129,14 +117,22 @@ export default function CreateAnnouncementModal({
       await createAdminAnnouncement({
         senderId,
         senderDisplayName,
-        receiverIds,
+        familyId: targetFamilyId,
+        familyName: targetFamilyName,
+        title: title.trim(),
         body: message,
         sendAsPush,
       });
       resetForm();
       onClose();
+      toast.success('Уведомление отправлено');
     } catch (err) {
-      setError(err?.message || 'Не удалось отправить уведомление');
+      const code = err?.code || '';
+      if (code === 'permission-denied') {
+        setError('Нет прав на отправку уведомления');
+      } else {
+        setError(err?.message || 'Не удалось отправить уведомление');
+      }
     } finally {
       setSending(false);
     }
@@ -161,71 +157,55 @@ export default function CreateAnnouncementModal({
             Новое уведомление
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Сообщение увидят выбранные участники группы
+            {isFamilyScope
+              ? 'Сообщение увидят все участники вашей семьи'
+              : 'Сообщение увидят пользователи выбранной аудитории'}
           </p>
         </div>
 
         <div className="overflow-y-auto px-5 py-4">
           <div>
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold text-slate-400">
-                Кому
-              </p>
-              <label
-                htmlFor="announcement-select-all"
-                className="flex cursor-pointer select-none items-center gap-2 text-sm text-slate-600"
-              >
-                <AnnouncementCheckbox
-                  id="announcement-select-all"
-                  checked={allSelected}
-                  disabled={loadingMembers || recipientMembers.length === 0}
-                  onChange={toggleAll}
-                />
-                <span className="leading-none">Выбрать всех</span>
-              </label>
-            </div>
-
-            {loadingMembers ? (
-              <div className="mt-3 flex justify-center py-6">
+            <label htmlFor="announcement-target" className="text-xs font-semibold text-slate-400">
+              Получатели
+            </label>
+            {loadingFamilies ? (
+              <div className="mt-2 flex justify-center py-4">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
               </div>
-            ) : recipientMembers.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-400">Участники не найдены</p>
+            ) : isFamilyScope ? (
+              <p className="mt-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+                {targetFamilyName}
+              </p>
             ) : (
-              <ul className="mt-2 space-y-1.5">
-                {recipientMembers.map((member) => {
-                  const checked = selectedIds.has(member.id);
-                  const name = member.displayName || member.email?.split('@')[0] || 'Участник';
-
-                  return (
-                    <li key={member.id}>
-                      <label
-                        htmlFor={`announcement-member-${member.id}`}
-                        className={`flex cursor-pointer select-none items-center gap-2.5 rounded-xl border px-3 py-2 transition ${
-                          checked
-                            ? 'border-emerald-200 bg-emerald-50/60'
-                            : 'border-slate-100 bg-slate-50'
-                        }`}
-                      >
-                        <AnnouncementCheckbox
-                          id={`announcement-member-${member.id}`}
-                          checked={checked}
-                          onChange={() => toggleMember(member.id)}
-                        />
-                        <UserAvatar
-                          photoUrl={member.avatarUrl}
-                          name={name}
-                          className="h-8 w-8 shrink-0 text-xs"
-                        />
-                        <span className="min-w-0 truncate text-sm font-medium leading-none text-slate-800">
-                          {name}
-                        </span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
+              <select
+                id="announcement-target"
+                value={targetFamilyId}
+                onChange={(e) => setTargetFamilyId(e.target.value)}
+                disabled={sending}
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
+              >
+                <option value={GLOBAL_TARGET}>📢 Всем пользователям (Глобально)</option>
+                {families.map((family) => (
+                  <option key={family.id} value={family.id}>
+                    {family.name?.trim() || 'Без названия'}
+                  </option>
+                ))}
+              </select>
             )}
+          </div>
+
+          <div className="mt-5">
+            <label htmlFor="announcement-title" className="text-xs font-semibold text-slate-400">
+              Заголовок
+            </label>
+            <input
+              id="announcement-title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Заголовок уведомления…"
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
+            />
           </div>
 
           <div className="mt-5">

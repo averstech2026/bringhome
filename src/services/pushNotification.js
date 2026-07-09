@@ -27,6 +27,7 @@ import {
   createNotification,
   createNotificationsForUsers,
 } from './notificationsService';
+import { getFamilyMembers } from './familiesService';
 
 const BASE_URL = import.meta.env.BASE_URL || '/';
 // Крупная иконка уведомления — полный логотип приложения.
@@ -321,12 +322,14 @@ export async function onForegroundPush(handler) {
 
 /**
  * Есть ли у пользователя доступ к списку. Логика совпадает с firestore.rules:
- * явный доступ (allowedUsers) ИЛИ публичный список внутри той же семейной группы.
+ * явный доступ (allowedUsers) ИЛИ публичный список внутри той же семьи.
  */
 function userCanAccessList(userData, uid, list) {
   const allowedUsers = Array.isArray(list?.allowedUsers) ? list.allowedUsers : [];
   if (allowedUsers.includes(uid)) return true;
-  if (list?.isPublic === true && userData?.groupId && userData.groupId === list?.groupId) {
+  const listFamily = list?.familyId || list?.groupId;
+  const userFamily = userData?.familyId || userData?.groupId;
+  if (list?.isPublic === true && userFamily && userFamily === listFamily) {
     return true;
   }
   return false;
@@ -392,6 +395,46 @@ async function getUserTokens(uid) {
   const data = snap.data();
   if (data.pushEnabled !== true || data.disabled === true) return [];
   return Array.isArray(data.fcmTokens) ? [...new Set(data.fcmTokens.filter(Boolean))] : [];
+}
+
+async function getPushEnabledUsersForFamily(familyId) {
+  if (familyId === 'global') {
+    const snapshot = await getDocs(
+      query(collection(db, COLLECTIONS.USERS), where('pushEnabled', '==', true)),
+    );
+    return snapshot.docs
+      .map((docSnap) => ({ uid: docSnap.id, ...docSnap.data() }))
+      .filter((user) => user.disabled !== true);
+  }
+
+  const members = await getFamilyMembers(familyId);
+  return members.filter((member) => member.pushEnabled === true);
+}
+
+/** Push для объявления суперадмина — глобально или по семье. */
+export async function notifyAdminAnnouncementPush({
+  familyId,
+  title,
+  body,
+  excludeUid,
+} = {}) {
+  const users = await getPushEnabledUsersForFamily(familyId);
+  const tokens = [];
+  for (const user of users) {
+    if (excludeUid && user.uid === excludeUid) continue;
+    const uid = user.uid || user.id;
+    if (excludeUid && uid === excludeUid) continue;
+    const userTokens = Array.isArray(user.fcmTokens)
+      ? user.fcmTokens.filter(Boolean)
+      : await getUserTokens(uid);
+    tokens.push(...userTokens);
+  }
+
+  return postToProxy([...new Set(tokens)], {
+    title: title || 'КупиДомой',
+    body,
+    data: { type: 'admin_announcement', link: '/settings/notifications' },
+  });
 }
 
 // --- Транспорт: доставка на набор токенов через serverless-прокси (FCM HTTP v1) ---

@@ -7,8 +7,6 @@ import {
 } from '../../utils/aiLimits';
 
 const PERIODS = [
-  { key: 'daily', label: 'Сегодня', reference: DEFAULT_AI_LIMITS.daily },
-  { key: 'weekly', label: 'Неделя', reference: DEFAULT_AI_LIMITS.weekly },
   { key: 'monthly', label: 'Месяц', reference: DEFAULT_AI_LIMITS.monthly },
 ];
 
@@ -76,10 +74,10 @@ export function AiUsageSummary({ profile, compact = false }) {
   if (!usage) return null;
 
   if (compact) {
-    const dailyUsed = usage.daily.count;
-    const dailyLimit = limits.daily;
-    const label = unlimited ? `${dailyUsed}/∞` : `${dailyUsed}/${dailyLimit}`;
-    return <p className="text-[10px] text-slate-400">ИИ сегодня: {label}</p>;
+    const monthlyUsed = usage.monthly.count;
+    const monthlyLimit = limits.monthly;
+    const label = unlimited ? `${monthlyUsed}/∞` : `${monthlyUsed}/${monthlyLimit}`;
+    return <p className="text-[10px] text-slate-400">ИИ/мес: {label}</p>;
   }
 
   return (

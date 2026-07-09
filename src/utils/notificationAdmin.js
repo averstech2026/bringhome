@@ -1,17 +1,15 @@
-import { isOwnerEmail } from '../services/usersService';
+import { isSuperAdmin, isAnyAdmin } from './roles';
 
 /**
- * Дополнительные UID с правом рассылки (помимо role === 'admin' и email владельца).
- * Для теста можно добавить свой Firebase UID.
+ * Глобальные уведомления (все семьи / global) — только владелец платформы.
  */
-export const NOTIFICATION_ADMIN_UIDS = new Set([
-  'yVSBfuevYhgcI4kHYnQfZGEbNNw2',
-]);
+export function canManageNotifications({ profile, platformAdminUid = null }) {
+  return isSuperAdmin(profile, platformAdminUid);
+}
 
-export function canManageNotifications({ profile, uid }) {
-  if (!uid) return false;
-  if (NOTIFICATION_ADMIN_UIDS.has(uid)) return true;
-  if (profile?.role === 'admin' && !profile?.disabled) return true;
-  if (profile?.email && isOwnerEmail(profile.email)) return true;
-  return false;
+/**
+ * Объявление своей семье — админ семьи или владелец платформы.
+ */
+export function canSendFamilyAnnouncement({ profile, platformAdminUid = null }) {
+  return isAnyAdmin(profile, platformAdminUid);
 }
