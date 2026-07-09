@@ -5,6 +5,7 @@ import {
   createUserAsAdmin,
   getFamilyMembers,
   isOwnerEmail,
+  resetOnboardingForUser,
   setUserDisabled,
 } from '../services/usersService';
 import {
@@ -125,12 +126,27 @@ export default function FamilyManagementPage() {
     }
   };
 
+  const handleResetOnboarding = async (userId) => {
+    setBusyUserId(userId);
+    try {
+      await resetOnboardingForUser(userId);
+      await load();
+    } catch (err) {
+      setLoadError(err?.message || 'Не удалось сбросить аннотацию');
+    } finally {
+      setBusyUserId(null);
+    }
+  };
+
   return (
     <div className="flex min-h-full flex-col px-4 pb-10 pt-0">
       <PageHeader title="Управление семьёй" backTo="/settings" />
 
       <div className="pt-4">
-        <p className="text-sm text-slate-500">Создание и управление аккаунтами</p>
+        <p className="text-xs leading-relaxed text-slate-500">
+          <span aria-hidden className="mr-1">👥</span>
+          Создание и управление аккаунтами
+        </p>
 
         {loadError && <p className="mt-3 text-sm text-red-500">{loadError}</p>}
         {!scopedFamilyId && !profileLoading && (
@@ -145,11 +161,12 @@ export default function FamilyManagementPage() {
           </div>
         )}
 
-        <section className="mt-6">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className={PAGE_SECTION_TITLE}>Участники</h2>
-            <AddMemberButton onClick={() => setModal({ mode: 'create' })} />
-          </div>
+        <div className="mb-4 mt-6 flex items-center justify-end">
+          <AddMemberButton onClick={() => setModal({ mode: 'create' })} />
+        </div>
+
+        <section>
+          <h2 className={PAGE_SECTION_TITLE}>Участники</h2>
 
           {loading || profileLoading ? (
             <div className="mt-4 flex justify-center">
@@ -164,6 +181,8 @@ export default function FamilyManagementPage() {
                   family={family}
                   platformAdminUid={platformAdminUid}
                   busy={busyUserId === member.id}
+                  showOnboardingStatus
+                  onResetOnboarding={handleResetOnboarding}
                   onEditUser={canEditMember(member) ? (selected) => setModal({ mode: 'edit', user: selected }) : undefined}
                   onToggleDisabled={handleToggleDisabled}
                 />

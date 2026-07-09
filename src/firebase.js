@@ -35,6 +35,7 @@ import { getStorage } from 'firebase/storage';
  *   email, displayName, role ("super_admin" | "family_admin" | "member"), disabled,
  *   familyId, groupId?, avatarUrl, aiLimitMonth?, aiLimits?, aiUsage?, isChild?, uiTheme?,
  *   pushEnabled?: boolean, fcmTokens?: string[],
+ *   onboardingCompleted?: boolean,
  *   createdAt, createdBy
  * }
  *

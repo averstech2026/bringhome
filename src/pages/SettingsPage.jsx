@@ -22,7 +22,7 @@ import {
 } from '../services/pushNotification';
 import { UserAvatar } from '../components/profile/UserAvatar';
 import PageHeader from '../components/layout/PageHeader';
-import { PRIMARY_BTN } from '../components/list/cardStyles';
+import { CARD_SURFACE, PRIMARY_BTN } from '../components/list/cardStyles';
 import { useToast } from '../components/ui/ToastProvider';
 import { AVATAR_FILE_TOO_LARGE_MESSAGE, validateAvatarFile } from '../utils/avatarUpload';
 import { getProfileThemeButtonClass, PROFILE_THEME_OPTIONS, resolveUiTheme } from '../utils/uiThemes';
@@ -526,7 +526,7 @@ export default function SettingsPage() {
           <section className="mt-6">
             <Link
               to="/admin/dashboard"
-              className="flex h-14 items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-violet-50 via-purple-50 to-violet-50 px-4 shadow-[0_1px_3px_rgba(139,92,246,0.12)] ring-1 ring-violet-100 transition hover:from-violet-100/70 hover:via-purple-100/50 hover:to-violet-100/70 active:scale-[0.99]"
+              className={`flex h-14 items-center justify-between gap-3 ${CARD_SURFACE} px-4 transition hover:bg-slate-50/80 active:scale-[0.99]`}
             >
               <span className="flex min-w-0 items-center gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100/90">
@@ -548,7 +548,7 @@ export default function SettingsPage() {
           <section className="mt-6">
             <Link
               to="/settings/feedbacks"
-              className="flex h-14 items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-violet-50 via-purple-50 to-violet-50 px-4 shadow-[0_1px_3px_rgba(139,92,246,0.12)] ring-1 ring-violet-100 transition hover:from-violet-100/70 hover:via-purple-100/50 hover:to-violet-100/70 active:scale-[0.99]"
+              className={`flex h-14 items-center justify-between gap-3 ${CARD_SURFACE} px-4 transition hover:bg-slate-50/80 active:scale-[0.99]`}
             >
               <span className="flex min-w-0 items-center gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100/90">
@@ -568,7 +568,7 @@ export default function SettingsPage() {
           </section>
         )}
 
-        <section className="mt-6 overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <section className={`mt-6 overflow-hidden ${CARD_SURFACE}`}>
           {showFamilyName && (
             <>
               <div className="px-4 py-4">
@@ -674,7 +674,7 @@ export default function SettingsPage() {
 
         {user && (
         <section
-          className="mt-6 rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+          className={`mt-6 ${CARD_SURFACE}`}
           aria-labelledby="profile-ui-theme-title"
         >
           <div className="px-4 py-4">
@@ -696,8 +696,8 @@ export default function SettingsPage() {
                 {PROFILE_THEME_OPTIONS.map((option) => (
                   <div
                     key={option.id}
-                    className="h-[30px] shrink-0 animate-pulse rounded-full bg-slate-100"
-                    style={{ width: `${Math.max(72, option.label.length * 8)}px` }}
+                    className="h-[34px] shrink-0 animate-pulse rounded-full bg-slate-100"
+                    style={{ width: `${Math.max(88, option.label.length * 8)}px` }}
                   />
                 ))}
               </div>
@@ -730,7 +730,7 @@ export default function SettingsPage() {
         </section>
         )}
 
-        <section className="mt-6 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
+        <section className={`mt-6 overflow-hidden ${CARD_SURFACE}`}>
           {[
             {
               to: '/settings/notifications',

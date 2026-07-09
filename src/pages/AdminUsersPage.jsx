@@ -169,7 +169,10 @@ export default function AdminUsersPage() {
       <PageHeader title="Управление семьёй" backTo="/settings" />
 
       <div className="pt-4">
-        <p className="text-sm text-slate-500">Создание и управление аккаунтами</p>
+        <p className="text-xs leading-relaxed text-slate-500">
+          <span aria-hidden className="mr-1">👥</span>
+          Создание и управление аккаунтами
+        </p>
 
         {family && (
           <div className="mt-6">
@@ -177,16 +180,17 @@ export default function AdminUsersPage() {
           </div>
         )}
 
-        <section className="mt-6">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className={PAGE_SECTION_TITLE}>Участники</h2>
-            <AddMemberButton
-              onClick={() => {
-                setSuccess('');
-                setModal({ mode: 'create' });
-              }}
-            />
-          </div>
+        <div className="mb-4 mt-6 flex items-center justify-end">
+          <AddMemberButton
+            onClick={() => {
+              setSuccess('');
+              setModal({ mode: 'create' });
+            }}
+          />
+        </div>
+
+        <section>
+          <h2 className={PAGE_SECTION_TITLE}>Участники</h2>
 
           {success && <p className="mt-3 text-sm text-brand-700">{success}</p>}
 

@@ -223,9 +223,12 @@ export default function AdminGroupListsPage() {
       <PageHeader title="Все списки семьи" backTo="/settings" />
 
       <div className="pt-4">
-        <p className="text-sm text-slate-500">{subtitle}</p>
+        <p className="text-xs leading-relaxed text-slate-500">
+          <span aria-hidden className="mr-1">📋</span>
+          {subtitle}
+        </p>
 
-        <div className="mt-4">
+        <div className="mb-4 mt-4">
           <ListFilterTabs value={filter} onChange={setFilter} />
         </div>
 

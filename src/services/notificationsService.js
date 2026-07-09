@@ -3,6 +3,7 @@ import {
   doc,
   addDoc,
   updateDoc,
+  getDocs,
   query,
   where,
   onSnapshot,
@@ -12,6 +13,9 @@ import {
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '../firebase';
 import { notifyAdminAnnouncementPush } from './pushNotification';
+import { ONBOARDING_GUIDE_TYPE, WELCOME_NOTIFICATION } from '../utils/onboardingContent';
+
+export { ONBOARDING_GUIDE_TYPE };
 
 export async function createNotification({ userId, type, title, body, link }) {
   if (!userId) return null;
@@ -31,6 +35,39 @@ export async function createNotificationsForUsers(userIds, payload) {
   const unique = [...new Set((userIds || []).filter(Boolean))];
   if (unique.length === 0) return;
   await Promise.all(unique.map((userId) => createNotification({ ...payload, userId })));
+}
+
+export async function createWelcomeOnboardingNotification(userId, firestoreDb = db) {
+  if (!userId) return null;
+  const ref = await addDoc(collection(firestoreDb, COLLECTIONS.NOTIFICATIONS), {
+    userId,
+    type: WELCOME_NOTIFICATION.type,
+    title: WELCOME_NOTIFICATION.title,
+    body: WELCOME_NOTIFICATION.body,
+    link: '',
+    isRead: false,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function ensureWelcomeOnboardingNotification(userId, firestoreDb = db) {
+  if (!userId) return null;
+
+  const snapshot = await getDocs(
+    query(
+      collection(firestoreDb, COLLECTIONS.NOTIFICATIONS),
+      where('userId', '==', userId),
+      limit(50),
+    ),
+  );
+
+  const existing = snapshot.docs.find(
+    (docSnap) => docSnap.data().type === WELCOME_NOTIFICATION.type,
+  );
+  if (existing) return existing.id;
+
+  return createWelcomeOnboardingNotification(userId, firestoreDb);
 }
 
 export async function createAdminAnnouncement({

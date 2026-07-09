@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Megaphone, Plus } from 'lucide-react';
+import { BookOpen, Megaphone, Plus } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { useNotifications } from '../../hooks/useNotifications';
 import CreateAnnouncementModal from './CreateAnnouncementModal';
+import OnboardingModal from '../onboarding/OnboardingModal';
+import NotificationDetailModal from '../notifications/NotificationDetailModal';
 import { canSendFamilyAnnouncement } from '../../utils/notificationAdmin';
 import { getFamily } from '../../services/familiesService';
+import { ONBOARDING_GUIDE_TYPE } from '../../services/notificationsService';
+import { setOnboardingCompleted } from '../../services/usersService';
+import {
+  isOnboardingCompleted,
+  isOnboardingGuideNotification,
+  withVirtualWelcomeNotification,
+} from '../../utils/onboardingContent';
 
 const APP_ICON = `${import.meta.env.BASE_URL || '/'}icons/logo.png`;
 const PAGE_SIZE = 20;
@@ -19,7 +28,7 @@ function NotificationFilterTabs({ value, onChange }) {
   ];
 
   return (
-    <div className="inline-flex h-9 w-full min-w-0 items-center rounded-full bg-slate-100/80 p-1">
+    <div className="inline-flex h-9 items-center rounded-full bg-slate-100/80 p-1">
       {tabs.map((tab) => {
         const active = value === tab.id;
         return (
@@ -27,7 +36,7 @@ function NotificationFilterTabs({ value, onChange }) {
             key={tab.id}
             type="button"
             onClick={() => onChange(tab.id)}
-            className={`flex h-full flex-1 items-center justify-center rounded-full px-2 text-sm transition-colors ${
+            className={`flex h-full items-center justify-center rounded-full px-3 text-sm transition-colors ${
               active
                 ? 'bg-white font-semibold text-slate-900 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
@@ -80,6 +89,22 @@ function DirectionBadge({ direction }) {
 }
 
 function NotificationIcon({ notification, read }) {
+  if (notification.type === ONBOARDING_GUIDE_TYPE) {
+    return (
+      <span
+        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+          read ? 'bg-slate-100' : 'bg-violet-100'
+        }`}
+        aria-hidden
+      >
+        <BookOpen
+          className={`h-4 w-4 ${read ? 'text-slate-400' : 'text-violet-600'}`}
+          strokeWidth={2}
+        />
+      </span>
+    );
+  }
+
   if (notification.type === 'admin_announcement') {
     return (
       <span
@@ -110,6 +135,7 @@ function NotificationIcon({ notification, read }) {
 
 function IncomingNotificationItem({ notification, read, onSelect, showDirectionBadge }) {
   const isAnnouncement = notification.type === 'admin_announcement';
+  const isGuide = isOnboardingGuideNotification(notification);
 
   return (
     <button
@@ -121,7 +147,7 @@ function IncomingNotificationItem({ notification, read, onSelect, showDirectionB
     >
       <NotificationIcon notification={notification} read={read} />
       <div className="min-w-0 flex-1">
-        {isAnnouncement && notification.title && (
+        {(isAnnouncement || isGuide) && notification.title && (
           <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
         )}
         {isAnnouncement && (
@@ -129,7 +155,7 @@ function IncomingNotificationItem({ notification, read, onSelect, showDirectionB
             {getAnnouncementLabel(notification)}
           </p>
         )}
-        <p className={`text-sm leading-snug text-slate-800 ${isAnnouncement ? 'mt-1' : ''}`}>
+        <p className={`text-sm leading-snug text-slate-800 ${(isAnnouncement || isGuide) && notification.title ? 'mt-1' : ''}`}>
           {notification.body}
         </p>
         <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
@@ -141,14 +167,18 @@ function IncomingNotificationItem({ notification, read, onSelect, showDirectionB
   );
 }
 
-function OutgoingNotificationItem({ notification, showDirectionBadge }) {
+function OutgoingNotificationItem({ notification, showDirectionBadge, onSelect }) {
   const recipientLabel = notification.familyId === 'global'
     ? 'Всем пользователям'
     : (notification.familyName?.trim() || 'Семья');
   const legacyRecipientCount = notification.receiverIds?.length || 0;
 
   return (
-    <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3.5 shadow-sm">
+    <button
+      type="button"
+      onClick={() => onSelect?.(notification)}
+      className="w-full rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left shadow-sm transition hover:bg-slate-50 active:bg-slate-100/80"
+    >
       <div className="flex items-start gap-3">
         <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100">
           <img src={APP_ICON} alt="" className="h-5 w-5 rounded-md object-cover" />
@@ -184,13 +214,13 @@ function OutgoingNotificationItem({ notification, showDirectionBadge }) {
           </p>
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
 function FamilyAnnouncementHint() {
   return (
-    <div className="min-w-0 flex-1">
+    <div className="mb-4 w-full">
       <p className="text-xs font-medium text-slate-700">
         <span aria-hidden className="mr-1">📢</span>
         Объявления для семьи
@@ -205,11 +235,13 @@ function FamilyAnnouncementHint() {
 export default function NotificationsList({ userId }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { familyId, profile, isSuperAdmin, platformAdminUid } = useUserProfile(user);
+  const { familyId, profile, isSuperAdmin, platformAdminUid, reload: reloadProfile } = useUserProfile(user);
   const [filter, setFilter] = useState('all');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [createOpen, setCreateOpen] = useState(false);
   const [familyName, setFamilyName] = useState('');
+  const [detailNotification, setDetailNotification] = useState(null);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
 
   const canSendAnnouncement = canSendFamilyAnnouncement({ profile, platformAdminUid });
   const senderDisplayName = profile?.displayName || user?.displayName || 'Администратор';
@@ -251,19 +283,36 @@ export default function NotificationsList({ userId }) {
     if (filter === 'outgoing') {
       return notifications.filter((notification) => notification.senderId === userId);
     }
-    return notifications;
-  }, [notifications, filter, userId]);
+
+    return withVirtualWelcomeNotification(notifications, userId, {
+      createdAt: profile?.createdAt ?? null,
+    });
+  }, [notifications, filter, userId, profile?.createdAt]);
 
   const displayedNotifications = visibleNotifications.slice(0, visibleCount);
   const hasMore = visibleNotifications.length > visibleCount;
   const showDirectionBadge = filter === 'all';
 
   const handleSelect = (notification) => {
-    if (!isRead(notification)) {
+    if (!notification.isVirtual && !isRead(notification)) {
       markRead(notification.id, notification).catch(() => {});
     }
-    if (notification.link) {
-      navigate(notification.link);
+
+    if (isOnboardingGuideNotification(notification)) {
+      setOnboardingOpen(true);
+      return;
+    }
+
+    setDetailNotification(notification);
+  };
+
+  const handleOnboardingComplete = async (dontShowAgain) => {
+    if (!userId) return;
+    try {
+      await setOnboardingCompleted(userId, dontShowAgain);
+      reloadProfile();
+    } catch {
+      // modal still closes
     }
   };
 
@@ -272,10 +321,12 @@ export default function NotificationsList({ userId }) {
     : 'Пока нет уведомлений';
 
   return (
-    <div className="space-y-4">
-      {canSendAnnouncement && (
-        <div className="flex items-center justify-between gap-3">
-          <FamilyAnnouncementHint />
+    <div>
+      {canSendAnnouncement && <FamilyAnnouncementHint />}
+
+      <div className="mb-4 flex items-center justify-between">
+        <NotificationFilterTabs value={filter} onChange={setFilter} />
+        {canSendAnnouncement && (
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
@@ -284,10 +335,8 @@ export default function NotificationsList({ userId }) {
             <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
             Создать
           </button>
-        </div>
-      )}
-
-      <NotificationFilterTabs value={filter} onChange={setFilter} />
+        )}
+      </div>
 
       {loading ? (
         <div className="flex justify-center py-16">
@@ -309,6 +358,7 @@ export default function NotificationsList({ userId }) {
                     <OutgoingNotificationItem
                       notification={notification}
                       showDirectionBadge={showDirectionBadge}
+                      onSelect={handleSelect}
                     />
                   ) : (
                     <IncomingNotificationItem
@@ -345,6 +395,21 @@ export default function NotificationsList({ userId }) {
         scope={announcementScope}
         familyId={familyId}
         familyName={familyName}
+      />
+
+      <NotificationDetailModal
+        open={Boolean(detailNotification)}
+        notification={detailNotification}
+        onClose={() => setDetailNotification(null)}
+        onNavigate={navigate}
+      />
+
+      <OnboardingModal
+        open={onboardingOpen}
+        onClose={() => setOnboardingOpen(false)}
+        onComplete={handleOnboardingComplete}
+        mode="review"
+        onboardingCompleted={isOnboardingCompleted(profile)}
       />
     </div>
   );

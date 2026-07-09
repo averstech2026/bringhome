@@ -7,8 +7,22 @@
 export const APP_BACKGROUND = 'bg-[#f5f5f7]';
 
 export const APP_HEADER = 'bg-[#f5f5f7]/90 backdrop-blur-md';
+
+/** Мягкая воздушная тень для карточек и верхних плашек */
+export const CARD_SHADOW = 'shadow-[0_4px_20px_rgba(0,0,0,0.03)]';
+
 export const CARD_SURFACE =
-  'rounded-2xl border border-gray-50/80 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]';
+  `rounded-2xl border border-gray-50/80 bg-white ${CARD_SHADOW}`;
+
+/** Верхняя плашка экрана — те же скругление и тень, что у карточек */
+export const SCREEN_TOP_PANEL =
+  `-mx-4 sticky top-0 z-40 rounded-b-2xl border border-t-0 border-gray-50/80 bg-white/95 pt-[env(safe-area-inset-top,0px)] ${CARD_SHADOW} backdrop-blur-md`;
+
+/** Капсула-чип: фильтры на главной, темы в профиле и т.п. */
+export const CHIP_BUTTON =
+  'inline-flex shrink-0 items-center justify-center rounded-full border px-4 py-1.5 text-sm font-medium transition-colors disabled:opacity-40';
+
+export const CHIP_BUTTON_SURFACE = `${CHIP_BUTTON} bg-white`;
 
 /** Компактные отступы как у плашки списка на главной */
 export const CARD_PAD = 'px-3 py-2';

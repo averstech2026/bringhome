@@ -1,4 +1,5 @@
 import { resolveFamilyAiLimitMonth } from '../../services/familiesService';
+import { CARD_SURFACE } from '../list/cardStyles';
 
 export function FamilySummaryCard({ family, membersCount }) {
   if (!family) return null;
@@ -7,7 +8,7 @@ export function FamilySummaryCard({ family, membersCount }) {
   const familyAiLimitMonth = resolveFamilyAiLimitMonth(family);
 
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm">
+    <div className={`${CARD_SURFACE} p-4`}>
       <h2 className="text-lg font-bold text-slate-900">{family.name}</h2>
       <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
         <div className="rounded-xl bg-slate-50 px-2 py-2">

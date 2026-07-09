@@ -9,7 +9,7 @@ import {
   archiveList,
   updateList,
 } from '../services/listsService';
-import { getFamilyMembers } from '../services/usersService';
+import { getFamilyMembers, setOnboardingCompleted } from '../services/usersService';
 import QuickCreateButtons from '../components/home/QuickCreateButtons';
 import AppHeader from '../components/layout/AppHeader';
 import ScreenTopPanel from '../components/layout/ScreenTopPanel';
@@ -18,17 +18,19 @@ import CompletedListsSection from '../components/home/CompletedListsSection';
 import ArchiveListConfirmModal from '../components/home/ArchiveListConfirmModal';
 import ArchiveAccessModal from '../components/home/ArchiveAccessModal';
 import RequestCustomTypeModal from '../components/home/RequestCustomTypeModal';
+import OnboardingModal from '../components/onboarding/OnboardingModal';
 import { useToast } from '../components/ui/ToastProvider';
 import { HINT_TEXT, PAGE_SECTION_TITLE } from '../components/list/cardStyles';
 import { resolveListStatus } from '../utils/listStatus';
 import { canArchiveList, getListArchiveAdmins, isListOwner, isListSharedWithUser } from '../utils/listPermissions';
 import { clearRepeatDraft } from '../utils/repeatDraftStorage';
 import { encodeListTypeForUrl } from '../utils/listTypes';
+import { isOnboardingCompleted } from '../utils/onboardingContent';
 
 export default function HomePage() {
   const { user } = useAuth();
   const { settings } = useAppSettings();
-  const { isSuperAdmin, isFamilyAdmin, loading: profileLoading, familyId } = useUserProfile(user);
+  const { isSuperAdmin, isFamilyAdmin, loading: profileLoading, familyId, profile, reload } = useUserProfile(user);
   const toast = useToast();
   const [lists, setLists] = useState([]);
   const [authorsById, setAuthorsById] = useState({});
@@ -39,6 +41,7 @@ export default function HomePage() {
   const [requestCustomOpen, setRequestCustomOpen] = useState(false);
   const [archiveConfirmTarget, setArchiveConfirmTarget] = useState(null);
   const [archiveAccessList, setArchiveAccessList] = useState(null);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -99,6 +102,25 @@ export default function HomePage() {
     if (!user?.uid || profileLoading) return;
     loadLists();
   }, [loadLists, location.key, user?.uid, profileLoading]);
+
+  useEffect(() => {
+    if (profileLoading || !profile) return;
+    if (!isOnboardingCompleted(profile)) {
+      setOnboardingOpen(true);
+    }
+  }, [profile, profileLoading, location.key]);
+
+  const handleOnboardingComplete = async (dontShowAgain) => {
+    if (user?.uid) {
+      try {
+        await setOnboardingCompleted(user.uid, dontShowAgain);
+        reload();
+      } catch (err) {
+        toast.error(err?.message || 'Не удалось сохранить настройку');
+      }
+    }
+    setOnboardingOpen(false);
+  };
 
   const handleCreate = (type) => {
     clearRepeatDraft();
@@ -284,6 +306,14 @@ export default function HomePage() {
         open={Boolean(archiveAccessList)}
         contacts={archiveAccessList ? getListArchiveAdmins(archiveAccessList, authorsById) : []}
         onClose={() => setArchiveAccessList(null)}
+      />
+
+      <OnboardingModal
+        open={onboardingOpen}
+        onClose={() => setOnboardingOpen(false)}
+        onComplete={handleOnboardingComplete}
+        mode="home"
+        onboardingCompleted={isOnboardingCompleted(profile)}
       />
     </div>
   );

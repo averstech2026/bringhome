@@ -25,6 +25,7 @@ import { DEFAULT_AI_LIMITS, deriveAiLimitsFromMonthly } from '../utils/aiLimits'
 import { UI_THEME_IDS } from '../utils/uiThemes';
 import { ROLES, normalizeRole, isSuperAdmin, PLATFORM_OWNER_EMAIL } from '../utils/roles';
 import { createFamily } from './familiesService';
+import { createWelcomeOnboardingNotification } from './notificationsService';
 
 export const OWNER_EMAIL = PLATFORM_OWNER_EMAIL;
 
@@ -79,9 +80,12 @@ export async function createBootstrapAdmin({ email, password, displayName }) {
       monthly: { count: 0, periodKey: '' },
       total: 0,
     },
+    onboardingCompleted: false,
     createdAt: serverTimestamp(),
     createdBy: null,
   });
+
+  await createWelcomeOnboardingNotification(cred.user.uid).catch(() => {});
 
   await setDoc(doc(db, COLLECTIONS.CONFIG, 'setup'), {
     initialized: true,
@@ -204,6 +208,7 @@ export async function createUserAsAdmin({
         monthly: { count: 0, periodKey: '' },
         total: 0,
       },
+      onboardingCompleted: false,
       createdAt: serverTimestamp(),
       createdBy,
     };
@@ -221,6 +226,8 @@ export async function createUserAsAdmin({
     }
 
     await setDoc(doc(db, COLLECTIONS.USERS, cred.user.uid), userPayload);
+
+    await createWelcomeOnboardingNotification(cred.user.uid).catch(() => {});
 
     await signOut(secondaryAuth);
     return cred.user.uid;
@@ -331,6 +338,20 @@ export async function updateUserAvatar(user, file) {
 
 export async function removeUserAvatar(user) {
   await updateDoc(doc(db, COLLECTIONS.USERS, user.uid), { avatarUrl: null });
+}
+
+export async function setOnboardingCompleted(userId, completed) {
+  if (!userId) return;
+  await updateDoc(doc(db, COLLECTIONS.USERS, userId), {
+    onboardingCompleted: completed === true,
+  });
+}
+
+export async function resetOnboardingForUser(userId) {
+  await assertNotOwner(userId);
+  await updateDoc(doc(db, COLLECTIONS.USERS, userId), {
+    onboardingCompleted: false,
+  });
 }
 
 export { isSuperAdmin };

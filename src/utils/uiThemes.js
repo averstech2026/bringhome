@@ -102,7 +102,7 @@ export const PROFILE_THEME_ACTIVE_CLASSES = {
 };
 
 const PROFILE_THEME_BUTTON_BASE =
-  'shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-medium leading-tight transition-all duration-300 disabled:opacity-50 sm:text-xs';
+  'shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-all duration-300 disabled:opacity-50';
 
 export function getProfileThemeButtonClass(themeId, active) {
   if (!active) {

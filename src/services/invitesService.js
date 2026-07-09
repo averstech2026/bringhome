@@ -19,6 +19,7 @@ import {
 } from 'firebase/auth';
 import { db, COLLECTIONS, firebaseConfig } from '../firebase';
 import { createFamily } from './familiesService';
+import { createWelcomeOnboardingNotification } from './notificationsService';
 import { ROLES } from '../utils/roles';
 
 function generateInviteToken() {
@@ -149,9 +150,12 @@ export async function registerFamilyAdminViaInvite({
         monthly: { count: 0, periodKey: '' },
         total: 0,
       },
+      onboardingCompleted: false,
       createdAt: serverTimestamp(),
       createdBy: null,
     });
+
+    await createWelcomeOnboardingNotification(uid, secondaryDb).catch(() => {});
 
     await runTransaction(secondaryDb, async (transaction) => {
       const inviteRefOnSecondary = doc(secondaryDb, COLLECTIONS.INVITES, token.trim());

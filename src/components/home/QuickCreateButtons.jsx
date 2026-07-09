@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { sanitizeCustomTypeName } from '../../utils/listTypes';
+import { CARD_SHADOW, CHIP_BUTTON_SURFACE } from '../list/cardStyles';
 
 const BUTTONS = [
   {
@@ -20,8 +21,7 @@ const BUTTONS = [
   },
 ];
 
-const TAB_BASE =
-  'mr-2 inline-flex h-9 flex-shrink-0 snap-start items-center justify-center rounded-full border bg-white px-4 text-sm font-medium shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition-colors disabled:opacity-40';
+const TAB_BASE = `${CHIP_BUTTON_SURFACE} mr-2 snap-start`;
 
 function CheckIcon() {
   return (
@@ -119,7 +119,7 @@ export default function QuickCreateButtons({
         {customMode && canCreateCustom ? (
           <div
             ref={customFormRef}
-            className="mr-2 flex h-9 flex-shrink-0 snap-start items-center gap-1 rounded-full border border-slate-200 bg-white py-1 pl-3 pr-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
+            className="mr-2 flex shrink-0 snap-start items-center gap-1 rounded-full border border-slate-200 bg-white py-1.5 pl-3 pr-1.5"
           >
             <input
               ref={inputRef}
@@ -167,7 +167,7 @@ export default function QuickCreateButtons({
   }
 
   return (
-    <div className="-mx-4 rounded-b-2xl border border-t-0 border-gray-50/80 bg-white py-3.5 shadow-sm">
+    <div className={`-mx-4 rounded-b-2xl border border-t-0 border-gray-50/80 bg-white py-3.5 ${CARD_SHADOW}`}>
       {scrollRow}
     </div>
   );
