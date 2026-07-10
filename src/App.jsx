@@ -177,6 +177,11 @@ function AppRoutes() {
 
 function AppShell() {
   const location = useLocation();
+
+  useEffect(() => {
+    document.body.style.overflow = '';
+  }, [location.pathname]);
+
   const hideHeader =
     location.pathname === '/' ||
     location.pathname.startsWith('/list/') ||

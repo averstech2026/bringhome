@@ -46,6 +46,8 @@ const THEME_CHROME = {
     hintClassName: 'text-violet-600',
     glowClassName: 'animate-ai-glow',
     badgeClass: 'bg-white/20 text-violet-50',
+    jumpChipClassName:
+      'border-violet-200 text-violet-700 hover:border-violet-300 hover:bg-violet-50/80 active:bg-violet-50',
     label: 'Распознать ИИ',
     loadingLabel: 'Распознаём…',
     icon: 'sparkles',
@@ -61,6 +63,8 @@ const THEME_CHROME = {
     hintClassName: 'text-amber-800',
     glowClassName: 'animate-ai-glow-hogwarts',
     badgeClass: 'bg-white/20 text-amber-50',
+    jumpChipClassName:
+      'border-amber-300 text-amber-900 hover:border-amber-400 hover:bg-amber-50/90 active:bg-amber-50',
     label: '✨ Акцио, списочек!',
     loadingLabel: 'Колдуем…',
     icon: 'wand',
@@ -76,6 +80,8 @@ const THEME_CHROME = {
     hintClassName: 'text-indigo-700',
     glowClassName: 'animate-ai-glow-star-wars',
     badgeClass: 'bg-white/15 text-indigo-100',
+    jumpChipClassName:
+      'border-indigo-300 text-indigo-800 hover:border-indigo-400 hover:bg-indigo-50/90 active:bg-indigo-50',
     label: 'Да прибудет с нами Сила! 🌌',
     loadingLabel: 'Сканируем галактику…',
     icon: 'sword',

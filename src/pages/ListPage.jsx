@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { getUserPhotoUrl } from '../utils/userPhoto';
@@ -26,6 +26,7 @@ import StatusBar from '../components/list/StatusBar';
 import CategoryGroup from '../components/list/CategoryGroup';
 import AddItemForm from '../components/list/AddItemForm';
 import AiInput from '../components/list/AiInput';
+import AiJumpButton from '../components/list/AiJumpButton';
 import ShareControls from '../components/list/ShareControls';
 import CreateListAccess from '../components/list/CreateListAccess';
 import { getFamilyMembers } from '../services/usersService';
@@ -43,6 +44,7 @@ import {
 } from '../components/list/cardStyles';
 import { useToast } from '../components/ui/ToastProvider';
 import { parseListScheduledFor, startOfDay } from '../utils/listSchedule';
+import { getAiInputTheme, resolveUiTheme } from '../utils/uiThemes';
 import {
   scheduleListReminder,
   cancelListReminder,
@@ -134,8 +136,12 @@ export default function ListPage() {
   const [savedRemindOnDay, setSavedRemindOnDay] = useState(false);
   const [isHighlighting, setIsHighlighting] = useState(false);
   const shareLinkRef = useRef(null);
+  const aiInputRef = useRef(null);
+  const prevListIdRef = useRef(listId);
   const shareHighlightPendingRef = useRef(location.state?.highlightShareLink === true);
-  const suppressAiEntryGlowRef = useRef(location.state?.highlightShareLink === true);
+  const [showCreationDone, setShowCreationDone] = useState(
+    () => location.state?.highlightShareLink === true,
+  );
 
   const canLoadList = !isDraft && accessChecked && accessForListId === listId && !accessError;
 
@@ -273,12 +279,22 @@ export default function ListPage() {
     }, 200);
   }, []);
 
+  const uiTheme = useMemo(() => resolveUiTheme(profile), [profile]);
+  const aiJumpTheme = useMemo(() => getAiInputTheme(uiTheme), [uiTheme]);
+
+  const handleAiInputJump = useCallback(() => {
+    aiInputRef.current?.reveal();
+  }, []);
+
   useEffect(() => {
     if (location.state?.highlightShareLink) {
       shareHighlightPendingRef.current = true;
-      suppressAiEntryGlowRef.current = true;
+      setShowCreationDone(true);
+    } else if (listId !== prevListIdRef.current) {
+      setShowCreationDone(false);
     }
-  }, [location.state?.highlightShareLink]);
+    prevListIdRef.current = listId;
+  }, [listId, location.state?.highlightShareLink]);
 
   const grouped = groupItemsByCategory(items);
   const { allDone, total } = getListProgress(items);
@@ -559,6 +575,11 @@ export default function ListPage() {
   };
 
   const handleSave = async () => {
+    if (isEditMode && !isDirty && showCreationDone) {
+      setShowCreationDone(false);
+      navigate('/');
+      return;
+    }
     if (isDraft) {
       await handleCreateList();
       return;
@@ -681,10 +702,16 @@ export default function ListPage() {
   const listRemindOnDay = isDraft ? draftRemindOnDay : savedRemindOnDay;
 
   const showFooter = !isAdminView && (isDraft || isArchivedView || isEditMode);
+  const showDoneButton = isEditMode && !isDirty && showCreationDone;
   const saveBusy = persisting || savingChanges;
   const saveLabel = isDraft
     ? (persisting ? 'Создаём…' : 'Создать список')
-    : (savingChanges ? 'Сохранение...' : 'Сохранить изменения');
+    : savingChanges
+      ? 'Сохранение...'
+      : showDoneButton
+        ? 'Готово!'
+        : 'Сохранить изменения';
+  const saveDisabled = saveBusy || (!showDoneButton && !isDirty);
 
   const itemHandlers = isDraft
     ? {
@@ -706,32 +733,64 @@ export default function ListPage() {
         }
       : {};
 
+  const handleBack = () => navigate(backTarget);
+
+  const renderBackButton = () => (
+    <button
+      type="button"
+      onClick={handleBack}
+      className="relative z-20 flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-full text-slate-800 transition hover:bg-black/[0.04] active:bg-black/[0.06]"
+      aria-label="Назад"
+    >
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+      </svg>
+    </button>
+  );
+
   if (loading) {
     return (
-      <div className={`flex min-h-full items-center justify-center ${APP_BACKGROUND}`}>
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+      <div className={`flex min-h-full flex-col ${APP_BACKGROUND} ${PAGE_X} pt-0`}>
+        <ScreenTopPanel>
+          <ScreenTopBar>
+            {renderBackButton()}
+            <h1 className="min-w-0 flex-1 truncate text-lg font-bold leading-none tracking-tight text-slate-900">
+              {activeList?.title || 'Загрузка…'}
+            </h1>
+          </ScreenTopBar>
+        </ScreenTopPanel>
+        <div className="flex flex-1 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+        </div>
       </div>
     );
   }
 
   if (!isDraft && (accessError || listError || itemsError || !list)) {
     return (
-      <div className={`flex min-h-full flex-col items-center justify-center ${APP_BACKGROUND} ${PAGE_X}`}>
-        <p className="text-center text-slate-500">
-          {accessError === 'archived'
-            ? 'Список в архиве'
-            : accessError === 'not_archived'
-              ? 'Список не в архиве'
-            : accessError || listError || itemsError || 'Список не найден'}
-        </p>
-        {(listError || itemsError || '')?.toLowerCase().includes('permission') && (
-          <p className="mt-2 max-w-xs text-center text-xs text-slate-400">
-            Задеплойте правила Firestore: firebase deploy --only firestore:rules
+      <div className={`flex min-h-full flex-col ${APP_BACKGROUND} ${PAGE_X} pt-0`}>
+        <ScreenTopPanel>
+          <ScreenTopBar>
+            {renderBackButton()}
+            <h1 className="min-w-0 flex-1 truncate text-lg font-bold leading-none tracking-tight text-slate-900">
+              Список
+            </h1>
+          </ScreenTopBar>
+        </ScreenTopPanel>
+        <div className="flex flex-1 flex-col items-center justify-center">
+          <p className="text-center text-slate-500">
+            {accessError === 'archived'
+              ? 'Список в архиве'
+              : accessError === 'not_archived'
+                ? 'Список не в архиве'
+              : accessError || listError || itemsError || 'Список не найден'}
           </p>
-        )}
-        <Link to={backTarget} className="mt-4 text-sm font-medium text-slate-700">
-          {isAdminView ? 'К семье' : isArchivedView ? 'В профиль' : 'На главную'}
-        </Link>
+          {(listError || itemsError || '')?.toLowerCase().includes('permission') && (
+            <p className="mt-2 max-w-xs text-center text-xs text-slate-400">
+              Задеплойте правила Firestore: firebase deploy --only firestore:rules
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -740,62 +799,58 @@ export default function ListPage() {
     <div className={`flex min-h-full flex-col ${APP_BACKGROUND} ${PAGE_X} pt-0`}>
       <ScreenTopPanel>
         <ScreenTopBar>
-            <button
-              type="button"
-              onClick={() => navigate(backTarget)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-800 transition hover:bg-black/[0.04] active:bg-black/[0.06]"
-              aria-label="Назад"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
+            {renderBackButton()}
 
-            <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              <div className="flex min-w-0 shrink items-center gap-2">
-                <h1 className="min-w-0 truncate text-lg font-bold leading-none tracking-tight text-slate-900">
-                  {activeList.title}
-                </h1>
-                <ListDescriptionButton
-                  hasDescription={Boolean(listDescription?.trim())}
-                  onClick={() => setDescriptionOpen(true)}
-                  disabled={persisting}
+            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+              <h1 className="min-w-0 truncate text-lg font-bold leading-none tracking-tight text-slate-900">
+                {activeList.title}
+              </h1>
+              <ListDescriptionButton
+                hasDescription={Boolean(listDescription?.trim())}
+                onClick={() => setDescriptionOpen(true)}
+                disabled={persisting}
+              />
+            </div>
+
+            <div className="flex shrink-0 items-center justify-end gap-2">
+              {!isReadOnlyView && (
+                <AiJumpButton
+                  onClick={handleAiInputJump}
+                  disabled={persisting || savingChanges}
+                  aiJumpTheme={aiJumpTheme}
                 />
-              </div>
+              )}
+              {!isDraft && !isReadOnlyView && <ListAccessIcon list={displayList || activeList} />}
+              <ListTypeBadge type={activeList.type} />
 
-              <div className="ml-auto flex shrink-0 items-center gap-2">
-                {!isDraft && !isReadOnlyView && <ListAccessIcon list={displayList || activeList} />}
-                <ListTypeBadge type={activeList.type} />
+              {isAdminView && (
+                <span className="inline-flex shrink-0 items-center rounded-md bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
+                  Просмотр
+                </span>
+              )}
 
-                {isAdminView && (
-                  <span className="inline-flex shrink-0 items-center rounded-md bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
-                    Просмотр
-                  </span>
-                )}
+              {isArchivedView && !isAdminView && (
+                <span className="inline-flex shrink-0 items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                  В архиве
+                </span>
+              )}
 
-                {isArchivedView && !isAdminView && (
-                  <span className="inline-flex shrink-0 items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-                    В архиве
-                  </span>
-                )}
+              {isArchivedView && isAdminView && (
+                <span className="inline-flex shrink-0 items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                  Архив
+                </span>
+              )}
 
-                {isArchivedView && isAdminView && (
-                  <span className="inline-flex shrink-0 items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-                    Архив
-                  </span>
-                )}
-
-                {!isDraft && !isReadOnlyView && allDone && total > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleComplete}
-                    disabled={completing}
-                    className="shrink-0 rounded-full bg-emerald-500 px-3.5 py-1.5 text-sm font-semibold text-white shadow-md transition hover:bg-emerald-600 active:scale-[0.98] disabled:opacity-60"
-                  >
-                    {completing ? '…' : 'Готово!'}
-                  </button>
-                )}
-              </div>
+              {!isDraft && !isReadOnlyView && allDone && total > 0 && (
+                <button
+                  type="button"
+                  onClick={handleComplete}
+                  disabled={completing}
+                  className="shrink-0 rounded-full bg-emerald-500 px-3.5 py-1.5 text-sm font-semibold text-white shadow-md transition hover:bg-emerald-600 active:scale-[0.98] disabled:opacity-60"
+                >
+                  {completing ? '…' : 'Готово!'}
+                </button>
+              )}
             </div>
           </ScreenTopBar>
         </ScreenTopPanel>
@@ -867,11 +922,11 @@ export default function ListPage() {
             />
 
             <AiInput
+              ref={aiInputRef}
               listId={isDraft || deferAdds ? null : listId}
               isDraft={isDraft || deferAdds}
               onDraftAdd={isDraft ? handleDraftAiAdd : handlePendingAiAdd}
               disabled={persisting || savingChanges}
-              showEntryGlow={!suppressAiEntryGlowRef.current}
             />
 
             {!isDraft && (
@@ -946,7 +1001,7 @@ export default function ListPage() {
                 type="button"
                 onClick={handleSave}
                 className={`${PRIMARY_BTN} disabled:cursor-not-allowed`}
-                disabled={saveBusy || !isDirty}
+                disabled={saveDisabled}
               >
                 {saveLabel}
               </button>

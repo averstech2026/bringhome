@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { ClipboardPaste, Sparkles, Sword, Wand2 } from 'lucide-react';
 import { parseProductsWithAI } from '../../services/aiService';
 import { getAiUsageStatus, recordAiUsage } from '../../services/aiUsageService';
@@ -54,18 +53,17 @@ function applyAdultContentFilter(products, profile, onBlocked) {
   return allowed;
 }
 
-export default function AiInput({
+export default forwardRef(function AiInput({
   listId,
   isDraft = false,
   onDraftAdd,
   disabled = false,
-  showEntryGlow = false,
-}) {
+}, ref) {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [glow, setGlow] = useState(showEntryGlow);
+  const [glow, setGlow] = useState(false);
   const [previewItems, setPreviewItems] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [adding, setAdding] = useState(false);
@@ -76,7 +74,6 @@ export default function AiInput({
 
   const sectionRef = useRef(null);
   const textareaRef = useRef(null);
-  const location = useLocation();
   const { user } = useAuth();
   const { profile, isAdmin, reload: reloadProfile } = useUserProfile(user);
 
@@ -127,6 +124,34 @@ export default function AiInput({
     }
   };
 
+  const glowTimerRef = useRef(null);
+
+  const reveal = useCallback(() => {
+    if (glowTimerRef.current) {
+      window.clearTimeout(glowTimerRef.current);
+    }
+
+    setGlow(true);
+    sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    window.setTimeout(() => {
+      focusTextareaForManualPaste();
+    }, 400);
+
+    glowTimerRef.current = window.setTimeout(() => {
+      setGlow(false);
+      glowTimerRef.current = null;
+    }, 3600);
+  }, []);
+
+  useImperativeHandle(ref, () => ({ reveal }), [reveal]);
+
+  useEffect(() => () => {
+    if (glowTimerRef.current) {
+      window.clearTimeout(glowTimerRef.current);
+    }
+  }, []);
+
   const applyPastedText = (clip) => {
     const trimmed = (clip || '').trim();
     if (!trimmed) {
@@ -154,23 +179,6 @@ export default function AiInput({
       focusTextareaForManualPaste();
     });
   };
-
-  useEffect(() => {
-    if (!showEntryGlow) return undefined;
-
-    setGlow(true);
-
-    const scrollTimer = window.setTimeout(() => {
-      sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 350);
-
-    const glowTimer = window.setTimeout(() => setGlow(false), 3600);
-
-    return () => {
-      window.clearTimeout(scrollTimer);
-      window.clearTimeout(glowTimer);
-    };
-  }, [showEntryGlow, listId, isDraft, location.key]);
 
   const openLimitModal = () => {
     setLimitPhrase(pickAiLimitPhrase(uiTheme));
@@ -411,4 +419,4 @@ export default function AiInput({
 
     </>
   );
-}
+});

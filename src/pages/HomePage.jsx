@@ -9,7 +9,11 @@ import {
   archiveList,
   updateList,
 } from '../services/listsService';
-import { getFamilyMembers, setOnboardingCompleted } from '../services/usersService';
+import { getFamilyMembers, setOnboardingCompleted, markAnnouncementsAsRead } from '../services/usersService';
+import {
+  getActiveAnnouncements,
+  getUnreadAnnouncements,
+} from '../services/announcementsService';
 import QuickCreateButtons from '../components/home/QuickCreateButtons';
 import AppHeader from '../components/layout/AppHeader';
 import ScreenTopPanel from '../components/layout/ScreenTopPanel';
@@ -19,6 +23,7 @@ import ArchiveListConfirmModal from '../components/home/ArchiveListConfirmModal'
 import ArchiveAccessModal from '../components/home/ArchiveAccessModal';
 import RequestCustomTypeModal from '../components/home/RequestCustomTypeModal';
 import OnboardingModal from '../components/onboarding/OnboardingModal';
+import FeatureAnnouncementModal from '../components/announcements/FeatureAnnouncementModal';
 import { useToast } from '../components/ui/ToastProvider';
 import { HINT_TEXT, PAGE_SECTION_TITLE } from '../components/list/cardStyles';
 import { resolveListStatus } from '../utils/listStatus';
@@ -49,6 +54,8 @@ export default function HomePage() {
   const [archiveConfirmTarget, setArchiveConfirmTarget] = useState(null);
   const [archiveAccessList, setArchiveAccessList] = useState(null);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [announcementsOpen, setAnnouncementsOpen] = useState(false);
+  const [unreadAnnouncements, setUnreadAnnouncements] = useState([]);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -121,6 +128,37 @@ export default function HomePage() {
     }
   }, [profile, profileLoading, location.key]);
 
+  useEffect(() => () => {
+    setOnboardingOpen(false);
+    setAnnouncementsOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (profileLoading || !profile || !user?.uid) return;
+    if (!isOnboardingCompleted(profile) || onboardingOpen) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const activeAnnouncements = await getActiveAnnouncements();
+        const unread = getUnreadAnnouncements(activeAnnouncements, profile);
+        if (cancelled) return;
+        setUnreadAnnouncements(unread);
+        setAnnouncementsOpen(unread.length > 0);
+      } catch {
+        if (!cancelled) {
+          setUnreadAnnouncements([]);
+          setAnnouncementsOpen(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, profileLoading, location.key, user?.uid, onboardingOpen]);
+
   const handleOnboardingComplete = async (dontShowAgain) => {
     if (user?.uid) {
       try {
@@ -131,6 +169,18 @@ export default function HomePage() {
       }
     }
     setOnboardingOpen(false);
+  };
+
+  const handleAnnouncementsComplete = async (announcementIds) => {
+    if (user?.uid && announcementIds?.length) {
+      try {
+        await markAnnouncementsAsRead(user.uid, announcementIds);
+        reload();
+      } catch (err) {
+        toast.error(err?.message || 'Не удалось сохранить прогресс');
+      }
+    }
+    setAnnouncementsOpen(false);
   };
 
   const handleCreate = (type) => {
@@ -328,6 +378,13 @@ export default function HomePage() {
         onComplete={handleOnboardingComplete}
         mode="home"
         onboardingCompleted={isOnboardingCompleted(profile)}
+      />
+
+      <FeatureAnnouncementModal
+        open={announcementsOpen}
+        announcements={unreadAnnouncements}
+        onClose={() => setAnnouncementsOpen(false)}
+        onComplete={handleAnnouncementsComplete}
       />
     </div>
   );

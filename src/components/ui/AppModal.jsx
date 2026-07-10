@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
+let openModalCount = 0;
+
 const DEFAULT_OVERLAY =
   'fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center';
 
@@ -19,10 +21,15 @@ export default function AppModal({
 }) {
   useEffect(() => {
     if (!open) return undefined;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    openModalCount += 1;
+    if (openModalCount === 1) {
+      document.body.style.overflow = 'hidden';
+    }
     return () => {
-      document.body.style.overflow = prev;
+      openModalCount = Math.max(0, openModalCount - 1);
+      if (openModalCount === 0) {
+        document.body.style.overflow = '';
+      }
     };
   }, [open]);
 

@@ -161,8 +161,14 @@ service cloud.firestore {
           || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmTokens'])
           || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pushEnabled', 'fcmTokens'])
           || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['onboardingCompleted'])
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAnnouncements'])
         )
       );
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSuperAdmin();
     }
 
     match /lists/{listId} {

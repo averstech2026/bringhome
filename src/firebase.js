@@ -32,11 +32,15 @@ import { getStorage } from 'firebase/storage';
  *   name, category, unit, updatedAt
  * }
  *
+ * announcements: {
+ *   id, title, content, hint, active, createdAt
+ * }
+ *
  * users: {
  *   email, displayName, role ("super_admin" | "family_admin" | "member"), disabled,
  *   familyId, groupId?, avatarUrl, aiLimitMonth?, aiLimits?, aiUsage?, isChild?, uiTheme?,
  *   pushEnabled?: boolean, fcmTokens?: string[],
- *   onboardingCompleted?: boolean,
+ *   onboardingCompleted?: boolean, readAnnouncements?: string[],
  *   createdAt, createdBy
  * }
  *
@@ -109,6 +113,7 @@ export const COLLECTIONS = {
   FAMILIES: 'families',
   INVITES: 'invites',
   FEEDBACKS: 'feedbacks',
+  ANNOUNCEMENTS: 'announcements',
 };
 
 export default app;

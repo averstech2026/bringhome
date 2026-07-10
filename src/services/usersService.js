@@ -14,6 +14,7 @@ import {
   updateDoc,
   deleteField,
   serverTimestamp,
+  arrayUnion,
   query,
   orderBy,
   where,
@@ -81,6 +82,7 @@ export async function createBootstrapAdmin({ email, password, displayName }) {
       total: 0,
     },
     onboardingCompleted: false,
+    readAnnouncements: [],
     createdAt: serverTimestamp(),
     createdBy: null,
   });
@@ -209,6 +211,7 @@ export async function createUserAsAdmin({
         total: 0,
       },
       onboardingCompleted: false,
+      readAnnouncements: [],
       createdAt: serverTimestamp(),
       createdBy,
     };
@@ -344,6 +347,15 @@ export async function setOnboardingCompleted(userId, completed) {
   if (!userId) return;
   await updateDoc(doc(db, COLLECTIONS.USERS, userId), {
     onboardingCompleted: completed === true,
+  });
+}
+
+export async function markAnnouncementsAsRead(userId, announcementIds) {
+  if (!userId) return;
+  const ids = [...new Set((announcementIds || []).filter(Boolean))];
+  if (ids.length === 0) return;
+  await updateDoc(doc(db, COLLECTIONS.USERS, userId), {
+    readAnnouncements: arrayUnion(...ids),
   });
 }
 

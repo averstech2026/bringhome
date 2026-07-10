@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Calendar, Check, Clock, Flame } from 'lucide-react';
 import {
   CARD_SURFACE,
   CARD_TITLE,
@@ -112,18 +113,27 @@ function ListParticipantsAvatars({ list, authorsById }) {
   );
 }
 
+const SCHEDULE_BADGE_ICONS = {
+  today: Flame,
+  tomorrow: Clock,
+  future: Calendar,
+};
+
 function ListScheduleDateBadge({ list }) {
   if (!shouldShowScheduleBadge(list)) return null;
 
   const badge = getListScheduleBadgeProps(list);
   if (!badge?.label) return null;
 
+  const Icon = SCHEDULE_BADGE_ICONS[badge.urgency] || SCHEDULE_BADGE_ICONS.future;
+
   return (
     <span
-      className={`ml-1.5 inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-medium ${badge.className}`}
+      className={`ml-1.5 inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-medium ${badge.className}`}
       title={badge.label}
     >
-      {badge.label}
+      <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
+      <span>{badge.label}</span>
     </span>
   );
 }
@@ -133,11 +143,11 @@ function ListCompletionDateBadge({ completionDateLabel }) {
 
   return (
     <span
-      className="ml-1.5 inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-xs font-medium tabular-nums text-slate-400"
+      className="ml-1.5 inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600"
       title={`Завершено ${completionDateLabel}`}
     >
-      <span aria-hidden>🏁</span>
-      <span>{completionDateLabel}</span>
+      <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
+      <span className="tabular-nums">{completionDateLabel}</span>
     </span>
   );
 }

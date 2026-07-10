@@ -151,6 +151,7 @@ export async function registerFamilyAdminViaInvite({
         total: 0,
       },
       onboardingCompleted: false,
+      readAnnouncements: [],
       createdAt: serverTimestamp(),
       createdBy: null,
     });

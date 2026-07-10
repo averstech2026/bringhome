@@ -99,7 +99,7 @@ export default function ListSchedulePicker({
         </span>
       </div>
 
-      <div className="mt-2.5 flex flex-wrap gap-2">
+      <div className="mt-2.5 flex flex-nowrap gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <PresetChip
           active={isToday(selectedDate, today)}
           disabled={disabled}

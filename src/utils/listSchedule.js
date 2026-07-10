@@ -92,28 +92,28 @@ export function formatScheduleBadgeLabel(scheduledFor, now = new Date()) {
   if (!scheduledFor) return null;
 
   const urgency = getScheduleUrgency(scheduledFor, now);
-  if (urgency === 'today') return '🔥 Сегодня';
-  if (urgency === 'tomorrow') return '⚠️ Завтра';
+  if (urgency === 'today') return 'Сегодня';
+  if (urgency === 'tomorrow') return 'Завтра';
 
   const day = startOfDay(scheduledFor);
   const today = startOfDay(now);
   const diffDays = Math.round((day - today) / (24 * 60 * 60 * 1000));
 
   if (diffDays > 0 && diffDays <= 6) {
-    return `🗓️ ${WEEKDAYS[day.getDay()]}`;
+    return WEEKDAYS[day.getDay()];
   }
 
-  return `🗓️ ${day.getDate()} ${MONTHS_GENITIVE[day.getMonth()]}`;
+  return `${day.getDate()} ${MONTHS_GENITIVE[day.getMonth()]}`;
 }
 
 export function getScheduleBadgeClasses(urgency) {
   switch (urgency) {
     case 'today':
-      return 'bg-emerald-50 text-emerald-700';
+      return 'bg-emerald-50 text-emerald-600';
     case 'tomorrow':
-      return 'bg-amber-50 text-amber-700';
+      return 'bg-yellow-50 text-amber-600';
     default:
-      return 'bg-slate-100 text-slate-600';
+      return 'bg-slate-50 text-slate-500';
   }
 }
 

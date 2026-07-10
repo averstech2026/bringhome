@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronRight, Copy, Megaphone, Plus, Trash2 } from 'lucide-react';
+import { ChevronRight, Copy, LayoutTemplate, Megaphone, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { createInvite, getAllInvites, getInviteRegisterUrl, revokeInvite } from '../services/invitesService';
 import { getAllFamilies, getFamilyUsageStats, resolveFamilyAiLimitMonth } from '../services/familiesService';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useNotifications } from '../hooks/useNotifications';
 import CreateAnnouncementModal from '../components/profile/CreateAnnouncementModal';
+import { getAllAnnouncements } from '../services/announcementsService';
 import {
   subscribeToAllFeedbacks,
   subscribeToUnreadFeedbacks,
@@ -365,31 +366,89 @@ function NotificationsTab() {
   const { user } = useAuth();
   const { profile } = useUserProfile(user);
   const [createOpen, setCreateOpen] = useState(false);
+  const [featureAnnouncements, setFeatureAnnouncements] = useState([]);
+  const [featureLoading, setFeatureLoading] = useState(true);
   const { notifications, loading } = useNotifications(user?.uid, { mode: 'outgoing' });
   const senderDisplayName = profile?.displayName || user?.displayName || 'Администратор';
 
+  const loadFeatureAnnouncements = () => {
+    setFeatureLoading(true);
+    getAllAnnouncements()
+      .then(setFeatureAnnouncements)
+      .catch(() => setFeatureAnnouncements([]))
+      .finally(() => setFeatureLoading(false));
+  };
+
+  useEffect(() => {
+    loadFeatureAnnouncements();
+  }, []);
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className={PAGE_SECTION_TITLE}>Отправленные</h3>
-        <button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-4 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
-        >
-          <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
-          Создать
-        </button>
+    <div className="space-y-6">
+      <div>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className={PAGE_SECTION_TITLE}>Глобальные анонсы</h3>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-4 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
+          >
+            <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
+            Создать
+          </button>
+        </div>
+
+        {featureLoading ? (
+          <div className="mt-4 flex justify-center py-6">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+          </div>
+        ) : featureAnnouncements.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-400">
+            Активных слайдов на главном экране пока нет — нажмите «Создать» и включите «Глобальный анонс»
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-2">
+            {featureAnnouncements.map((announcement) => (
+              <li
+                key={announcement.id}
+                className="rounded-2xl border border-violet-100 bg-white p-4 shadow-sm"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100">
+                    <LayoutTemplate className="h-4 w-4 text-violet-600" strokeWidth={2} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900">{announcement.title}</p>
+                    <p className="mt-1 text-sm leading-snug text-slate-800">{announcement.content}</p>
+                    {announcement.hint?.trim() && (
+                      <p className="mt-1 text-xs leading-relaxed text-slate-400">{announcement.hint}</p>
+                    )}
+                    <p className="mt-1.5 text-xs text-slate-400">
+                      {formatNotificationTime(announcement.createdAt)}
+                      {' · '}
+                      Главный экран
+                      {' · '}
+                      {announcement.active === false ? 'Выключен' : 'Активен'}
+                    </p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
+      <div>
+        <h3 className={PAGE_SECTION_TITLE}>Отправленные уведомления</h3>
+
       {loading ? (
-        <div className="flex justify-center py-6">
+        <div className="mt-4 flex justify-center py-6">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
         </div>
       ) : notifications.length === 0 ? (
-        <p className="text-sm text-slate-400">Исходящих уведомлений пока нет</p>
+        <p className="mt-4 text-sm text-slate-400">Исходящих уведомлений пока нет</p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="mt-4 space-y-2">
           {notifications.map((notification) => {
             const recipientLabel = notification.familyId === 'global'
               ? 'Всем пользователям'
@@ -424,12 +483,18 @@ function NotificationsTab() {
           })}
         </ul>
       )}
+      </div>
 
       <CreateAnnouncementModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         senderId={user?.uid}
         senderDisplayName={senderDisplayName}
+        onCreated={({ type }) => {
+          if (type === 'feature') {
+            loadFeatureAnnouncements();
+          }
+        }}
       />
     </div>
   );
