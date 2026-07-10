@@ -18,37 +18,40 @@ import {
 } from '../services/pushNotification';
 import { getFamilyId } from '../utils/familyGroup';
 import ListDescriptionModal, { ListDescriptionButton } from '../components/list/ListDescriptionModal';
-import ListSchedulePicker from '../components/list/ListSchedulePicker';
-import ScreenTopPanel, { ScreenTopBar } from '../components/layout/ScreenTopPanel';
-import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, syncListStatus, clearAllListItems, updateList, markListViewed, updateItemsBookingBatch, addItemsBatch, toggleItem, updateItemQuantity, updateItemCategory, updateItemComment, updateItemBooking, deleteItem, buildListSchedulePatch } from '../services/listsService';
+import ListHeaderProgress from '../components/list/ListHeaderProgress';
+import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, clearAllListItems, updateList, markListViewed, updateItemsBookingBatch, addItemsBatch, toggleItem, updateItemQuantity, updateItemCategory, updateItemComment, updateItemBooking, deleteItem } from '../services/listsService';
 import { groupItemsByCategory, getListProgress } from '../utils/groupByCategory';
-import StatusBar from '../components/list/StatusBar';
 import CategoryGroup from '../components/list/CategoryGroup';
 import AddItemForm from '../components/list/AddItemForm';
 import AiInput from '../components/list/AiInput';
-import AiJumpButton from '../components/list/AiJumpButton';
 import ShareControls from '../components/list/ShareControls';
 import CreateListAccess from '../components/list/CreateListAccess';
 import { getFamilyMembers } from '../services/usersService';
-import ListTypeBadge from '../components/list/ListTypeBadge';
 import ListAccessIcon from '../components/home/ListAccessIcon';
 import RepeatListModal from '../components/home/RepeatListModal';
 import { saveRepeatDraft } from '../utils/repeatDraftStorage';
 import {
   CARD_SURFACE,
   CARD_PAD_V,
+  CARD_SHADOW,
   HINT_TEXT,
   APP_BACKGROUND,
   PAGE_X,
   PRIMARY_BTN,
+  SCREEN_TOP_INNER,
 } from '../components/list/cardStyles';
 import { useToast } from '../components/ui/ToastProvider';
-import { parseListScheduledFor, startOfDay } from '../utils/listSchedule';
-import { getAiInputTheme, resolveUiTheme } from '../utils/uiThemes';
+import { parseDateParam, resolveSchedulePreset } from '../utils/listSchedule';
+import { useVisualViewportFixedTop } from '../hooks/useVisualViewportFixedTop';
 import {
   scheduleListReminder,
   cancelListReminder,
 } from '../services/scheduledNotifications';
+
+const LIST_FIXED_HEADER =
+  `fixed left-1/2 top-0 z-50 w-full max-w-lg -translate-x-1/2 rounded-b-2xl border border-t-0 border-gray-50/80 bg-white pt-[env(safe-area-inset-top,0px)] ${CARD_SHADOW}`;
+
+const LIST_HEADER_SPACER = 'h-[calc(env(safe-area-inset-top,0px)+4.25rem)] shrink-0';
 
 export default function ListPage() {
   const { listId } = useParams();
@@ -60,6 +63,7 @@ export default function ListPage() {
   const { profile, isSuperAdmin } = useUserProfile(user);
   const userPhotoUrl = getUserPhotoUrl(user, profile);
 
+  const listHeaderRef = useVisualViewportFixedTop();
   const isDraft = listId === 'new';
   const isArchivedView = searchParams.get('archived') === '1';
   const isAdminView = searchParams.get('adminView') === '1' && isSuperAdmin;
@@ -128,12 +132,8 @@ export default function ListPage() {
   const [accessForListId, setAccessForListId] = useState(null);
   const [repeatOpen, setRepeatOpen] = useState(false);
   const [repeatBusy, setRepeatBusy] = useState(false);
-  const [completing, setCompleting] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
-  const [scheduleSaving, setScheduleSaving] = useState(false);
-  const [savedScheduledFor, setSavedScheduledFor] = useState(null);
-  const [savedRemindOnDay, setSavedRemindOnDay] = useState(false);
   const [isHighlighting, setIsHighlighting] = useState(false);
   const shareLinkRef = useRef(null);
   const aiInputRef = useRef(null);
@@ -205,6 +205,20 @@ export default function ListPage() {
     setDraftSharedWith([]);
     setDraftIsPublic(true);
   }, [listId, resetPendingItems, resetPendingAccess]);
+
+  useEffect(() => {
+    if (!isDraft) return;
+
+    const dateParam = searchParams.get('date');
+    if (dateParam) {
+      const parsed = parseDateParam(dateParam);
+      setDraftScheduledFor(parsed);
+      return;
+    }
+
+    const preset = searchParams.get('schedule') || 'today';
+    setDraftScheduledFor(resolveSchedulePreset(preset));
+  }, [isDraft, listId, searchParams, setDraftScheduledFor]);
 
   // Черновик: подтягиваем членов семьи. По умолчанию тумблер «Для всей семьи»
   // включён (список общий), поэтому индивидуальный выбор не предзаполняем —
@@ -279,12 +293,15 @@ export default function ListPage() {
     }, 200);
   }, []);
 
-  const uiTheme = useMemo(() => resolveUiTheme(profile), [profile]);
-  const aiJumpTheme = useMemo(() => getAiInputTheme(uiTheme), [uiTheme]);
+  useEffect(() => {
+    if (!isDraft) return undefined;
 
-  const handleAiInputJump = useCallback(() => {
-    aiInputRef.current?.reveal();
-  }, []);
+    const scrollTimer = setTimeout(() => {
+      aiInputRef.current?.reveal();
+    }, 350);
+
+    return () => clearTimeout(scrollTimer);
+  }, [isDraft]);
 
   useEffect(() => {
     if (location.state?.highlightShareLink) {
@@ -297,7 +314,7 @@ export default function ListPage() {
   }, [listId, location.state?.highlightShareLink]);
 
   const grouped = groupItemsByCategory(items);
-  const { allDone, total } = getListProgress(items);
+  const { total } = getListProgress(items);
 
   useEffect(() => {
     if (isDraft || loading || !list || !shareHighlightPendingRef.current) return undefined;
@@ -603,27 +620,6 @@ export default function ListPage() {
     }
   };
 
-  const handleComplete = async () => {
-    if (!listId || isDraft || isReadOnlyView || !allDone || total === 0) return;
-
-    setCompleting(true);
-    try {
-      await syncListStatus(listId);
-      await cancelListReminder(listId);
-      navigate('/');
-    } catch {
-      navigate('/');
-    } finally {
-      setCompleting(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isDraft || !list) return;
-    setSavedScheduledFor(parseListScheduledFor(list));
-    setSavedRemindOnDay(Boolean(list.remindOnDay));
-  }, [isDraft, list?.id, list?.scheduledFor, list?.remindOnDay]);
-
   const handleSaveDescription = async (description) => {
     if (isDraft) {
       setDraftDescription(description);
@@ -639,67 +635,7 @@ export default function ListPage() {
     }
   };
 
-  const persistListSchedule = async (scheduledFor, remindOnDay) => {
-    if (!listId || isDraft || isReadOnlyView) return;
-
-    const currentScheduledFor = parseListScheduledFor(list);
-    const sameDate =
-      (!currentScheduledFor && !scheduledFor)
-      || (currentScheduledFor && scheduledFor && currentScheduledFor.getTime() === startOfDay(scheduledFor).getTime());
-    const sameRemind = Boolean(list?.remindOnDay) === Boolean(remindOnDay);
-
-    if (sameDate && sameRemind) return;
-
-    setScheduleSaving(true);
-    try {
-      const scheduledDate = scheduledFor ? startOfDay(scheduledFor) : null;
-
-      await updateList(listId, buildListSchedulePatch({ scheduledFor: scheduledDate, remindOnDay }));
-
-      setSavedScheduledFor(scheduledDate);
-      setSavedRemindOnDay(Boolean(scheduledDate && remindOnDay));
-
-      if (scheduledDate && remindOnDay) {
-        const result = await scheduleListReminder({
-          listId,
-          listTitle: list.title,
-          scheduledFor: scheduledDate,
-          remindOnDay: true,
-        });
-        if (result.reason === 'denied') {
-          toast.error('Разрешите уведомления в настройках браузера');
-        }
-      } else {
-        await cancelListReminder(listId);
-      }
-    } catch (err) {
-      toast.error(err?.message || 'Не удалось сохранить дату');
-    } finally {
-      setScheduleSaving(false);
-    }
-  };
-
-  const handleScheduleChange = async (scheduledFor) => {
-    if (isDraft) {
-      setDraftScheduledFor(scheduledFor);
-      if (!scheduledFor) setDraftRemindOnDay(false);
-      return;
-    }
-    const remindOnDay = scheduledFor ? savedRemindOnDay : false;
-    await persistListSchedule(scheduledFor, remindOnDay);
-  };
-
-  const handleRemindChange = async (remindOnDay) => {
-    if (isDraft) {
-      setDraftRemindOnDay(remindOnDay);
-      return;
-    }
-    await persistListSchedule(savedScheduledFor, remindOnDay);
-  };
-
   const listDescription = isDraft ? draftDescription : list?.description || '';
-  const listScheduledFor = isDraft ? draftScheduledFor : savedScheduledFor;
-  const listRemindOnDay = isDraft ? draftRemindOnDay : savedRemindOnDay;
 
   const showFooter = !isAdminView && (isDraft || isArchivedView || isEditMode);
   const showDoneButton = isEditMode && !isDirty && showCreationDone;
@@ -748,17 +684,74 @@ export default function ListPage() {
     </button>
   );
 
+  const renderFixedHeader = (content) => (
+    <>
+      <header ref={listHeaderRef} className={LIST_FIXED_HEADER}>
+        <div className={SCREEN_TOP_INNER}>{content}</div>
+      </header>
+      <div aria-hidden className={LIST_HEADER_SPACER} />
+    </>
+  );
+
+  const renderHeaderTitleRow = () => (
+    <div className="flex min-h-10 items-center gap-2">
+      {renderBackButton()}
+
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        <h1 className="max-w-[38%] shrink-0 truncate text-lg font-bold leading-none tracking-tight text-slate-900 sm:max-w-[45%]">
+          {activeList.title}
+        </h1>
+        <ListDescriptionButton
+          hasDescription={Boolean(listDescription?.trim())}
+          onClick={() => setDescriptionOpen(true)}
+          disabled={persisting}
+        />
+
+        {!isReadOnlyView && (
+          <ListHeaderProgress
+            inline
+            items={items}
+            onClear={handleClearList}
+            clearing={clearing || persisting || savingChanges}
+          />
+        )}
+      </div>
+
+      <div className="flex shrink-0 items-center justify-end gap-1.5">
+        {!isDraft && !isReadOnlyView && <ListAccessIcon list={displayList || activeList} />}
+
+        {isAdminView && (
+          <span className="inline-flex shrink-0 items-center rounded-md bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
+            Просмотр
+          </span>
+        )}
+
+        {isArchivedView && !isAdminView && (
+          <span className="inline-flex shrink-0 items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+            В архиве
+          </span>
+        )}
+
+        {isArchivedView && isAdminView && (
+          <span className="inline-flex shrink-0 items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+            Архив
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className={`flex min-h-full flex-col ${APP_BACKGROUND} ${PAGE_X} pt-0`}>
-        <ScreenTopPanel>
-          <ScreenTopBar>
+        {renderFixedHeader(
+          <div className="flex min-h-10 items-center gap-2">
             {renderBackButton()}
             <h1 className="min-w-0 flex-1 truncate text-lg font-bold leading-none tracking-tight text-slate-900">
               {activeList?.title || 'Загрузка…'}
             </h1>
-          </ScreenTopBar>
-        </ScreenTopPanel>
+          </div>,
+        )}
         <div className="flex flex-1 items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
         </div>
@@ -769,14 +762,14 @@ export default function ListPage() {
   if (!isDraft && (accessError || listError || itemsError || !list)) {
     return (
       <div className={`flex min-h-full flex-col ${APP_BACKGROUND} ${PAGE_X} pt-0`}>
-        <ScreenTopPanel>
-          <ScreenTopBar>
+        {renderFixedHeader(
+          <div className="flex min-h-10 items-center gap-2">
             {renderBackButton()}
             <h1 className="min-w-0 flex-1 truncate text-lg font-bold leading-none tracking-tight text-slate-900">
               Список
             </h1>
-          </ScreenTopBar>
-        </ScreenTopPanel>
+          </div>,
+        )}
         <div className="flex flex-1 flex-col items-center justify-center">
           <p className="text-center text-slate-500">
             {accessError === 'archived'
@@ -797,85 +790,13 @@ export default function ListPage() {
 
   return (
     <div className={`flex min-h-full flex-col ${APP_BACKGROUND} ${PAGE_X} pt-0`}>
-      <ScreenTopPanel>
-        <ScreenTopBar>
-            {renderBackButton()}
-
-            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-              <h1 className="min-w-0 truncate text-lg font-bold leading-none tracking-tight text-slate-900">
-                {activeList.title}
-              </h1>
-              <ListDescriptionButton
-                hasDescription={Boolean(listDescription?.trim())}
-                onClick={() => setDescriptionOpen(true)}
-                disabled={persisting}
-              />
-            </div>
-
-            <div className="flex shrink-0 items-center justify-end gap-2">
-              {!isReadOnlyView && (
-                <AiJumpButton
-                  onClick={handleAiInputJump}
-                  disabled={persisting || savingChanges}
-                  aiJumpTheme={aiJumpTheme}
-                />
-              )}
-              {!isDraft && !isReadOnlyView && <ListAccessIcon list={displayList || activeList} />}
-              <ListTypeBadge type={activeList.type} />
-
-              {isAdminView && (
-                <span className="inline-flex shrink-0 items-center rounded-md bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
-                  Просмотр
-                </span>
-              )}
-
-              {isArchivedView && !isAdminView && (
-                <span className="inline-flex shrink-0 items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-                  В архиве
-                </span>
-              )}
-
-              {isArchivedView && isAdminView && (
-                <span className="inline-flex shrink-0 items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-                  Архив
-                </span>
-              )}
-
-              {!isDraft && !isReadOnlyView && allDone && total > 0 && (
-                <button
-                  type="button"
-                  onClick={handleComplete}
-                  disabled={completing}
-                  className="shrink-0 rounded-full bg-emerald-500 px-3.5 py-1.5 text-sm font-semibold text-white shadow-md transition hover:bg-emerald-600 active:scale-[0.98] disabled:opacity-60"
-                >
-                  {completing ? '…' : 'Готово!'}
-                </button>
-              )}
-            </div>
-          </ScreenTopBar>
-        </ScreenTopPanel>
+      {renderFixedHeader(renderHeaderTitleRow())}
 
       {listDescription?.trim() && (
         <p className="mt-1 truncate text-xs text-slate-400">{listDescription}</p>
       )}
 
       <main className={`flex flex-1 flex-col gap-3 pt-3 ${showFooter ? 'pb-28' : 'pb-10'}`}>
-        {!isReadOnlyView && (
-          <ListSchedulePicker
-            value={listScheduledFor}
-            remindOnDay={listRemindOnDay}
-            onChange={handleScheduleChange}
-            onRemindChange={handleRemindChange}
-            disabled={persisting || savingChanges || scheduleSaving}
-          />
-        )}
-
-        <StatusBar
-          items={items}
-          onClear={!isReadOnlyView ? handleClearList : undefined}
-          clearing={clearing || persisting || savingChanges}
-        />
-
         <div className={`${CARD_SURFACE} ${CARD_PAD_V}`}>
           {grouped.length === 0 ? (
             <p className={HINT_TEXT}>

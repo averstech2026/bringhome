@@ -309,7 +309,7 @@ function ListProgress({ progress, listType, className = '' }) {
 
   return (
     <div
-      className={`h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100 ${className}`}
+      className={`h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100 ${className}`}
       role="progressbar"
       aria-valuenow={checked}
       aria-valuemin={0}

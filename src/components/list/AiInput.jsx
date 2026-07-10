@@ -132,7 +132,7 @@ export default forwardRef(function AiInput({
     }
 
     setGlow(true);
-    sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     window.setTimeout(() => {
       focusTextareaForManualPaste();
@@ -328,7 +328,10 @@ export default forwardRef(function AiInput({
 
   return (
     <>
-      <section ref={sectionRef} className="scroll-mt-24">
+      <section
+        ref={sectionRef}
+        className="scroll-mt-[calc(env(safe-area-inset-top,0px)+4.25rem+0.5rem)]"
+      >
         <BorderGapCard
           className={`transition-all duration-300 ${aiTheme.cardClassName} ${glow ? aiTheme.glowClassName : ''}`}
           borderClassName={aiTheme.borderClassName}

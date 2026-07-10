@@ -187,3 +187,25 @@ export function formatSchedulePresetLabel(date, now = new Date()) {
   const mm = String(date.getMonth() + 1).padStart(2, '0');
   return `${dd}.${mm}`;
 }
+
+/** Пресет даты из шторки создания: today | tomorrow | weekend */
+export function resolveSchedulePreset(preset, now = new Date()) {
+  const today = getToday(now);
+  if (preset === 'tomorrow') return addDays(today, 1);
+  if (preset === 'weekend') return getNextWeekend(now);
+  return null;
+}
+
+export function formatDateParam(date) {
+  const day = startOfDay(date);
+  const yyyy = day.getFullYear();
+  const mm = String(day.getMonth() + 1).padStart(2, '0');
+  const dd = String(day.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+export function parseDateParam(raw) {
+  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const parsed = startOfDay(new Date(`${raw}T12:00:00`));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}

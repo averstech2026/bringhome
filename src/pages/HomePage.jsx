@@ -14,18 +14,19 @@ import {
   getActiveAnnouncements,
   getUnreadAnnouncements,
 } from '../services/announcementsService';
-import QuickCreateButtons from '../components/home/QuickCreateButtons';
+import CreateListFab from '../components/home/CreateListFab';
+import CreateListSheet from '../components/home/CreateListSheet';
+import RequestCustomTypeModal from '../components/home/RequestCustomTypeModal';
 import AppHeader from '../components/layout/AppHeader';
 import ScreenTopPanel from '../components/layout/ScreenTopPanel';
 import ListCard from '../components/home/ListCard';
 import CompletedListsSection from '../components/home/CompletedListsSection';
 import ArchiveListConfirmModal from '../components/home/ArchiveListConfirmModal';
 import ArchiveAccessModal from '../components/home/ArchiveAccessModal';
-import RequestCustomTypeModal from '../components/home/RequestCustomTypeModal';
 import OnboardingModal from '../components/onboarding/OnboardingModal';
 import FeatureAnnouncementModal from '../components/announcements/FeatureAnnouncementModal';
 import { useToast } from '../components/ui/ToastProvider';
-import { HINT_TEXT, PAGE_SECTION_TITLE } from '../components/list/cardStyles';
+import { HINT_TEXT } from '../components/list/cardStyles';
 import { resolveListStatus } from '../utils/listStatus';
 import { sortActiveListsBySchedule } from '../utils/listSchedule';
 import {
@@ -36,8 +37,8 @@ import {
 } from '../services/scheduledNotifications';
 import { canArchiveList, getListArchiveAdmins, isListOwner, isListSharedWithUser } from '../utils/listPermissions';
 import { clearRepeatDraft } from '../utils/repeatDraftStorage';
-import { encodeListTypeForUrl } from '../utils/listTypes';
 import { isOnboardingCompleted } from '../utils/onboardingContent';
+import { formatDateParam } from '../utils/listSchedule';
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -50,8 +51,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [busyId, setBusyId] = useState(null);
-  const [requestCustomOpen, setRequestCustomOpen] = useState(false);
   const [archiveConfirmTarget, setArchiveConfirmTarget] = useState(null);
+  const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  const [requestCustomOpen, setRequestCustomOpen] = useState(false);
   const [archiveAccessList, setArchiveAccessList] = useState(null);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
@@ -183,14 +185,20 @@ export default function HomePage() {
     setAnnouncementsOpen(false);
   };
 
-  const handleCreate = (type) => {
-    clearRepeatDraft();
-    navigate(`/list/new?type=${encodeListTypeForUrl(type)}`);
+  const handleOpenCreateSheet = () => {
+    setCreateSheetOpen(true);
   };
 
-  const handleCreateCustom = (name) => {
+  const handleCreateListConfirm = ({ type, scheduledFor }) => {
     clearRepeatDraft();
-    navigate(`/list/new?type=${encodeListTypeForUrl(name)}`);
+    setCreateSheetOpen(false);
+
+    const params = new URLSearchParams();
+    params.set('type', type);
+    if (scheduledFor) {
+      params.set('date', formatDateParam(scheduledFor));
+    }
+    navigate(`/list/new?${params.toString()}`);
   };
 
   const handleArchiveRequest = (list) => {
@@ -250,12 +258,12 @@ export default function HomePage() {
     (list) => resolveListStatus(list, listProgress[list.id]) === 'completed',
   );
 
-  const renderActiveListGroup = (groupLists, subtitle) => {
+  const renderActiveListGroup = (groupLists, subtitle, { isFirst = false } = {}) => {
     if (groupLists.length === 0) return null;
 
     return (
-      <div className={subtitle === 'Доступные мне' && myActiveLists.length > 0 ? 'mt-5' : 'mt-4'}>
-        <h3 className="mb-2 pl-1 text-xs font-medium text-slate-400/90">
+      <div className={isFirst ? 'mt-4' : 'mt-5'}>
+        <h3 className="mb-2 pl-1 text-xs font-medium text-slate-500">
           {subtitle}
         </h3>
         <ul className="space-y-2.5">
@@ -291,22 +299,12 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex min-h-full flex-col px-4 pb-10 pt-0">
+    <div className="flex min-h-full flex-col px-4 pb-24 pt-0">
       <ScreenTopPanel>
         <AppHeader variant="embedded" />
       </ScreenTopPanel>
 
-      <QuickCreateButtons
-        variant="toolbar"
-        onCreate={handleCreate}
-        onCreateCustom={handleCreateCustom}
-        canCreateCustom={isSuperAdmin}
-        onRequestCustom={() => setRequestCustomOpen(true)}
-      />
-
-      <section className="mt-6">
-        <h2 className={PAGE_SECTION_TITLE}>Актуальные</h2>
-
+      <section className="mt-4">
         {loadError && (
           <p className={`mt-2 ${HINT_TEXT} text-red-500`}>{loadError}</p>
         )}
@@ -323,8 +321,8 @@ export default function HomePage() {
           <>
             {activeLists.length > 0 && (
               <>
-                {renderActiveListGroup(myActiveLists, 'Мои списки')}
-                {renderActiveListGroup(sharedActiveLists, 'Доступные мне')}
+                {renderActiveListGroup(myActiveLists, 'Мои актуальные', { isFirst: true })}
+                {renderActiveListGroup(sharedActiveLists, 'Доступные актуальные')}
               </>
             )}
 
@@ -339,6 +337,19 @@ export default function HomePage() {
           </>
         ) : null}
       </section>
+
+      <CreateListFab onClick={handleOpenCreateSheet} disabled={loading || profileLoading} />
+
+      <CreateListSheet
+        open={createSheetOpen}
+        onClose={() => setCreateSheetOpen(false)}
+        onConfirm={handleCreateListConfirm}
+        canCreateCustom={isSuperAdmin}
+        onRequestCustom={() => {
+          setCreateSheetOpen(false);
+          setRequestCustomOpen(true);
+        }}
+      />
 
       <RequestCustomTypeModal
         open={requestCustomOpen}

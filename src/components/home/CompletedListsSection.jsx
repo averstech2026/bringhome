@@ -10,7 +10,19 @@ import {
   getListTypeLabel,
   isBuiltinListType,
 } from '../../utils/listTypes';
-import { PAGE_SECTION_TITLE } from '../list/cardStyles';
+import { APP_BACKGROUND } from '../list/cardStyles';
+
+function CompletedSectionDivider({ count }) {
+  return (
+    <div className={`flex items-center gap-3 ${APP_BACKGROUND}`}>
+      <div className="h-px min-w-0 flex-1 bg-gray-200" />
+      <span className="shrink-0 text-xs text-gray-400">
+        — Готовые списки ({count}) —
+      </span>
+      <div className="h-px min-w-0 flex-1 bg-gray-200" />
+    </div>
+  );
+}
 
 const TYPE_COUNT_BADGE = {
   home: 'bg-emerald-50/40 text-emerald-600/80 border border-emerald-200/40',
@@ -120,16 +132,19 @@ function CompletedListsGrouped({ lists, renderListCard }) {
 
   return (
     <>
-      <div className="flex items-center justify-between gap-3">
-        <h2 className={PAGE_SECTION_TITLE}>Готовые</h2>
-        <button
-          type="button"
-          onClick={toggleAllGroups}
-          className="shrink-0 text-xs font-medium text-slate-500 transition-colors hover:text-slate-700 active:text-slate-800"
-        >
-          {allExpanded ? 'Свернуть все' : 'Развернуть все'}
-        </button>
-      </div>
+      <CompletedSectionDivider count={lists.length} />
+
+      {groups.length > 1 && (
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            onClick={toggleAllGroups}
+            className="shrink-0 text-xs font-medium text-slate-500 transition-colors hover:text-slate-700 active:text-slate-800"
+          >
+            {allExpanded ? 'Свернуть все' : 'Развернуть все'}
+          </button>
+        </div>
+      )}
 
       <div className="mt-3">
         {groups.map((group) => (
@@ -151,7 +166,7 @@ function CompletedListsFlat({ lists, renderListCard }) {
 
   return (
     <>
-      <h2 className={PAGE_SECTION_TITLE}>Готовые</h2>
+      <CompletedSectionDivider count={lists.length} />
       <ul className="mt-3 space-y-2.5">
         {sorted.map((list) => (
           <li key={list.id}>{renderListCard(list)}</li>
