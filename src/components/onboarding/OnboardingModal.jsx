@@ -6,6 +6,9 @@ import { CHIP_BUTTON_SURFACE, PRIMARY_BTN } from '../list/cardStyles';
 import { ONBOARDING_STEPS } from '../../utils/onboardingContent';
 
 const LAST_STEP_INDEX = ONBOARDING_STEPS.length - 1;
+const SLIDE_HEIGHT = 'h-[11rem]';
+const FOOTER_HEIGHT = 'h-[6.25rem]';
+const FOOTER_HINT_CLASS = 'text-xs leading-relaxed text-slate-500';
 
 const DEMO_BUTTONS = [
   {
@@ -24,56 +27,77 @@ const DEMO_BUTTONS = [
 
 function StepCard({ step }) {
   return (
-    <div className="flex w-full shrink-0 snap-center flex-col px-1">
-      {step.emoji && (
-        <span className="mb-3 text-3xl" aria-hidden>
-          {step.emoji}
-        </span>
-      )}
-      <h3 className="text-lg font-bold text-slate-900">{step.title}</h3>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{step.description}</p>
+    <div className="flex h-full w-full flex-col justify-between px-1">
+      <div>
+        {step.emoji && (
+          <span className="mb-3 block text-3xl" aria-hidden>
+            {step.emoji}
+          </span>
+        )}
+        <h3 className="text-lg font-bold text-slate-900">{step.title}</h3>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">{step.description}</p>
 
-      {step.showQuickButtons && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {DEMO_BUTTONS.map((button) => (
-            <span
-              key={button.label}
-              className={`${CHIP_BUTTON_SURFACE} pointer-events-none ${button.className}`}
-            >
-              {button.label}
-            </span>
-          ))}
-        </div>
-      )}
+        {step.showQuickButtons && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {DEMO_BUTTONS.map((button) => (
+              <span
+                key={button.label}
+                className={`${CHIP_BUTTON_SURFACE} pointer-events-none ${button.className}`}
+              >
+                {button.label}
+              </span>
+            ))}
+          </div>
+        )}
 
-      {step.showAiBadge && (
-        <div className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-violet-100 bg-violet-50/60 px-3 py-2.5">
-          <AiBadge className="h-6 w-6 rounded-[5px]" />
-          <span className="text-sm font-medium text-violet-800">AI-помощник в списке</span>
-        </div>
-      )}
+        {step.showAiBadge && (
+          <div className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-violet-100 bg-violet-50/60 px-3 py-2.5">
+            <AiBadge className="h-6 w-6 rounded-[5px]" />
+            <span className="text-sm font-medium text-violet-800">AI-помощник в списке</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function DismissToggleRow({ enabled, onChange }) {
+function OnboardingFooter({
+  activeStep,
+  dontShowAgain,
+  onDontShowAgainChange,
+}) {
+  const isLastStep = activeStep === LAST_STEP_INDEX;
+  const tip = ONBOARDING_STEPS[activeStep]?.tip;
+  const inboxHint = 'Это знакомство всегда можно перечитать во «Входящих» уведомлениях.';
+  const repeatHint = 'Это знакомство будет появляться на главном экране при каждом входе в приложение.';
+  const footerHint = isLastStep
+    ? (dontShowAgain ? inboxHint : repeatHint)
+    : tip;
+
   return (
-    <div className="mt-5 w-full">
-      <div className="flex items-center gap-3 px-0.5 py-1">
-        <FamilyToggle enabled={enabled} onChange={onChange} />
-        <button
-          type="button"
-          onClick={() => onChange(!enabled)}
-          className="text-sm text-slate-600"
-        >
-          Больше не показывать
-        </button>
+    <div className={`mt-5 ${FOOTER_HEIGHT} w-full shrink-0`}>
+      <div className="flex h-9 items-center gap-3 px-0.5">
+        {isLastStep ? (
+          <>
+            <FamilyToggle enabled={dontShowAgain} onChange={onDontShowAgainChange} />
+            <button
+              type="button"
+              onClick={() => onDontShowAgainChange(!dontShowAgain)}
+              className="text-sm text-slate-600"
+            >
+              Больше не показывать
+            </button>
+          </>
+        ) : (
+          <span className="invisible flex items-center gap-3" aria-hidden>
+            <span className="inline-block h-7 w-12 rounded-full bg-gray-200" />
+            <span className="text-sm">Больше не показывать</span>
+          </span>
+        )}
       </div>
-      {enabled && (
-        <p className="mt-2.5 text-xs leading-relaxed text-slate-500">
-          Это знакомство всегда можно перечитать во «Входящих» уведомлениях.
-        </p>
-      )}
+      <p className={`mt-2 line-clamp-3 h-14 ${FOOTER_HINT_CLASS}`}>
+        {footerHint}
+      </p>
     </div>
   );
 }
@@ -155,10 +179,10 @@ export default function OnboardingModal({
         <div
           ref={scrollRef}
           onScroll={updateActiveFromScroll}
-          className="mt-5 flex snap-x snap-mandatory overflow-x-auto no-scrollbar"
+          className={`mt-5 flex ${SLIDE_HEIGHT} shrink-0 snap-x snap-mandatory overflow-x-auto no-scrollbar`}
         >
           {ONBOARDING_STEPS.map((step) => (
-            <div key={step.id} className="w-full shrink-0 snap-center">
+            <div key={step.id} className="flex h-full w-full shrink-0 snap-center">
               <StepCard step={step} />
             </div>
           ))}
@@ -179,18 +203,17 @@ export default function OnboardingModal({
           ))}
         </div>
 
-        {isLastStep && (
-          <DismissToggleRow
-            enabled={dontShowAgain}
-            onChange={setDontShowAgain}
-          />
-        )}
+        <OnboardingFooter
+          activeStep={activeStep}
+          dontShowAgain={dontShowAgain}
+          onDontShowAgainChange={setDontShowAgain}
+        />
 
         <button
           type="button"
           disabled={submitting}
           onClick={handlePrimaryAction}
-          className={`${isLastStep ? 'mt-3' : 'mt-5'} ${PRIMARY_BTN}`}
+          className={`mt-3 ${PRIMARY_BTN}`}
         >
           {isLastStep ? lastStepLabel : 'Далее →'}
         </button>

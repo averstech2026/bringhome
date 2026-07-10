@@ -132,7 +132,7 @@ export default function FamilyManagementPage() {
       await resetOnboardingForUser(userId);
       await load();
     } catch (err) {
-      setLoadError(err?.message || 'Не удалось сбросить аннотацию');
+      setLoadError(err?.message || 'Не удалось сбросить знакомство');
     } finally {
       setBusyUserId(null);
     }

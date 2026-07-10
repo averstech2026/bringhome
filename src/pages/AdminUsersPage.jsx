@@ -5,6 +5,7 @@ import {
   createUserAsAdmin,
   getFamilyMembers,
   isOwnerEmail,
+  resetOnboardingForUser,
   setUserDisabled,
   updateUserAsAdmin,
 } from '../services/usersService';
@@ -164,6 +165,19 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleResetOnboarding = async (userId) => {
+    setError('');
+    setBusyUserId(userId);
+    try {
+      await resetOnboardingForUser(userId);
+      loadUsers();
+    } catch (err) {
+      setError(err?.message || 'Не удалось сбросить знакомство');
+    } finally {
+      setBusyUserId(null);
+    }
+  };
+
   return (
     <div className="flex min-h-full flex-col px-4 pb-8 pt-0">
       <PageHeader title="Управление семьёй" backTo="/settings" />
@@ -207,6 +221,8 @@ export default function AdminUsersPage() {
                   family={family}
                   platformAdminUid={platformAdminUid}
                   busy={busyUserId === member.id}
+                  showOnboardingStatus
+                  onResetOnboarding={handleResetOnboarding}
                   onEditUser={(selectedUser) => setModal({ mode: 'edit', user: selectedUser })}
                   onToggleDisabled={handleToggleDisabled}
                 />

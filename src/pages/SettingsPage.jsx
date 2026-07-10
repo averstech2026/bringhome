@@ -32,21 +32,46 @@ const appVersion = packageJson.version;
 const buildDate = __BUILD_DATE__;
 const PUSH_LOGO = `${import.meta.env.BASE_URL}icons/logo.png`;
 const PUSH_BADGE = `${import.meta.env.BASE_URL}icons/badge.png`;
+const THEME_SCROLL_PEEK = 18;
 
-function scrollThemeButtonIntoView(container, button) {
+const THEME_CAROUSEL_CLASS =
+  '-mx-4 mt-3 flex snap-x snap-mandatory flex-nowrap gap-2 overflow-x-auto scroll-smooth scroll-pl-4 scroll-pr-4 px-4 pb-1 no-scrollbar';
+
+function scrollThemeButtonIntoView(container, button, { smooth = true } = {}) {
   if (!container || !button) return;
 
-  const padding = 6;
-  const containerRect = container.getBoundingClientRect();
-  const buttonRect = button.getBoundingClientRect();
-  const overflowRight = buttonRect.right - containerRect.right;
-  const overflowLeft = containerRect.left - buttonRect.left;
+  const viewWidth = container.clientWidth;
+  const maxScroll = Math.max(0, container.scrollWidth - viewWidth);
+  const buttonLeft = button.offsetLeft;
+  const buttonRight = buttonLeft + button.offsetWidth;
 
-  if (overflowRight > 0) {
-    container.scrollBy({ left: overflowRight + padding, behavior: 'smooth' });
-  } else if (overflowLeft > 0) {
-    container.scrollBy({ left: -(overflowLeft + padding), behavior: 'smooth' });
+  let targetScroll = buttonRight - viewWidth + THEME_SCROLL_PEEK;
+  targetScroll = Math.max(0, Math.min(maxScroll, targetScroll));
+
+  const firstButton = container.querySelector('[data-theme-chip]');
+  if (firstButton) {
+    const firstRight = firstButton.offsetLeft + firstButton.offsetWidth;
+    const peekScroll = Math.max(0, firstRight - THEME_SCROLL_PEEK);
+    if (targetScroll > peekScroll && buttonRight - peekScroll <= viewWidth) {
+      targetScroll = Math.min(peekScroll, maxScroll);
+    }
   }
+
+  const lastButton = container.querySelector('[data-theme-chip]:last-of-type');
+  if (lastButton && lastButton !== firstButton) {
+    const lastRight = lastButton.offsetLeft + lastButton.offsetWidth;
+    const trailingPeekScroll = Math.max(0, lastRight - viewWidth + THEME_SCROLL_PEEK);
+    if (targetScroll < trailingPeekScroll && lastRight - targetScroll >= viewWidth - THEME_SCROLL_PEEK) {
+      targetScroll = Math.min(trailingPeekScroll, maxScroll);
+    }
+  }
+
+  if (Math.abs(targetScroll - container.scrollLeft) < 1) return;
+
+  container.scrollTo({
+    left: targetScroll,
+    behavior: smooth ? 'smooth' : 'instant',
+  });
 }
 
 function SettingsSwitch({ enabled, onChange, disabled = false }) {
@@ -106,6 +131,7 @@ export default function SettingsPage() {
   const avatarMenuRef = useRef(null);
   const themeCarouselRef = useRef(null);
   const themeButtonRefs = useRef({});
+  const themeScrollInitialized = useRef(false);
 
   const [pendingFile, setPendingFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -217,11 +243,15 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    const container = themeCarouselRef.current;
     const button = themeButtonRefs.current[currentUiTheme];
-    if (!button) return undefined;
+    if (!container || !button) return undefined;
 
     const frame = window.requestAnimationFrame(() => {
-      scrollThemeButtonIntoView(themeCarouselRef.current, button);
+      scrollThemeButtonIntoView(container, button, {
+        smooth: themeScrollInitialized.current,
+      });
+      themeScrollInitialized.current = true;
     });
 
     return () => window.cancelAnimationFrame(frame);
@@ -689,23 +719,17 @@ export default function SettingsPage() {
             )}
 
             {profileLoading || !profile ? (
-              <div
-                className="-mx-1 mt-3 flex flex-nowrap gap-1.5 px-1 pb-0.5"
-                aria-hidden
-              >
+              <div className={THEME_CAROUSEL_CLASS} aria-hidden>
                 {PROFILE_THEME_OPTIONS.map((option) => (
                   <div
                     key={option.id}
-                    className="h-[34px] shrink-0 animate-pulse rounded-full bg-slate-100"
+                    className="h-[34px] shrink-0 snap-start animate-pulse rounded-full bg-slate-100"
                     style={{ width: `${Math.max(88, option.label.length * 8)}px` }}
                   />
                 ))}
               </div>
             ) : (
-              <div
-                ref={themeCarouselRef}
-                className="-mx-1 mt-3 flex flex-nowrap gap-1.5 overflow-x-auto scroll-smooth px-1 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              >
+              <div ref={themeCarouselRef} className={THEME_CAROUSEL_CLASS}>
                 {PROFILE_THEME_OPTIONS.map((option) => {
                   const active = currentUiTheme === option.id;
                   return (
@@ -715,6 +739,7 @@ export default function SettingsPage() {
                         if (node) themeButtonRefs.current[option.id] = node;
                       }}
                       type="button"
+                      data-theme-chip
                       disabled={savingTheme}
                       aria-pressed={active}
                       onClick={() => handleThemeChange(option.id)}

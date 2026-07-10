@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { Pencil } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getFamily, getFamilyUsageStats, resolveFamilyAiLimitMonth, updateFamilyLimits } from '../services/familiesService';
-import { getFamilyMembers, getPlatformAdminUid } from '../services/usersService';
+import { getFamilyMembers, getPlatformAdminUid, resetOnboardingForUser } from '../services/usersService';
 import { getFamilyLists, getItemsProgressByListIds } from '../services/listsService';
 import { resolveListStatus } from '../utils/listStatus';
 import { getListSortTimestamp, sortCompletedListsByDate } from '../utils/groupCompletedLists';
@@ -12,34 +12,38 @@ import { PAGE_SECTION_TITLE, HINT_TEXT } from '../components/list/cardStyles';
 import ListCard from '../components/home/ListCard';
 import CompletedListsSection from '../components/home/CompletedListsSection';
 import FamilyAiStatsPanel from '../components/admin/FamilyAiStatsPanel';
-import UserInfoCard from '../components/admin/UserInfoCard';
+import { AdminUserCard } from '../components/admin/AdminUserCard';
 import FamilyLimitsModal from '../components/admin/FamilyLimitsModal';
 import { useToast } from '../components/ui/ToastProvider';
 
-const VALID_TABS = ['overview', 'ai-stats'];
+const VALID_TABS = ['overview', 'lists', 'ai-stats'];
 
 function FamilyDetailTabs({ value, onChange }) {
   const tabs = [
     { id: 'overview', label: 'Обзор' },
+    { id: 'lists', label: 'Списки покупок' },
     { id: 'ai-stats', label: 'Статистика ИИ' },
   ];
 
   return (
-    <div className="inline-flex h-10 items-center rounded-full bg-slate-100/80 p-1">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onChange(tab.id)}
-          className={`flex h-full items-center rounded-full px-4 text-sm transition-colors ${
-            value === tab.id
-              ? 'bg-white font-semibold text-slate-900 shadow-sm'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          {tab.label}
-        </button>
-      ))}
+    <div className="inline-flex h-9 items-center rounded-full bg-slate-100/80 p-1">
+      {tabs.map((tab) => {
+        const active = value === tab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+            className={`flex h-full items-center justify-center rounded-full px-3 text-sm font-medium transition-colors ${
+              active
+                ? 'bg-white font-semibold text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -117,11 +121,14 @@ export default function SuperAdminFamilyDetailPage() {
   const [error, setError] = useState('');
   const [limitsModalOpen, setLimitsModalOpen] = useState(false);
   const [savingLimits, setSavingLimits] = useState(false);
+  const [busyUserId, setBusyUserId] = useState(null);
   const toast = useToast();
 
   const backTo = '/admin/dashboard?tab=families';
   const familyName = family?.name?.trim() || 'Без названия';
-  const listBackState = { backTo: `/admin/dashboard/families/${familyId}${tab === 'ai-stats' ? '?tab=ai-stats' : ''}` };
+  const listBackState = {
+    backTo: `/admin/dashboard/families/${familyId}${tab === 'overview' ? '' : `?tab=${tab}`}`,
+  };
 
   const handleTabChange = (nextTab) => {
     setSearchParams(nextTab === 'overview' ? {} : { tab: nextTab }, { replace: true });
@@ -181,6 +188,20 @@ export default function SuperAdminFamilyDetailPage() {
     }
   };
 
+  const handleResetOnboarding = async (userId) => {
+    setBusyUserId(userId);
+    try {
+      await resetOnboardingForUser(userId);
+      const memberList = await getFamilyMembers(familyId, { includeDisabled: true, includeLegacy: false });
+      setMembers(memberList.filter((member) => member.familyId === familyId));
+      setAuthorsById(Object.fromEntries(memberList.map((member) => [member.id, member])));
+    } catch (err) {
+      toast.error(err?.message || 'Не удалось сбросить знакомство');
+    } finally {
+      setBusyUserId(null);
+    }
+  };
+
   const activeLists = useMemo(
     () =>
       sortActiveLists(
@@ -218,106 +239,111 @@ export default function SuperAdminFamilyDetailPage() {
           <>
             <FamilyDetailTabs value={tab} onChange={handleTabChange} />
 
-            {tab === 'ai-stats' ? (
+            {tab === 'ai-stats' && (
               <div className="mt-6">
                 <FamilyAiStatsPanel familyId={familyId} />
               </div>
-            ) : (
-              <>
-            {stats && (
-              <div className="mt-6 flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
-                  Списки: {stats.listsCount ?? 0}/{limits.maxLists ?? '—'}
-                </span>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
-                  Юзеры: {stats.usersCount ?? 0}/{limits.maxUsers ?? '—'}
-                </span>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
-                  ИИ/мес.: {stats.aiUsed ?? 0}/{familyAiLimitMonth ?? '—'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setLimitsModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-800"
-                >
-                  <Pencil className="h-3 w-3" strokeWidth={2} aria-hidden />
-                  Редактировать лимиты
-                </button>
-              </div>
             )}
 
-            <section className="mt-6">
-              <h2 className={PAGE_SECTION_TITLE}>Участники</h2>
-              {members.length === 0 ? (
-                <p className={`mt-3 ${HINT_TEXT}`}>Участников нет</p>
-              ) : (
-                <ul className="mt-3 space-y-2.5">
-                  {members.map((member) => (
-                    <li key={member.id}>
-                      <UserInfoCard
-                        user={member}
-                        family={family}
-                        platformAdminUid={platformAdminUid}
-                        familyOwnerId={family?.ownerId}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
+            {tab === 'overview' && (
+              <>
+                {stats && (
+                  <div className="mt-6 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
+                      Списки: {stats.listsCount ?? 0}/{limits.maxLists ?? '—'}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
+                      Юзеры: {stats.usersCount ?? 0}/{limits.maxUsers ?? '—'}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
+                      ИИ/мес.: {stats.aiUsed ?? 0}/{familyAiLimitMonth ?? '—'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setLimitsModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-800"
+                    >
+                      <Pencil className="h-3 w-3" strokeWidth={2} aria-hidden />
+                      Редактировать лимиты
+                    </button>
+                  </div>
+                )}
 
-            <section className="mt-8">
-              <h2 className={PAGE_SECTION_TITLE}>Списки покупок семьи</h2>
-
-              {lists.length === 0 ? (
-                <p className={`mt-3 ${HINT_TEXT}`}>Списков пока нет</p>
-              ) : (
-                <>
-                  {activeLists.length > 0 ? (
+                <section className="mt-6">
+                  <h2 className={PAGE_SECTION_TITLE}>Участники</h2>
+                  {members.length === 0 ? (
+                    <p className={`mt-3 ${HINT_TEXT}`}>Участников нет</p>
+                  ) : (
                     <ul className="mt-3 space-y-2.5">
-                      {activeLists.map((list) => (
-                        <li key={list.id}>
-                          <ListCard
-                            list={list}
-                            progress={listProgress[list.id]}
-                            authorsById={authorsById}
-                            currentUserId={user?.uid}
-                            to={getAdminListHref(list)}
-                            linkState={listBackState}
-                            creatorOnly
-                          />
-                        </li>
+                      {members.map((member) => (
+                        <AdminUserCard
+                          key={member.id}
+                          user={member}
+                          family={family}
+                          platformAdminUid={platformAdminUid}
+                          busy={busyUserId === member.id}
+                          showOnboardingStatus
+                          onResetOnboarding={handleResetOnboarding}
+                        />
                       ))}
                     </ul>
-                  ) : (
-                    <p className={`mt-3 ${HINT_TEXT}`}>Нет актуальных списков</p>
                   )}
-
-                  {readyLists.length > 0 && (
-                    <div className="mt-6">
-                      <CompletedListsSection
-                        lists={readyLists}
-                        groupByDate={false}
-                        renderListCard={(list) => (
-                          <ListCard
-                            list={list}
-                            progress={listProgress[list.id]}
-                            authorsById={authorsById}
-                            currentUserId={user?.uid}
-                            to={getAdminListHref(list)}
-                            linkState={listBackState}
-                            dimmed
-                            showCompletionDate
-                            creatorOnly
-                          />
-                        )}
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-            </section>
+                </section>
               </>
+            )}
+
+            {tab === 'lists' && (
+              <section className="mt-6">
+                <h2 className={PAGE_SECTION_TITLE}>Списки покупок семьи</h2>
+
+                {lists.length === 0 ? (
+                  <p className={`mt-3 ${HINT_TEXT}`}>Списков пока нет</p>
+                ) : (
+                  <>
+                    {activeLists.length > 0 ? (
+                      <ul className="mt-3 space-y-2.5">
+                        {activeLists.map((list) => (
+                          <li key={list.id}>
+                            <ListCard
+                              list={list}
+                              progress={listProgress[list.id]}
+                              authorsById={authorsById}
+                              currentUserId={user?.uid}
+                              to={getAdminListHref(list)}
+                              linkState={listBackState}
+                              creatorOnly
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className={`mt-3 ${HINT_TEXT}`}>Нет актуальных списков</p>
+                    )}
+
+                    {readyLists.length > 0 && (
+                      <div className="mt-6">
+                        <CompletedListsSection
+                          lists={readyLists}
+                          groupByDate={false}
+                          renderListCard={(list) => (
+                            <ListCard
+                              list={list}
+                              progress={listProgress[list.id]}
+                              authorsById={authorsById}
+                              currentUserId={user?.uid}
+                              to={getAdminListHref(list)}
+                              linkState={listBackState}
+                              dimmed
+                              showCompletionDate
+                              creatorOnly
+                            />
+                          )}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
             )}
           </>
         )}

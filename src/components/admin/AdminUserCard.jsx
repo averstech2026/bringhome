@@ -1,53 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { MoreVertical } from 'lucide-react';
+import { MoreVertical, RotateCcw } from 'lucide-react';
 import { isOwnerEmail } from '../../services/usersService';
 import { ROLES } from '../../utils/roles';
 import { isOnboardingCompleted } from '../../utils/onboardingContent';
 import UserInfoCard from './UserInfoCard';
 
-function OnboardingStatusBadge({ user }) {
-  const completed = isOnboardingCompleted(user);
-
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium leading-none ${
-        completed
-          ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
-          : 'bg-slate-100 text-slate-500 ring-1 ring-slate-200/80'
-      }`}
-    >
-      {completed ? 'Аннотация пройдена' : 'Аннотация не пройдена'}
-    </span>
-  );
-}
-
-function OnboardingResetButton({ user, busy, onResetOnboarding }) {
-  if (!onResetOnboarding) return null;
-
-  return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={(event) => {
-        event.stopPropagation();
-        onResetOnboarding(user.id);
-      }}
-      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm transition hover:bg-slate-100 disabled:opacity-40"
-      aria-label="Сбросить аннотацию"
-      title="Сбросить аннотацию"
-    >
-      🔄
-    </button>
-  );
-}
-
-function UserActionsMenu({ user, busy, onEditUser, onToggleDisabled }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef(null);
-
+function buildMemberActions({ user, onEditUser, onToggleDisabled }) {
   const canEdit = !isOwnerEmail(user.email) && user.role !== ROLES.SUPER_ADMIN;
   const canBlock = canEdit && user.role !== ROLES.FAMILY_ADMIN && user.role !== 'admin';
-  const actions = [
+
+  return [
     ...(canEdit && onEditUser
       ? [{
           key: 'edit',
@@ -55,7 +17,7 @@ function UserActionsMenu({ user, busy, onEditUser, onToggleDisabled }) {
           onClick: () => onEditUser(user),
         }]
       : []),
-    ...(canBlock
+    ...(canBlock && onToggleDisabled
       ? [{
           key: 'disabled',
           label: user.disabled ? 'Разблокировать участника' : 'Заблокировать участника',
@@ -64,6 +26,46 @@ function UserActionsMenu({ user, busy, onEditUser, onToggleDisabled }) {
         }]
       : []),
   ];
+}
+
+function OnboardingStatusBadge({ user, interactive = false, busy = false, onReset }) {
+  const completed = isOnboardingCompleted(user);
+  const label = completed ? 'Знакомство пройдено' : 'Знакомство не пройдено';
+  const className = `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium leading-none ${
+    completed
+      ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
+      : 'bg-slate-100 text-slate-500 ring-1 ring-slate-200/80'
+  } ${
+    interactive
+      ? 'cursor-pointer transition hover:ring-2 hover:ring-emerald-200/80 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50'
+      : ''
+  }`;
+
+  if (!interactive) {
+    return <span className={className}>{label}</span>;
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={(event) => {
+        event.stopPropagation();
+        onReset?.(user.id);
+      }}
+      className={className}
+      title="Сбросить знакомство"
+      aria-label={`${label}. Сбросить знакомство`}
+    >
+      {label}
+      <RotateCcw className="h-2.5 w-2.5 shrink-0 opacity-50" strokeWidth={2.5} aria-hidden />
+    </button>
+  );
+}
+
+function UserActionsMenu({ actions, busy }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -78,7 +80,9 @@ function UserActionsMenu({ user, busy, onEditUser, onToggleDisabled }) {
     return () => document.removeEventListener('pointerdown', closeMenu);
   }, [open]);
 
-  if (actions.length === 0) return null;
+  if (actions.length === 0) {
+    return <span className="block h-8 w-8 shrink-0" aria-hidden />;
+  }
 
   return (
     <div className="relative shrink-0 self-start" ref={rootRef} onClick={(e) => e.stopPropagation()}>
@@ -134,6 +138,8 @@ export function AdminUserCard({
 }) {
   const isOwner = isOwnerEmail(user.email);
   const canEdit = !isOwner && user.role !== ROLES.SUPER_ADMIN;
+  const menuActions = buildMemberActions({ user, onEditUser, onToggleDisabled });
+  const canResetOnboarding = showOnboardingStatus && Boolean(onResetOnboarding);
 
   return (
     <li>
@@ -143,24 +149,15 @@ export function AdminUserCard({
         platformAdminUid={platformAdminUid}
         familyOwnerId={family?.ownerId}
         onClick={canEdit ? () => onEditUser?.(user) : undefined}
-        extraMeta={showOnboardingStatus ? <OnboardingStatusBadge user={user} /> : null}
-        actions={(
-          <div className="flex shrink-0 items-center gap-0.5 self-start">
-            {showOnboardingStatus && (
-              <OnboardingResetButton
-                user={user}
-                busy={busy}
-                onResetOnboarding={onResetOnboarding}
-              />
-            )}
-            <UserActionsMenu
-              user={user}
-              busy={busy}
-              onEditUser={canEdit ? onEditUser : undefined}
-              onToggleDisabled={onToggleDisabled}
-            />
-          </div>
-        )}
+        extraMeta={showOnboardingStatus ? (
+          <OnboardingStatusBadge
+            user={user}
+            interactive={canResetOnboarding}
+            busy={busy}
+            onReset={onResetOnboarding}
+          />
+        ) : null}
+        actions={<UserActionsMenu actions={menuActions} busy={busy} />}
       />
     </li>
   );
