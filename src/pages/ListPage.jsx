@@ -18,8 +18,9 @@ import {
 } from '../services/pushNotification';
 import { getFamilyId } from '../utils/familyGroup';
 import ListDescriptionModal, { ListDescriptionButton } from '../components/list/ListDescriptionModal';
+import ListSchedulePicker from '../components/list/ListSchedulePicker';
 import ScreenTopPanel, { ScreenTopBar } from '../components/layout/ScreenTopPanel';
-import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, syncListStatus, clearAllListItems, updateList, markListViewed, updateItemsBookingBatch, addItemsBatch, toggleItem, updateItemQuantity, updateItemCategory, updateItemComment, updateItemBooking, deleteItem } from '../services/listsService';
+import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, syncListStatus, clearAllListItems, updateList, markListViewed, updateItemsBookingBatch, addItemsBatch, toggleItem, updateItemQuantity, updateItemCategory, updateItemComment, updateItemBooking, deleteItem, buildListSchedulePatch } from '../services/listsService';
 import { groupItemsByCategory, getListProgress } from '../utils/groupByCategory';
 import StatusBar from '../components/list/StatusBar';
 import CategoryGroup from '../components/list/CategoryGroup';
@@ -41,6 +42,11 @@ import {
   PRIMARY_BTN,
 } from '../components/list/cardStyles';
 import { useToast } from '../components/ui/ToastProvider';
+import { parseListScheduledFor, startOfDay } from '../utils/listSchedule';
+import {
+  scheduleListReminder,
+  cancelListReminder,
+} from '../services/scheduledNotifications';
 
 export default function ListPage() {
   const { listId } = useParams();
@@ -75,6 +81,10 @@ export default function ListPage() {
     clearDraftItems,
     draftDescription,
     setDraftDescription,
+    draftScheduledFor,
+    setDraftScheduledFor,
+    draftRemindOnDay,
+    setDraftRemindOnDay,
     persistDraft,
     persistWithItems,
   } = useListDraft(listType);
@@ -119,6 +129,9 @@ export default function ListPage() {
   const [completing, setCompleting] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [savedScheduledFor, setSavedScheduledFor] = useState(null);
+  const [savedRemindOnDay, setSavedRemindOnDay] = useState(false);
   const [isHighlighting, setIsHighlighting] = useState(false);
   const shareLinkRef = useRef(null);
   const shareHighlightPendingRef = useRef(location.state?.highlightShareLink === true);
@@ -432,10 +445,19 @@ export default function ListPage() {
     });
 
     if (newListId) {
+      if (draftRemindOnDay && draftScheduledFor) {
+        scheduleListReminder({
+          listId: newListId,
+          listTitle: formatListTitle(listType, draftScheduledFor),
+          scheduledFor: draftScheduledFor,
+          remindOnDay: true,
+        }).catch((err) => console.warn('[reminder] Не удалось запланировать напоминание', err));
+      }
+
       notifyListCreated({
         list: {
           id: newListId,
-          title: formatListTitle(listType),
+          title: formatListTitle(listType, draftScheduledFor || new Date()),
           isPublic: draftIsPublic,
           allowedUsers,
           familyId,
@@ -566,6 +588,7 @@ export default function ListPage() {
     setCompleting(true);
     try {
       await syncListStatus(listId);
+      await cancelListReminder(listId);
       navigate('/');
     } catch {
       navigate('/');
@@ -573,6 +596,12 @@ export default function ListPage() {
       setCompleting(false);
     }
   };
+
+  useEffect(() => {
+    if (isDraft || !list) return;
+    setSavedScheduledFor(parseListScheduledFor(list));
+    setSavedRemindOnDay(Boolean(list.remindOnDay));
+  }, [isDraft, list?.id, list?.scheduledFor, list?.remindOnDay]);
 
   const handleSaveDescription = async (description) => {
     if (isDraft) {
@@ -589,7 +618,67 @@ export default function ListPage() {
     }
   };
 
+  const persistListSchedule = async (scheduledFor, remindOnDay) => {
+    if (!listId || isDraft || isReadOnlyView) return;
+
+    const currentScheduledFor = parseListScheduledFor(list);
+    const sameDate =
+      (!currentScheduledFor && !scheduledFor)
+      || (currentScheduledFor && scheduledFor && currentScheduledFor.getTime() === startOfDay(scheduledFor).getTime());
+    const sameRemind = Boolean(list?.remindOnDay) === Boolean(remindOnDay);
+
+    if (sameDate && sameRemind) return;
+
+    setScheduleSaving(true);
+    try {
+      const scheduledDate = scheduledFor ? startOfDay(scheduledFor) : null;
+
+      await updateList(listId, buildListSchedulePatch({ scheduledFor: scheduledDate, remindOnDay }));
+
+      setSavedScheduledFor(scheduledDate);
+      setSavedRemindOnDay(Boolean(scheduledDate && remindOnDay));
+
+      if (scheduledDate && remindOnDay) {
+        const result = await scheduleListReminder({
+          listId,
+          listTitle: list.title,
+          scheduledFor: scheduledDate,
+          remindOnDay: true,
+        });
+        if (result.reason === 'denied') {
+          toast.error('Разрешите уведомления в настройках браузера');
+        }
+      } else {
+        await cancelListReminder(listId);
+      }
+    } catch (err) {
+      toast.error(err?.message || 'Не удалось сохранить дату');
+    } finally {
+      setScheduleSaving(false);
+    }
+  };
+
+  const handleScheduleChange = async (scheduledFor) => {
+    if (isDraft) {
+      setDraftScheduledFor(scheduledFor);
+      if (!scheduledFor) setDraftRemindOnDay(false);
+      return;
+    }
+    const remindOnDay = scheduledFor ? savedRemindOnDay : false;
+    await persistListSchedule(scheduledFor, remindOnDay);
+  };
+
+  const handleRemindChange = async (remindOnDay) => {
+    if (isDraft) {
+      setDraftRemindOnDay(remindOnDay);
+      return;
+    }
+    await persistListSchedule(savedScheduledFor, remindOnDay);
+  };
+
   const listDescription = isDraft ? draftDescription : list?.description || '';
+  const listScheduledFor = isDraft ? draftScheduledFor : savedScheduledFor;
+  const listRemindOnDay = isDraft ? draftRemindOnDay : savedRemindOnDay;
 
   const showFooter = !isAdminView && (isDraft || isArchivedView || isEditMode);
   const saveBusy = persisting || savingChanges;
@@ -716,6 +805,16 @@ export default function ListPage() {
       )}
 
       <main className={`flex flex-1 flex-col gap-3 pt-3 ${showFooter ? 'pb-28' : 'pb-10'}`}>
+        {!isReadOnlyView && (
+          <ListSchedulePicker
+            value={listScheduledFor}
+            remindOnDay={listRemindOnDay}
+            onChange={handleScheduleChange}
+            onRemindChange={handleRemindChange}
+            disabled={persisting || savingChanges || scheduleSaving}
+          />
+        )}
+
         <StatusBar
           items={items}
           onClear={!isReadOnlyView ? handleClearList : undefined}

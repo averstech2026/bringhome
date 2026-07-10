@@ -7,6 +7,7 @@ import {
 } from '../list/cardStyles';
 import { getListProgressClass, getListTypeBadgeProps, isBuiltinListType } from '../../utils/listTypes';
 import { formatCompletedListDateLabel } from '../../utils/groupCompletedLists';
+import { getListScheduleBadgeProps, shouldShowScheduleBadge } from '../../utils/listSchedule';
 import { isListUnviewedByUser } from '../../utils/listPermissions';
 import ListAccessIcon from './ListAccessIcon';
 
@@ -108,6 +109,22 @@ function ListParticipantsAvatars({ list, authorsById }) {
         );
       })}
     </div>
+  );
+}
+
+function ListScheduleDateBadge({ list }) {
+  if (!shouldShowScheduleBadge(list)) return null;
+
+  const badge = getListScheduleBadgeProps(list);
+  if (!badge?.label) return null;
+
+  return (
+    <span
+      className={`ml-1.5 inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-medium ${badge.className}`}
+      title={badge.label}
+    >
+      {badge.label}
+    </span>
   );
 }
 
@@ -262,10 +279,11 @@ function UnreadListBadge() {
   );
 }
 
-function ListTitle({ title, showUnread, completionDateLabel }) {
+function ListTitle({ title, showUnread, completionDateLabel, list }) {
   return (
     <span className={`${CARD_TITLE} inline-flex min-w-0 max-w-full items-center`}>
       <span className="truncate">{title}</span>
+      {list && <ListScheduleDateBadge list={list} />}
       <ListCompletionDateBadge completionDateLabel={completionDateLabel} />
       {showUnread && <UnreadListBadge />}
     </span>
@@ -351,7 +369,7 @@ export default function ListCard({
         >
           <div className="flex min-w-0 items-center justify-between gap-3">
             <div className="min-w-0 flex-1 shrink">
-              <ListTitle title={list.title} showUnread={showUnread} />
+              <ListTitle title={list.title} showUnread={showUnread} list={list} />
               <ListSubtitle description={list.description} />
             </div>
             <div className="flex shrink-0 items-center justify-end gap-1.5">
@@ -375,6 +393,7 @@ export default function ListCard({
                 title={list.title}
                 showUnread={showUnread}
                 completionDateLabel={completionDateLabel}
+                list={list}
               />
               <ListSubtitle description={list.description} />
             </div>

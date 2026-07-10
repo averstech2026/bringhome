@@ -11,6 +11,16 @@ import './index.css';
 // автообновление. immediate: true — регистрируем сразу при загрузке страницы.
 registerSW({ immediate: true });
 
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.ready
+    .then(() => import('./services/scheduledNotifications'))
+    .then(({ syncStoredRemindersWithServiceWorker, pruneExpiredStoredReminders }) => {
+      pruneExpiredStoredReminders();
+      syncStoredRemindersWithServiceWorker().catch(() => {});
+    })
+    .catch(() => {});
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <HashRouter>

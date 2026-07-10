@@ -12,12 +12,14 @@ import {
   writeBatch,
   arrayUnion,
   arrayRemove,
+  Timestamp,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '../firebase';
 import { DEFAULT_GROUP_ID, getListFamilyId } from '../utils/familyGroup';
 import { findActiveItemByName, normalizeItemName } from '../utils/mergeItems';
 import { addQuantities, parseQuantity, resetBaseQuantity } from '../utils/quantity';
 import { computeListStatusFromItems } from '../utils/listStatus';
+import { startOfDay } from '../utils/listSchedule';
 import {
   LIST_TYPE_LABELS,
   formatListTitle,
@@ -27,6 +29,19 @@ import {
 export { LIST_TYPE_LABELS, formatListTitle, normalizeListTypeForCreate as normalizeListType };
 export { decodeListTypeFromUrl, encodeListTypeForUrl, getListTypeLabel } from '../utils/listTypes';
 
+function toScheduledForTimestamp(scheduledFor) {
+  if (!scheduledFor) return null;
+  return Timestamp.fromDate(startOfDay(scheduledFor));
+}
+
+export function buildListSchedulePatch({ scheduledFor = null, remindOnDay = false } = {}) {
+  const scheduledDate = scheduledFor ? startOfDay(scheduledFor) : null;
+  return {
+    scheduledFor: toScheduledForTimestamp(scheduledDate),
+    remindOnDay: Boolean(scheduledDate && remindOnDay),
+  };
+}
+
 export async function createList({
   type = 'home',
   createdBy,
@@ -35,15 +50,18 @@ export async function createList({
   groupId = DEFAULT_GROUP_ID,
   familyId = groupId,
   allowedUsers,
+  scheduledFor = null,
+  remindOnDay = false,
 }) {
   const resolvedType = normalizeListTypeForCreate(type);
   const resolvedFamilyId = familyId || groupId || DEFAULT_GROUP_ID;
+  const scheduledDate = scheduledFor ? startOfDay(scheduledFor) : null;
   // Автор всегда имеет доступ; остальных участников выбирают ещё на экране создания.
   const resolvedAllowed = Array.isArray(allowedUsers) && allowedUsers.length > 0
     ? [...new Set([createdBy, ...allowedUsers.filter(Boolean)])]
     : [createdBy];
   const ref = await addDoc(collection(db, COLLECTIONS.LISTS), {
-    title: formatListTitle(resolvedType),
+    title: formatListTitle(resolvedType, scheduledDate || new Date()),
     description: description.trim() || '',
     type: resolvedType,
     isPublic,
@@ -54,6 +72,8 @@ export async function createList({
     viewedBy: { [createdBy]: true },
     status: 'active',
     archived: false,
+    scheduledFor: toScheduledForTimestamp(scheduledDate),
+    remindOnDay: Boolean(scheduledDate && remindOnDay),
     createdAt: serverTimestamp(),
   });
   return ref.id;
@@ -555,6 +575,8 @@ export async function createActualList({
   familyId,
   isPublic = false,
   allowedUsers,
+  scheduledFor = null,
+  remindOnDay = false,
 }) {
   const resolvedFamilyId = familyId || groupId;
   const listId = await createList({
@@ -565,6 +587,8 @@ export async function createActualList({
     familyId: resolvedFamilyId,
     isPublic,
     allowedUsers,
+    scheduledFor,
+    remindOnDay,
   });
   if (items.length > 0) {
     await addItemsBatch(listId, items);

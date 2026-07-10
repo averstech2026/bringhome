@@ -34,6 +34,8 @@ export function useListDraft(listType) {
     return [];
   });
   const [draftDescription, setDraftDescription] = useState('');
+  const [draftScheduledFor, setDraftScheduledFor] = useState(null);
+  const [draftRemindOnDay, setDraftRemindOnDay] = useState(false);
   const [persisting, setPersisting] = useState(false);
   const persistingRef = useRef(false);
   const draftItemsRef = useRef(draftItems);
@@ -41,11 +43,11 @@ export function useListDraft(listType) {
 
   const draftList = useMemo(
     () => ({
-      title: formatListTitle(listType),
+      title: formatListTitle(listType, draftScheduledFor || new Date()),
       type: listType,
       isPublic: false,
     }),
-    [listType],
+    [listType, draftScheduledFor],
   );
 
   const persistWithItems = useCallback(
@@ -75,6 +77,8 @@ export function useListDraft(listType) {
           groupId: options.groupId,
           isPublic: options.isPublic,
           allowedUsers: options.allowedUsers,
+          scheduledFor: options.scheduledFor ?? draftScheduledFor,
+          remindOnDay: options.remindOnDay ?? draftRemindOnDay,
         });
 
         clearRepeatDraft();
@@ -85,7 +89,7 @@ export function useListDraft(listType) {
         setPersisting(false);
       }
     },
-    [listType, navigate, draftDescription],
+    [listType, navigate, draftDescription, draftScheduledFor, draftRemindOnDay],
   );
 
   const persistDraft = useCallback(
@@ -177,6 +181,10 @@ export function useListDraft(listType) {
     draftItems,
     draftDescription,
     setDraftDescription,
+    draftScheduledFor,
+    setDraftScheduledFor,
+    draftRemindOnDay,
+    setDraftRemindOnDay,
     persisting,
     toggleDraftItem,
     updateDraftItemQuantity,

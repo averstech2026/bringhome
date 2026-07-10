@@ -22,6 +22,13 @@ import OnboardingModal from '../components/onboarding/OnboardingModal';
 import { useToast } from '../components/ui/ToastProvider';
 import { HINT_TEXT, PAGE_SECTION_TITLE } from '../components/list/cardStyles';
 import { resolveListStatus } from '../utils/listStatus';
+import { sortActiveListsBySchedule } from '../utils/listSchedule';
+import {
+  syncRemindersForLists,
+  syncStoredRemindersWithServiceWorker,
+  pruneExpiredStoredReminders,
+  cancelListReminder,
+} from '../services/scheduledNotifications';
 import { canArchiveList, getListArchiveAdmins, isListOwner, isListSharedWithUser } from '../utils/listPermissions';
 import { clearRepeatDraft } from '../utils/repeatDraftStorage';
 import { encodeListTypeForUrl } from '../utils/listTypes';
@@ -64,6 +71,10 @@ export default function HomePage() {
       });
 
       setLists(active);
+
+      pruneExpiredStoredReminders();
+      syncStoredRemindersWithServiceWorker().catch(() => {});
+      syncRemindersForLists(active, user.uid).catch(() => {});
 
       try {
         const progress = await getItemsProgressByListIds(active.map((l) => l.id));
@@ -164,6 +175,7 @@ export default function HomePage() {
 
     try {
       await archiveList(listId, user.uid);
+      await cancelListReminder(listId);
       setArchiveConfirmTarget(null);
     } catch (err) {
       toast.error(err?.message || 'Не удалось отправить список в архив');
@@ -173,8 +185,10 @@ export default function HomePage() {
     }
   };
 
-  const activeLists = lists.filter(
-    (list) => resolveListStatus(list, listProgress[list.id]) === 'active',
+  const activeLists = sortActiveListsBySchedule(
+    lists.filter(
+      (list) => resolveListStatus(list, listProgress[list.id]) === 'active',
+    ),
   );
   const myActiveLists = activeLists.filter((list) => isListOwner(list, user?.uid));
   const sharedActiveLists = activeLists.filter((list) => {

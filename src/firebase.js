@@ -8,7 +8,8 @@ import { getStorage } from 'firebase/storage';
  *
  * lists: {
  *   id, title, description?, type ("home" | "cottage"), isPublic, createdBy,
- *   familyId, groupId?, allowedUsers: string[], viewedBy?: { [uid]: boolean }, createdAt
+ *   familyId, groupId?, allowedUsers: string[], viewedBy?: { [uid]: boolean },
+ *   scheduledFor?: Timestamp, remindOnDay?: boolean, createdAt
  * }
  *
  * notifications: {
