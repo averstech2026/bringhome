@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { getUserPhotoUrl } from '../utils/userPhoto';
@@ -10,14 +11,13 @@ import { usePendingListItems, isPendingListItem } from '../hooks/usePendingListI
 import { usePendingListAccess } from '../hooks/usePendingListAccess';
 import { mergeItemsBatch } from '../utils/mergeItems';
 import { applyPendingItemEdits, listItemsHaveChanges } from '../utils/listItemChanges';
-import { decodeListTypeFromUrl, encodeListTypeForUrl, formatListTitle } from '../services/listsService';
+import { decodeListTypeFromUrl, encodeListTypeForUrl, formatListTitle, buildListSchedulePatch } from '../services/listsService';
 import {
   notifyListCreated,
   notifyListUpdated,
   notifyUserAddedToList,
 } from '../services/pushNotification';
 import { getFamilyId } from '../utils/familyGroup';
-import ListDescriptionModal, { ListDescriptionButton } from '../components/list/ListDescriptionModal';
 import ListHeaderProgress from '../components/list/ListHeaderProgress';
 import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, clearAllListItems, updateList, markListViewed, updateItemsBookingBatch, addItemsBatch, toggleItem, updateItemQuantity, updateItemCategory, updateItemComment, updateItemBooking, deleteItem } from '../services/listsService';
 import { groupItemsByCategory, getListProgress } from '../utils/groupByCategory';
@@ -28,6 +28,7 @@ import ShareControls from '../components/list/ShareControls';
 import CreateListAccess from '../components/list/CreateListAccess';
 import { getFamilyMembers } from '../services/usersService';
 import ListAccessIcon from '../components/home/ListAccessIcon';
+import CreateListSheet from '../components/home/CreateListSheet';
 import RepeatListModal from '../components/home/RepeatListModal';
 import { saveRepeatDraft } from '../utils/repeatDraftStorage';
 import {
@@ -41,7 +42,8 @@ import {
   SCREEN_TOP_INNER,
 } from '../components/list/cardStyles';
 import { useToast } from '../components/ui/ToastProvider';
-import { parseDateParam, resolveSchedulePreset } from '../utils/listSchedule';
+import { parseDateParam, formatDateParam, parseListScheduledFor, resolveSchedulePreset, startOfDay } from '../utils/listSchedule';
+import { normalizeListTypeForCreate } from '../utils/listTypes';
 import { useVisualViewportFixedTop } from '../hooks/useVisualViewportFixedTop';
 import {
   scheduleListReminder,
@@ -133,7 +135,7 @@ export default function ListPage() {
   const [repeatOpen, setRepeatOpen] = useState(false);
   const [repeatBusy, setRepeatBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [isHighlighting, setIsHighlighting] = useState(false);
   const shareLinkRef = useRef(null);
   const aiInputRef = useRef(null);
@@ -213,12 +215,15 @@ export default function ListPage() {
     if (dateParam) {
       const parsed = parseDateParam(dateParam);
       setDraftScheduledFor(parsed);
-      return;
+    } else {
+      const preset = searchParams.get('schedule') || 'today';
+      setDraftScheduledFor(resolveSchedulePreset(preset));
     }
 
-    const preset = searchParams.get('schedule') || 'today';
-    setDraftScheduledFor(resolveSchedulePreset(preset));
-  }, [isDraft, listId, searchParams, setDraftScheduledFor]);
+    if (typeof location.state?.description === 'string') {
+      setDraftDescription(location.state.description);
+    }
+  }, [isDraft, listId, searchParams, setDraftScheduledFor, setDraftDescription, location.state?.description]);
 
   // Черновик: подтягиваем членов семьи. По умолчанию тумблер «Для всей семьи»
   // включён (список общий), поэтому индивидуальный выбор не предзаполняем —
@@ -620,22 +625,65 @@ export default function ListPage() {
     }
   };
 
-  const handleSaveDescription = async (description) => {
+  const handleSaveSettings = async ({ type, scheduledFor, description }) => {
+    setSettingsOpen(false);
+
     if (isDraft) {
       setDraftDescription(description);
+      setDraftScheduledFor(scheduledFor);
+
+      const encodedType = encodeListTypeForUrl(type);
+      const nextDateParam = scheduledFor ? `&date=${formatDateParam(scheduledFor)}` : '';
+      const currentDateParam = draftScheduledFor ? `&date=${formatDateParam(draftScheduledFor)}` : '';
+      const nextPath = `/list/new?type=${encodedType}${nextDateParam}`;
+      const currentPath = `/list/new?type=${encodeListTypeForUrl(listType)}${currentDateParam}`;
+
+      if (nextPath !== currentPath) {
+        navigate(nextPath, { replace: true });
+      }
       return;
     }
-    if (!listId) return;
-    const trimmed = description.trim();
-    if (trimmed === (list?.description || '').trim()) return;
+
+    if (!listId || !list || isReadOnlyView) return;
+
+    const resolvedType = normalizeListTypeForCreate(type);
+    const scheduledDate = scheduledFor ? startOfDay(scheduledFor) : null;
+    const trimmedDescription = description.trim();
+    const nextTitle = formatListTitle(resolvedType, scheduledDate || new Date());
+    const remindOnDay = Boolean(scheduledDate && list.remindOnDay);
+
+    const unchanged = resolvedType === (list.type || 'home')
+      && trimmedDescription === (list.description || '').trim()
+      && (scheduledDate?.getTime() || null) === (parseListScheduledFor(list)?.getTime() || null);
+
+    if (unchanged) return;
+
     try {
-      await updateList(listId, { description: trimmed });
+      await updateList(listId, {
+        type: resolvedType,
+        title: nextTitle,
+        description: trimmedDescription,
+        ...buildListSchedulePatch({ scheduledFor: scheduledDate, remindOnDay }),
+      });
+
+      if (scheduledDate && remindOnDay) {
+        scheduleListReminder({
+          listId,
+          listTitle: nextTitle,
+          scheduledFor: scheduledDate,
+          remindOnDay: true,
+        }).catch((err) => console.warn('[reminder] Не удалось запланировать напоминание', err));
+      } else {
+        cancelListReminder(listId).catch(() => {});
+      }
     } catch (err) {
-      toast.error(err?.message || 'Не удалось сохранить заметку');
+      toast.error(err?.message || 'Не удалось сохранить настройки списка');
     }
   };
 
   const listDescription = isDraft ? draftDescription : list?.description || '';
+  const listScheduledFor = isDraft ? draftScheduledFor : parseListScheduledFor(list);
+  const settingsListType = isDraft ? listType : list?.type || 'home';
 
   const showFooter = !isAdminView && (isDraft || isArchivedView || isEditMode);
   const showDoneButton = isEditMode && !isDirty && showCreationDone;
@@ -697,15 +745,25 @@ export default function ListPage() {
     <div className="flex min-h-10 items-center gap-2">
       {renderBackButton()}
 
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        <h1 className="max-w-[38%] shrink-0 truncate text-lg font-bold leading-none tracking-tight text-slate-900 sm:max-w-[45%]">
-          {activeList.title}
-        </h1>
-        <ListDescriptionButton
-          hasDescription={Boolean(listDescription?.trim())}
-          onClick={() => setDescriptionOpen(true)}
-          disabled={persisting}
-        />
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        {!isReadOnlyView ? (
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            disabled={persisting || savingChanges}
+            className="flex min-w-0 max-w-[46%] shrink-0 touch-manipulation items-center gap-0.5 rounded-lg py-1 pr-1 transition hover:bg-slate-50 active:bg-slate-100 disabled:opacity-50 sm:max-w-[52%]"
+            aria-label="Настройки списка"
+          >
+            <span className="truncate text-lg font-bold leading-none tracking-tight text-slate-900">
+              {activeList.title}
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+          </button>
+        ) : (
+          <h1 className="min-w-0 max-w-[46%] shrink-0 truncate text-lg font-bold leading-none tracking-tight text-slate-900 sm:max-w-[52%]">
+            {activeList.title}
+          </h1>
+        )}
 
         {!isReadOnlyView && (
           <ListHeaderProgress
@@ -791,10 +849,6 @@ export default function ListPage() {
   return (
     <div className={`flex min-h-full flex-col ${APP_BACKGROUND} ${PAGE_X} pt-0`}>
       {renderFixedHeader(renderHeaderTitleRow())}
-
-      {listDescription?.trim() && (
-        <p className="mt-1 truncate text-xs text-slate-400">{listDescription}</p>
-      )}
 
       <main className={`flex flex-1 flex-col gap-3 pt-3 ${showFooter ? 'pb-28' : 'pb-10'}`}>
         <div className={`${CARD_SURFACE} ${CARD_PAD_V}`}>
@@ -941,14 +995,16 @@ export default function ListPage() {
         />
       )}
 
-      <ListDescriptionModal
-        open={descriptionOpen}
-        listTitle={activeList.title}
-        value={listDescription}
+      <CreateListSheet
+        open={settingsOpen}
+        mode="settings"
+        onClose={() => setSettingsOpen(false)}
+        onConfirm={handleSaveSettings}
+        canCreateCustom={isSuperAdmin}
+        initialType={settingsListType}
+        initialScheduledFor={listScheduledFor}
+        initialDescription={listDescription}
         readOnly={isReadOnlyView}
-        disabled={persisting}
-        onClose={() => setDescriptionOpen(false)}
-        onSave={handleSaveDescription}
       />
     </div>
   );

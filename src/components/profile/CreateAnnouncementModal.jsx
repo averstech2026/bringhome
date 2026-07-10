@@ -196,6 +196,7 @@ export default function CreateAnnouncementModal({
   scope = 'platform',
   familyId: fixedFamilyId = null,
   familyName: fixedFamilyName = '',
+  initialFeatureAnnouncement = false,
   onCreated,
 }) {
   const toast = useToast();
@@ -214,6 +215,8 @@ export default function CreateAnnouncementModal({
 
   useEffect(() => {
     if (!open) return;
+
+    setIsFeatureAnnouncement(initialFeatureAnnouncement);
 
     if (isFamilyScope) {
       setIsFeatureAnnouncement(false);
@@ -240,11 +243,11 @@ export default function CreateAnnouncementModal({
       .then(setFamilies)
       .catch(() => setFamilies([]))
       .finally(() => setLoadingFamilies(false));
-  }, [open, isFamilyScope, fixedFamilyId, fixedFamilyName]);
+  }, [open, initialFeatureAnnouncement, isFamilyScope, fixedFamilyId, fixedFamilyName]);
 
   const resetForm = () => {
     setTargetFamilyId(isFamilyScope ? (fixedFamilyId || '') : GLOBAL_TARGET);
-    setIsFeatureAnnouncement(false);
+    setIsFeatureAnnouncement(initialFeatureAnnouncement);
     setTitle('');
     setMessage('');
     setHint('');

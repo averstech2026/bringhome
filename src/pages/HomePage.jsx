@@ -37,7 +37,12 @@ import {
 } from '../services/scheduledNotifications';
 import { canArchiveList, getListArchiveAdmins, isListOwner, isListSharedWithUser } from '../utils/listPermissions';
 import { clearRepeatDraft } from '../utils/repeatDraftStorage';
-import { isOnboardingCompleted } from '../utils/onboardingContent';
+import {
+  clearOnboardingSkippedThisSession,
+  isOnboardingCompleted,
+  isOnboardingSkippedThisSession,
+  markOnboardingSkippedThisSession,
+} from '../utils/onboardingContent';
 import { formatDateParam } from '../utils/listSchedule';
 
 export default function HomePage() {
@@ -124,11 +129,11 @@ export default function HomePage() {
   }, [loadLists, location.key, user?.uid, profileLoading]);
 
   useEffect(() => {
-    if (profileLoading || !profile) return;
-    if (!isOnboardingCompleted(profile)) {
+    if (profileLoading || !profile || !user?.uid) return;
+    if (!isOnboardingCompleted(profile) && !isOnboardingSkippedThisSession(user.uid)) {
       setOnboardingOpen(true);
     }
-  }, [profile, profileLoading, location.key]);
+  }, [profile, profileLoading, location.key, user?.uid]);
 
   useEffect(() => () => {
     setOnboardingOpen(false);
@@ -163,11 +168,17 @@ export default function HomePage() {
 
   const handleOnboardingComplete = async (dontShowAgain) => {
     if (user?.uid) {
-      try {
-        await setOnboardingCompleted(user.uid, dontShowAgain);
-        reload();
-      } catch (err) {
-        toast.error(err?.message || 'Не удалось сохранить настройку');
+      if (dontShowAgain) {
+        try {
+          await setOnboardingCompleted(user.uid, true);
+          clearOnboardingSkippedThisSession(user.uid);
+          reload();
+        } catch (err) {
+          toast.error(err?.message || 'Не удалось сохранить настройку');
+          return;
+        }
+      } else {
+        markOnboardingSkippedThisSession(user.uid);
       }
     }
     setOnboardingOpen(false);
@@ -189,7 +200,7 @@ export default function HomePage() {
     setCreateSheetOpen(true);
   };
 
-  const handleCreateListConfirm = ({ type, scheduledFor }) => {
+  const handleCreateListConfirm = ({ type, scheduledFor, description = '' }) => {
     clearRepeatDraft();
     setCreateSheetOpen(false);
 
@@ -198,7 +209,9 @@ export default function HomePage() {
     if (scheduledFor) {
       params.set('date', formatDateParam(scheduledFor));
     }
-    navigate(`/list/new?${params.toString()}`);
+    navigate(`/list/new?${params.toString()}`, {
+      state: description.trim() ? { description: description.trim() } : undefined,
+    });
   };
 
   const handleArchiveRequest = (list) => {

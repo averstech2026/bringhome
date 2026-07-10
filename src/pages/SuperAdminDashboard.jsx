@@ -37,26 +37,28 @@ function DashboardTabs({ value, onChange, unreadFeedbacks = 0 }) {
   ];
 
   return (
-    <div className="inline-flex h-10 items-center rounded-full bg-slate-100/80 p-1">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onChange(tab.id)}
-          className={`flex h-full items-center rounded-full px-4 text-sm transition-colors ${
-            value === tab.id
-              ? 'bg-white font-semibold text-slate-900 shadow-sm'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          {tab.label}
-          {tab.badge > 0 && (
-            <span className="ml-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-violet-500 px-1.5 text-[10px] font-bold leading-none text-white">
-              {tab.badge > 9 ? '9+' : tab.badge}
-            </span>
-          )}
-        </button>
-      ))}
+    <div className="-mx-4 overflow-x-auto px-4 pb-1 no-scrollbar">
+      <div className="inline-flex h-10 items-center rounded-full bg-slate-100/80 p-1">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+            className={`flex h-full shrink-0 items-center whitespace-nowrap rounded-full px-4 text-sm transition-colors ${
+              value === tab.id
+                ? 'bg-white font-semibold text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {tab.label}
+            {tab.badge > 0 && (
+              <span className="ml-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-violet-500 px-1.5 text-[10px] font-bold leading-none text-white">
+                {tab.badge > 9 ? '9+' : tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -362,13 +364,86 @@ function formatNotificationTime(createdAt) {
   return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
 }
 
+function getCreatedAtMillis(createdAt) {
+  return createdAt?.toMillis?.() ?? 0;
+}
+
+function UnifiedNotificationCard({ item }) {
+  if (item.kind === 'announcement') {
+    const announcement = item.data;
+    return (
+      <li className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100">
+            <LayoutTemplate className="h-4 w-4 text-violet-600" strokeWidth={2} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-100">
+                Глобальный анонс
+              </span>
+              {announcement.active === false && (
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-500">
+                  Выключен
+                </span>
+              )}
+            </div>
+            <p className="mt-2 text-sm font-semibold text-slate-900">{announcement.title}</p>
+            <p className="mt-1 text-sm leading-snug text-slate-800">{announcement.content}</p>
+            {announcement.hint?.trim() && (
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">{announcement.hint}</p>
+            )}
+            <p className="mt-1.5 text-xs text-slate-400">
+              {formatNotificationTime(announcement.createdAt)}
+              {' · '}
+              Главный экран
+            </p>
+          </div>
+        </div>
+      </li>
+    );
+  }
+
+  const notification = item.data;
+  const recipientLabel = notification.familyId === 'global'
+    ? 'Всем пользователям'
+    : (notification.familyName?.trim() || 'Семья');
+  const typeLabel = notification.sendAsPush ? 'Push' : 'Уведомление';
+
+  return (
+    <li className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+          <Megaphone className="h-4 w-4 text-emerald-600" strokeWidth={2} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-100">
+            {typeLabel}
+          </span>
+          {notification.title && (
+            <p className="mt-2 text-sm font-semibold text-slate-900">{notification.title}</p>
+          )}
+          <p className={`text-sm leading-snug text-slate-800 ${notification.title ? 'mt-1' : 'mt-2'}`}>
+            {notification.body}
+          </p>
+          <p className="mt-1.5 text-xs text-slate-400">
+            {formatNotificationTime(notification.createdAt)}
+            {' · '}
+            {recipientLabel}
+          </p>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 function NotificationsTab() {
   const { user } = useAuth();
   const { profile } = useUserProfile(user);
   const [createOpen, setCreateOpen] = useState(false);
   const [featureAnnouncements, setFeatureAnnouncements] = useState([]);
   const [featureLoading, setFeatureLoading] = useState(true);
-  const { notifications, loading } = useNotifications(user?.uid, { mode: 'outgoing' });
+  const { notifications, loading: notificationsLoading } = useNotifications(user?.uid, { mode: 'outgoing' });
   const senderDisplayName = profile?.displayName || user?.displayName || 'Администратор';
 
   const loadFeatureAnnouncements = () => {
@@ -383,107 +458,57 @@ function NotificationsTab() {
     loadFeatureAnnouncements();
   }, []);
 
+  const unifiedFeed = useMemo(() => {
+    const items = [
+      ...featureAnnouncements.map((announcement) => ({
+        kind: 'announcement',
+        id: `announcement-${announcement.id}`,
+        createdAt: announcement.createdAt,
+        data: announcement,
+      })),
+      ...notifications.map((notification) => ({
+        kind: 'notification',
+        id: `notification-${notification.id}`,
+        createdAt: notification.createdAt,
+        data: notification,
+      })),
+    ];
+
+    return items.sort(
+      (a, b) => getCreatedAtMillis(b.createdAt) - getCreatedAtMillis(a.createdAt),
+    );
+  }, [featureAnnouncements, notifications]);
+
+  const loading = featureLoading || notificationsLoading;
+
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="flex items-center justify-between gap-3">
-          <h3 className={PAGE_SECTION_TITLE}>Глобальные анонсы</h3>
-          <button
-            type="button"
-            onClick={() => setCreateOpen(true)}
-            className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-4 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
-          >
-            <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
-            Создать
-          </button>
-        </div>
-
-        {featureLoading ? (
-          <div className="mt-4 flex justify-center py-6">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
-          </div>
-        ) : featureAnnouncements.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-400">
-            Активных слайдов на главном экране пока нет — нажмите «Создать» и включите «Глобальный анонс»
-          </p>
-        ) : (
-          <ul className="mt-4 space-y-2">
-            {featureAnnouncements.map((announcement) => (
-              <li
-                key={announcement.id}
-                className="rounded-2xl border border-violet-100 bg-white p-4 shadow-sm"
-              >
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100">
-                    <LayoutTemplate className="h-4 w-4 text-violet-600" strokeWidth={2} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-900">{announcement.title}</p>
-                    <p className="mt-1 text-sm leading-snug text-slate-800">{announcement.content}</p>
-                    {announcement.hint?.trim() && (
-                      <p className="mt-1 text-xs leading-relaxed text-slate-400">{announcement.hint}</p>
-                    )}
-                    <p className="mt-1.5 text-xs text-slate-400">
-                      {formatNotificationTime(announcement.createdAt)}
-                      {' · '}
-                      Главный экран
-                      {' · '}
-                      {announcement.active === false ? 'Выключен' : 'Активен'}
-                    </p>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-4 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
+        >
+          <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
+          Создать
+        </button>
       </div>
-
-      <div>
-        <h3 className={PAGE_SECTION_TITLE}>Отправленные уведомления</h3>
 
       {loading ? (
-        <div className="mt-4 flex justify-center py-6">
+        <div className="flex justify-center py-6">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
         </div>
-      ) : notifications.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-400">Исходящих уведомлений пока нет</p>
+      ) : unifiedFeed.length === 0 ? (
+        <p className="text-sm text-slate-400">
+          Пока нет анонсов и уведомлений — нажмите «Создать»
+        </p>
       ) : (
-        <ul className="mt-4 space-y-2">
-          {notifications.map((notification) => {
-            const recipientLabel = notification.familyId === 'global'
-              ? 'Всем пользователям'
-              : (notification.familyName?.trim() || 'Семья');
-
-            return (
-              <li
-                key={notification.id}
-                className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
-              >
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100">
-                    <Megaphone className="h-4 w-4 text-emerald-600" strokeWidth={2} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    {notification.title && (
-                      <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
-                    )}
-                    <p className={`text-sm leading-snug text-slate-800 ${notification.title ? 'mt-1' : ''}`}>
-                      {notification.body}
-                    </p>
-                    <p className="mt-1.5 text-xs text-slate-400">
-                      {formatNotificationTime(notification.createdAt)}
-                      {' · '}
-                      {recipientLabel}
-                      {notification.sendAsPush && ' · Push'}
-                    </p>
-                  </div>
-                </div>
-              </li>
-            );
-          })}
+        <ul className="space-y-2">
+          {unifiedFeed.map((item) => (
+            <UnifiedNotificationCard key={item.id} item={item} />
+          ))}
         </ul>
       )}
-      </div>
 
       <CreateAnnouncementModal
         open={createOpen}
@@ -511,6 +536,10 @@ function formatFeedbackDate(timestamp) {
 }
 
 function FeedbacksTab() {
+  return <FeedbacksSection />;
+}
+
+function FeedbacksSection() {
   const [feedbacks, setFeedbacks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);

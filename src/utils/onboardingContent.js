@@ -46,6 +46,26 @@ export function isOnboardingCompleted(profile) {
   return profile?.onboardingCompleted === true;
 }
 
+function getOnboardingSkipSessionKey(userId) {
+  return `onboarding_skipped_${userId}`;
+}
+
+/** Пользователь закрыл знакомство без «Больше не показывать» в текущей сессии браузера. */
+export function isOnboardingSkippedThisSession(userId) {
+  if (!userId || typeof sessionStorage === 'undefined') return false;
+  return sessionStorage.getItem(getOnboardingSkipSessionKey(userId)) === '1';
+}
+
+export function markOnboardingSkippedThisSession(userId) {
+  if (!userId || typeof sessionStorage === 'undefined') return;
+  sessionStorage.setItem(getOnboardingSkipSessionKey(userId), '1');
+}
+
+export function clearOnboardingSkippedThisSession(userId) {
+  if (!userId || typeof sessionStorage === 'undefined') return;
+  sessionStorage.removeItem(getOnboardingSkipSessionKey(userId));
+}
+
 export function isOnboardingGuideNotification(notification) {
   return notification?.type === ONBOARDING_GUIDE_TYPE;
 }
