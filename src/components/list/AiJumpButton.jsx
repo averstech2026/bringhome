@@ -1,4 +1,4 @@
-import { Sparkles, Sword, Wand2 } from 'lucide-react';
+import { Sparkles, Sword, Wand2, Briefcase } from 'lucide-react';
 
 function AiThemeIcon({ icon, className }) {
   if (icon === 'wand') {
@@ -6,6 +6,9 @@ function AiThemeIcon({ icon, className }) {
   }
   if (icon === 'sword') {
     return <Sword className={className} strokeWidth={2} aria-hidden />;
+  }
+  if (icon === 'briefcase') {
+    return <Briefcase className={className} strokeWidth={2} aria-hidden />;
   }
   return <Sparkles className={className} strokeWidth={2} aria-hidden />;
 }

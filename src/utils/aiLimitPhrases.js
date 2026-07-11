@@ -28,6 +28,21 @@ export const STAR_WARS_LIMIT_PHRASES = [
   },
 ];
 
+export const PADDINGTON_LIMIT_PHRASES = [
+  {
+    title: 'Мармелад закончился! 🧸🍊',
+    text: 'Ой, кажется, у Паддингтона закончился весь апельсиновый мармелад на сегодня, и ему нужно немного отдохнуть... 🧸🍊 Попробуй добавить продукты вручную или подожди до завтра!',
+  },
+  {
+    title: 'Чемоданчик пуст 💼',
+    text: 'Паддингтон устал после долгого дня на вокзале Paddington. Завтра он снова будет рад помочь с покупками — а пока добавляй вручную!',
+  },
+  {
+    title: 'Время для чаю ☕',
+    text: 'Медвежонок свернулся с чашкой какао и бутербродом с мармеладом. Лимит ИИ восстановится завтра — попробуй добавить продукты самостоятельно!',
+  },
+];
+
 export const DEFAULT_LIMIT_PHRASE = {
   title: 'Лимит запросов ИИ исчерпан',
   text: 'Дневной лимит распознавания списков израсходован. Новые запросы станут доступны после полуночи. Пока добавляйте товары вручную.',
@@ -43,6 +58,9 @@ export function pickAiLimitPhrase(uiTheme) {
   }
   if (uiTheme === 'star_wars') {
     return pickRandom(STAR_WARS_LIMIT_PHRASES);
+  }
+  if (uiTheme === 'paddington') {
+    return pickRandom(PADDINGTON_LIMIT_PHRASES);
   }
   return DEFAULT_LIMIT_PHRASE;
 }

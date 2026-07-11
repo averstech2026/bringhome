@@ -24,7 +24,7 @@ import PageHeader from '../components/layout/PageHeader';
 import { CARD_SURFACE, PRIMARY_BTN } from '../components/list/cardStyles';
 import { useToast } from '../components/ui/ToastProvider';
 import { AVATAR_FILE_TOO_LARGE_MESSAGE, validateAvatarFile } from '../utils/avatarUpload';
-import { getProfileThemeButtonClass, PROFILE_THEME_OPTIONS, resolveUiTheme, setCachedUiTheme } from '../utils/uiThemes';
+import { getProfileThemeButtonClass, getThemeAccent, PROFILE_THEME_OPTIONS, resolveUiTheme, setCachedUiTheme } from '../utils/uiThemes';
 import packageJson from '../../package.json';
 
 const appVersion = packageJson.version;
@@ -154,6 +154,7 @@ export default function SettingsPage() {
   const hasSavedAvatar = Boolean(profile?.avatarUrl);
   const hasChanges = Boolean(pendingFile);
   const currentUiTheme = activeUiTheme ?? resolveUiTheme(profile, user?.uid);
+  const themeAccent = getThemeAccent(currentUiTheme);
 
   useEffect(() => {
     if (profile) {
@@ -416,13 +417,14 @@ export default function SettingsPage() {
                   name={name}
                   variant="soft"
                   className="h-[72px] w-[72px] text-2xl"
+                  ringClassName={themeAccent.avatarRingClassName}
                 />
                 {!avatarMenuOpen && (
                   <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/30 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
                     Изменить
                   </span>
                 )}
-                <span className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-violet-600 text-white shadow-md transition group-hover:bg-violet-700">
+                <span className={`absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-white shadow-md transition ${themeAccent.solidClassName} ${themeAccent.solidHoverClassName}`}>
                   <Camera className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden />
                 </span>
               </button>

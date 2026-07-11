@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
-import { ClipboardPaste, Sparkles, Sword, Wand2 } from 'lucide-react';
+import { ClipboardPaste, Sparkles, Sword, Wand2, Briefcase } from 'lucide-react';
 import { parseProductsWithAI } from '../../services/aiService';
 import { getAiUsageStatus, recordAiUsage } from '../../services/aiUsageService';
 import { getFamily } from '../../services/familiesService';
@@ -38,6 +38,9 @@ function AiThemeIcon({ icon, className }) {
   }
   if (icon === 'sword') {
     return <Sword className={className} strokeWidth={2} aria-hidden />;
+  }
+  if (icon === 'briefcase') {
+    return <Briefcase className={className} strokeWidth={2} aria-hidden />;
   }
   return <Sparkles className={className} strokeWidth={2} aria-hidden />;
 }
@@ -110,6 +113,7 @@ export default forwardRef(function AiInput({
   const showUsageBadge = !isUnlimitedAiUser(profile);
   const uiTheme = useMemo(() => resolveUiTheme(profile, user?.uid), [profile, user?.uid]);
   const aiTheme = useMemo(() => getAiInputTheme(uiTheme), [uiTheme]);
+  const textareaPlaceholder = useMemo(() => aiTheme.placeholder, [aiTheme.placeholder]);
 
   useCustomProductsDictionary();
 
@@ -332,7 +336,11 @@ export default forwardRef(function AiInput({
 
       setPreviewItems([]);
       setSelectedIds(new Set());
-      setSuccess(`Добавлено ${products.length} позиций`);
+      setSuccess(
+        aiTheme.formatSuccessMessage
+          ? aiTheme.formatSuccessMessage(products.length)
+          : `Добавлено ${products.length} позиций`,
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Не удалось добавить товары';
       setError(message);
@@ -345,6 +353,18 @@ export default forwardRef(function AiInput({
     setPreviewItems([]);
     setSelectedIds(new Set());
   };
+
+  const aiButtonDisabled =
+    loading
+    || disabled
+    || (limitExhausted && aiTheme.limitExhaustedDisabled)
+    || (!limitExhausted && !text.trim());
+
+  const aiButtonLabel = loading
+    ? aiTheme.loadingLabel
+    : limitExhausted && aiTheme.limitExhaustedLabel
+      ? aiTheme.limitExhaustedLabel
+      : aiTheme.label;
 
   return (
     <>
@@ -382,7 +402,7 @@ export default forwardRef(function AiInput({
           <textarea
             ref={textareaRef}
             id="ai-text"
-            placeholder="Например: молоко 2л, хлеб, яйца 10 шт, помидоры 1 кг"
+            placeholder={textareaPlaceholder}
             value={text}
             onChange={(e) => {
               setText(e.target.value);
@@ -395,23 +415,31 @@ export default forwardRef(function AiInput({
 
           {pasteHint && <p className={`mt-2 ${HINT_TEXT} ${aiTheme.hintClassName}`}>{pasteHint}</p>}
 
+          {limitExhausted && aiTheme.limitExhaustedMessage && (
+            <p className={`mt-2 ${HINT_TEXT} ${aiTheme.hintClassName}`}>{aiTheme.limitExhaustedMessage}</p>
+          )}
+
           {error && <p className={`mt-2 ${HINT_TEXT} text-red-500`}>{error}</p>}
-          {success && <p className={`mt-2 ${HINT_TEXT} text-emerald-600`}>{success}</p>}
+          {success && (
+            <p className={`mt-2 ${HINT_TEXT} ${aiTheme.hintClassName}`}>
+              {success}
+            </p>
+          )}
 
           <button
             type="button"
             onClick={handleAiButtonClick}
-            disabled={loading || disabled || (!limitExhausted && !text.trim())}
-            className={`mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-sm font-semibold text-white transition-all duration-300 hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none disabled:hover:opacity-70 disabled:active:scale-100 ${aiTheme.buttonClass} ${limitExhausted ? 'opacity-80' : ''}`}
+            disabled={aiButtonDisabled}
+            className={`relative mt-3 inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full py-3.5 text-sm font-semibold text-white transition-all duration-300 hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none disabled:hover:opacity-70 disabled:active:scale-100 ${aiTheme.buttonClass} ${limitExhausted && !aiTheme.limitExhaustedDisabled ? 'opacity-80' : ''}`}
           >
             <AiThemeIcon
               icon={aiTheme.icon}
-              className={`h-4 w-4 shrink-0 ${loading ? 'animate-spin' : ''}`}
+              className={`relative z-10 h-4 w-4 shrink-0 ${loading ? 'animate-spin' : ''}`}
             />
-            <span>{loading ? aiTheme.loadingLabel : aiTheme.label}</span>
+            <span className="relative z-10">{aiButtonLabel}</span>
             {showUsageBadge && (
               <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                className={`relative z-10 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                   limitExhausted ? 'bg-white/25 text-white' : aiTheme.badgeClass
                 }`}
               >
@@ -434,6 +462,7 @@ export default forwardRef(function AiInput({
         onConfirm={handleConfirmAdd}
         onClose={handleDismissPreview}
         adding={adding}
+        uiTheme={uiTheme}
       />
 
       <AiLimitModal
