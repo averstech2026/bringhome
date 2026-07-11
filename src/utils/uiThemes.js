@@ -67,7 +67,7 @@ const THEME_ACCENTS = {
   default: {
     border: 'border-violet-500',
     ring: 'ring-2 ring-violet-500',
-    avatarRing: 'ring-2 ring-fuchsia-500 shadow-[0_0_12px_rgba(168,85,247,0.55)]',
+    avatarRing: 'ring-1 ring-fuchsia-500 shadow-[0_0_12px_rgba(168,85,247,0.55)]',
     solid: 'bg-violet-600',
     solidHover: 'hover:bg-violet-700',
     surface: DEFAULT_SURFACE_CLASS,
@@ -91,7 +91,7 @@ const THEME_ACCENTS = {
   hogwarts: {
     border: 'border-red-800',
     ring: 'ring-2 ring-red-800',
-    avatarRing: 'ring-2 ring-red-800 shadow-[0_0_12px_rgba(153,27,27,0.55)]',
+    avatarRing: 'ring-1 ring-red-800 shadow-[0_0_12px_rgba(153,27,27,0.55)]',
     solid: 'bg-red-900',
     solidHover: 'hover:bg-red-950',
     surface: HOGWARTS_SURFACE_CLASS,
@@ -115,7 +115,7 @@ const THEME_ACCENTS = {
   star_wars: {
     border: 'border-indigo-500',
     ring: 'ring-2 ring-indigo-500',
-    avatarRing: 'ring-2 ring-sky-600 shadow-[0_0_12px_rgba(2,132,199,0.55)]',
+    avatarRing: 'ring-1 ring-sky-600 shadow-[0_0_12px_rgba(2,132,199,0.55)]',
     solid: 'bg-indigo-700',
     solidHover: 'hover:bg-indigo-800',
     surface: STAR_WARS_SURFACE_CLASS,
@@ -139,7 +139,7 @@ const THEME_ACCENTS = {
   paddington: {
     border: 'border-blue-800',
     ring: 'ring-2 ring-blue-800',
-    avatarRing: 'ring-2 ring-blue-800 shadow-[0_0_12px_rgba(30,64,175,0.55)]',
+    avatarRing: 'ring-1 ring-blue-800 shadow-[0_0_12px_rgba(30,64,175,0.55)]',
     solid: 'bg-blue-900',
     solidHover: 'hover:bg-blue-950',
     surface: PADDINGTON_SURFACE_CLASS,
