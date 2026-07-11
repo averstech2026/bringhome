@@ -3,7 +3,7 @@ import { ClipboardPaste, Sparkles, Sword, Wand2 } from 'lucide-react';
 import { parseProductsWithAI } from '../../services/aiService';
 import { getAiUsageStatus, recordAiUsage } from '../../services/aiUsageService';
 import { getFamily } from '../../services/familiesService';
-import { addItemsBatch } from '../../services/listsService';
+import { addItemsBatch, getProductHistoryUnit } from '../../services/listsService';
 import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import {
@@ -29,6 +29,7 @@ import AiLimitModal from './AiLimitModal';
 import BorderGapCard from './BorderGapCard';
 import { useToast } from '../ui/ToastProvider';
 import { HINT_TEXT, INPUT_PLACEHOLDER } from './cardStyles';
+import { enrichProductDefaults } from '../../utils/enrichProductDefaults';
 import { CATEGORY_ORDER } from '../../utils/categories';
 
 function AiThemeIcon({ icon, className }) {
@@ -57,6 +58,8 @@ export default forwardRef(function AiInput({
   listId,
   isDraft = false,
   onDraftAdd,
+  listItems = [],
+  userId = null,
   disabled = false,
 }, ref) {
   const [text, setText] = useState('');
@@ -302,9 +305,27 @@ export default forwardRef(function AiInput({
         return;
       }
 
+      const historyUnits = await Promise.all(
+        products.map(async (product) => {
+          if (!userId || isDraft) return null;
+          try {
+            return await getProductHistoryUnit(userId, product.name);
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      products = products.map((product, index) =>
+        enrichProductDefaults(product, {
+          listItems,
+          firestoreUnit: historyUnits[index],
+        }),
+      ).filter(Boolean);
+
       if (isDraft) {
         await onDraftAdd?.(products);
-      } else {
+      } else if (listId) {
         await addItemsBatch(listId, products);
       }
 
@@ -338,7 +359,7 @@ export default forwardRef(function AiInput({
           legendClassName={aiTheme.legendClassName}
           legend={
             <label htmlFor="ai-text" className="cursor-default">
-              Вставить текст из чата
+              ИИ-ввод
             </label>
           }
         >

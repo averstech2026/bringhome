@@ -519,7 +519,7 @@ export async function notifyListCreated({ list, author }) {
   const targetUids = users.filter((u) => !excluded.has(u.uid)).map((u) => u.uid);
   const tokens = targetUids.flatMap((uid) => users.find((u) => u.uid === uid)?.tokens || []);
 
-  const body = `📝 ${resolveAuthorName(author)} создал список «${resolveListTitle(list)}»`;
+  const body = `📝 ${resolveAuthorName(author)} создал(а) список «${resolveListTitle(list)}»`;
   const link = listLink(list?.id);
 
   createNotificationsForUsers(targetUids, {
@@ -547,7 +547,7 @@ export async function notifyListUpdated({ list, author, excludeUids = [] }) {
   const targetUids = users.filter((u) => !excluded.has(u.uid)).map((u) => u.uid);
   const tokens = targetUids.flatMap((uid) => users.find((u) => u.uid === uid)?.tokens || []);
 
-  const body = `🔄 ${resolveAuthorName(author)} обновил список «${resolveListTitle(list)}»`;
+  const body = `🔄 ${resolveAuthorName(author)} обновил(а) список «${resolveListTitle(list)}»`;
   const link = listLink(list?.id);
 
   createNotificationsForUsers(targetUids, {
@@ -568,7 +568,7 @@ export async function notifyListUpdated({ list, author, excludeUids = [] }) {
 export async function notifyUserAddedToList({ list, author, newUid }) {
   if (!newUid || newUid === author?.uid) return { sent: 0, skipped: true };
 
-  const body = `👋 ${resolveAuthorName(author)} открыл вам доступ к списку «${resolveListTitle(list)}»`;
+  const body = `👋 ${resolveAuthorName(author)} открыл(а) вам доступ к списку «${resolveListTitle(list)}»`;
   const link = listLink(list?.id);
 
   createNotification({

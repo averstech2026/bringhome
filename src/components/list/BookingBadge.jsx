@@ -50,6 +50,8 @@ export default function BookingBadge({
 }) {
   const info = getBookerDisplayInfo(item, {
     familyId: bookingContext?.familyId,
+    userId: bookingContext?.userId,
+    displayName: bookingContext?.displayName,
     externalFamilies,
     ownerFamily,
   });

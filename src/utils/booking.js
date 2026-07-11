@@ -8,13 +8,24 @@ export function getActiveCategoryItems(items) {
   return items.filter((item) => !item.checked);
 }
 
-/** @param {{ displayName?: string, familyId?: string }} ctx */
+function bookerNamesMatch(leftName, rightName) {
+  if (!leftName || !rightName) return false;
+  const left = formatBookerLabel(leftName).trim().toLowerCase();
+  const right = formatBookerLabel(rightName).trim().toLowerCase();
+  if (left === right) return true;
+  return leftName.trim().toLowerCase() === rightName.trim().toLowerCase();
+}
+
+/** @param {{ displayName?: string, familyId?: string, userId?: string }} ctx */
 export function isItemBookedByMe(item, ctx = {}) {
   if (!item?.bookedBy) return false;
-  if (item.bookedByFamilyId && ctx.familyId) {
-    return item.bookedByFamilyId === ctx.familyId;
+  if (item.bookedByUid && ctx.userId) {
+    return item.bookedByUid === ctx.userId;
   }
-  return item.bookedBy === ctx.displayName;
+  if (ctx.displayName && bookerNamesMatch(item.bookedBy, ctx.displayName)) {
+    return true;
+  }
+  return false;
 }
 
 /** Забронировано другой семьёй (кросс-семейный список) */
@@ -71,7 +82,7 @@ export function resolveCategoryBookingAction(items, ctx) {
         if (!item.bookedBy) return true;
         if (isItemBookedByMe(item, ctx)) return true;
         if (isItemBookedByOtherFamily(item, ctx.familyId)) return false;
-        return item.bookedBy === ctx.displayName;
+        return false;
       })
       .map((item) => item.id),
   };
@@ -95,10 +106,16 @@ export function buildBookingPayload(bookedBy, meta = {}) {
   };
 }
 
-export function getBookerDisplayInfo(item, { familyId, externalFamilies = {}, ownerFamily = null } = {}) {
+export function getBookerDisplayInfo(item, {
+  familyId,
+  userId = null,
+  displayName = null,
+  externalFamilies = {},
+  ownerFamily = null,
+} = {}) {
   if (!item?.bookedBy) return null;
 
-  const ctx = { familyId };
+  const ctx = { familyId, userId, displayName };
   if (isItemBookedByMe(item, ctx)) {
     return {
       kind: 'mine',

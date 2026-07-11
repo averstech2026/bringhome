@@ -66,6 +66,8 @@ export default function ItemDetailsModal({
   const bookerInfo = bookedBy
     ? getBookerDisplayInfo(itemSnapshot, {
         familyId: ctx.familyId,
+        userId: ctx.userId,
+        displayName: ctx.displayName || displayName,
         externalFamilies,
         ownerFamily,
       })
@@ -115,7 +117,7 @@ export default function ItemDetailsModal({
 
   const handleToggleBooking = () => {
     if (!canEditMeta || isOtherFamily || isOtherUser) return;
-    const nextBookedBy = bookedBy === displayName ? null : displayName;
+    const nextBookedBy = isMine ? null : displayName;
     persistAndClose(buildPayload({ nextBookedBy }));
   };
 

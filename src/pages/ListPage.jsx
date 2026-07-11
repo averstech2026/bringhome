@@ -476,10 +476,6 @@ export default function ListPage() {
     mergePendingItems([toDraftItem(itemData)]);
   };
 
-  const handlePendingAiAdd = async (products) => {
-    mergePendingItems(products.map((product) => toDraftItem(product)));
-  };
-
   const handleDraftManualAdd = async (itemData) => {
     try {
       await saveToProductHistory(user.uid, itemData.name, itemData.quantity);
@@ -827,6 +823,10 @@ export default function ListPage() {
         : 'Сохранить изменения';
   const saveDisabled = saveBusy || (!showDoneButton && !isDirty);
 
+  const mainBottomPadding = showFooter
+    ? (isEditMode && isDirty ? 'pb-44' : 'pb-28')
+    : 'pb-10';
+
   const itemHandlers = isDraft
     ? {
         onToggle: toggleDraftItem,
@@ -986,7 +986,7 @@ export default function ListPage() {
     <div className={`flex min-h-full flex-col ${APP_BACKGROUND} ${PAGE_X} pt-0`}>
       {renderFixedHeader(renderHeaderTitleRow())}
 
-      <main className={`flex flex-1 flex-col gap-3 pt-3 ${showFooter ? 'pb-28' : 'pb-10'}`}>
+      <main className={`flex flex-1 flex-col gap-3 pt-3 ${mainBottomPadding}`}>
         <div className={`${CARD_SURFACE} ${CARD_PAD_V}`}>
           {grouped.length === 0 ? (
             <p className={HINT_TEXT}>
@@ -1038,9 +1038,11 @@ export default function ListPage() {
 
             <AiInput
               ref={aiInputRef}
-              listId={isDraft || deferAdds ? null : listId}
-              isDraft={isDraft || deferAdds}
-              onDraftAdd={isDraft ? handleDraftAiAdd : handlePendingAiAdd}
+              listId={isDraft ? null : listId}
+              isDraft={isDraft}
+              listItems={items}
+              userId={user.uid}
+              onDraftAdd={isDraft ? handleDraftAiAdd : undefined}
               disabled={persisting || savingChanges}
             />
 
