@@ -15,7 +15,7 @@ const LIQUID_ROOTS = [
 
 const WEIGHT_ROOTS = [
   'клубник', 'малин', 'черник', 'смородин', 'голубик', 'ягод', 'виногра',
-  'картоф', 'морков', 'помид', 'томат', 'огур', 'капуст', 'перец', 'баклажан',
+  'картоф', 'картош', 'морков', 'помид', 'томат', 'огур', 'капуст', 'перец', 'баклажан',
   'кабач', 'тыкв', 'свекл', 'редис', 'яблок', 'банан', 'апельс', 'мандар',
   'груш', 'авокад', 'имбир', 'фрукт', 'овощ',
   'мяс', 'кури', 'говя', 'свини', 'индей', 'фарш', 'рыб', 'лосос', 'семг',
@@ -23,17 +23,24 @@ const WEIGHT_ROOTS = [
   'сыр', 'творог', 'твор', 'греч', 'рис', 'мук', 'сахар', 'круп',
 ];
 
+/** Продукты, для которых ИИ-ввод всегда подставляет «кг», даже если в истории был «шт». */
+export const AI_HARD_KG_ROOTS = ['картоф', 'картош', 'морков', 'огур', 'помид', 'томат'];
+
 function matchesRoots(name, roots) {
   const lower = name.toLowerCase().trim();
   if (!lower) return false;
   return roots.some((root) => lower.includes(root));
 }
 
+export function isHardKgProduct(name) {
+  return matchesRoots(name, AI_HARD_KG_ROOTS);
+}
+
 function findUnitInListItems(listItems, name) {
   const norm = normalizeItemName(name);
   if (!norm || !listItems?.length) return null;
 
-  for (let i = listItems.length - 1; i >= 0; i--) {
+  for (let i = listItems.length - 1; i >= 0; i -= 1) {
     const item = listItems[i];
     if (normalizeItemName(item.name) === norm && item.quantity) {
       return parseQuantity(item.quantity).unit;
@@ -68,6 +75,32 @@ export function getRecommendedUnit(name, { listItems = [], firestoreUnit = null 
   if (learned) return learned;
 
   return detectUnitFromDictionary(trimmed);
+}
+
+/**
+ * Для ИИ-ввода: приоритет у словарных «кг/л/пуч.», история «шт» не перебивает овощи.
+ */
+export function getAiRecommendedUnit(name, { listItems = [], firestoreUnit = null } = {}) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return 'шт';
+
+  if (isHardKgProduct(trimmed)) return 'кг';
+
+  const dictionaryDefault = detectUnitFromDictionary(trimmed);
+  if (dictionaryDefault !== 'шт') return dictionaryDefault;
+
+  const fromDictionary = lookupCustomProduct(trimmed);
+  if (fromDictionary?.unit && fromDictionary.unit !== 'шт') return fromDictionary.unit;
+
+  const learned = getLearnedUnit(trimmed);
+  if (learned && learned !== 'шт') return learned;
+
+  const fromList = findUnitInListItems(listItems, trimmed);
+  if (fromList && fromList !== 'шт') return fromList;
+
+  if (firestoreUnit && firestoreUnit !== 'шт') return firestoreUnit;
+
+  return dictionaryDefault;
 }
 
 export function hasDictionaryUnitHint(name) {

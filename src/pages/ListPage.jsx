@@ -49,6 +49,7 @@ import { useToast } from '../components/ui/ToastProvider';
 import { parseDateParam, formatDateParam, parseListScheduledFor, resolveSchedulePreset, startOfDay } from '../utils/listSchedule';
 import { normalizeListTypeForCreate } from '../utils/listTypes';
 import { useVisualViewportFixedTop } from '../hooks/useVisualViewportFixedTop';
+import { useElementHeight } from '../hooks/useElementHeight';
 import {
   scheduleListReminder,
   cancelListReminder,
@@ -127,6 +128,7 @@ export default function ListPage() {
 
   const [savingChanges, setSavingChanges] = useState(false);
   const [notifyOnSave, setNotifyOnSave] = useState(false);
+  const [aiSavedThisSession, setAiSavedThisSession] = useState(false);
   // Доступ к списку выбираем ещё на экране создания, чтобы участники получили пуш сразу.
   const [familyMembers, setFamilyMembers] = useState([]);
   // По умолчанию список общий для всей семьи (тумблер включён) — чтобы состояние
@@ -144,6 +146,7 @@ export default function ListPage() {
   const [ownerFamily, setOwnerFamily] = useState(null);
   const [isHighlighting, setIsHighlighting] = useState(false);
   const shareLinkRef = useRef(null);
+  const footerRef = useRef(null);
   const aiInputRef = useRef(null);
   const prevListIdRef = useRef(listId);
   const shareProcessedRef = useRef(null);
@@ -294,6 +297,8 @@ export default function ListPage() {
   useEffect(() => {
     resetPendingItems();
     resetPendingAccess();
+    setAiSavedThisSession(false);
+    setNotifyOnSave(false);
     // Сбрасываем выбор доступа при смене списка или семьи активного пользователя.
     setDraftSharedWith([]);
     setDraftIsPublic(true);
@@ -571,6 +576,10 @@ export default function ListPage() {
     mergeDraftItems(newItems);
   };
 
+  const handleAiItemsSaved = useCallback(() => {
+    setAiSavedThisSession(true);
+  }, []);
+
   const handleClearList = async () => {
     setClearing(true);
     try {
@@ -714,6 +723,7 @@ export default function ListPage() {
       }
 
       setNotifyOnSave(false);
+      setAiSavedThisSession(false);
       navigate(-1);
     } catch (err) {
       toast.error(err?.message || 'Не удалось сохранить изменения');
@@ -722,7 +732,41 @@ export default function ListPage() {
     }
   };
 
+  const handleAiSessionDone = async () => {
+    if (!listId || !list) return;
+
+    setSavingChanges(true);
+    try {
+      if (notifyOnSave) {
+        const author = { uid: user.uid, name: profile?.displayName || displayName, photoUrl: userPhotoUrl };
+        await notifyListUpdated({
+          list: {
+            id: listId,
+            title: list.title,
+            isPublic: list.isPublic,
+            allowedUsers: list.allowedUsers,
+            groupId: list.groupId || list.familyId,
+            familyId: list.familyId || list.groupId,
+          },
+          author,
+        });
+      }
+
+      setAiSavedThisSession(false);
+      setNotifyOnSave(false);
+      navigate(-1);
+    } catch (err) {
+      toast.error(err?.message || 'Не удалось завершить');
+    } finally {
+      setSavingChanges(false);
+    }
+  };
+
   const handleSave = async () => {
+    if (isEditMode && aiSavedThisSession && !isDirty) {
+      await handleAiSessionDone();
+      return;
+    }
     if (isEditMode && !isDirty && showCreationDone) {
       setShowCreationDone(false);
       navigate('/');
@@ -812,20 +856,23 @@ export default function ListPage() {
   const settingsListType = isDraft ? listType : list?.type || 'home';
 
   const showFooter = !isAdminView && (isDraft || isArchivedView || isEditMode);
-  const showDoneButton = isEditMode && !isDirty && showCreationDone;
+  const showAiDoneButton = isEditMode && aiSavedThisSession && !isDirty;
+  const showDoneButton = isEditMode && !isDirty && !aiSavedThisSession && showCreationDone;
+  const showNotifyToggle = isEditMode && (isDirty || aiSavedThisSession);
   const saveBusy = persisting || savingChanges;
   const saveLabel = isDraft
     ? (persisting ? 'Создаём…' : 'Создать список')
     : savingChanges
       ? 'Сохранение...'
-      : showDoneButton
-        ? 'Готово!'
+      : showAiDoneButton || showDoneButton
+        ? 'Готово'
         : 'Сохранить изменения';
-  const saveDisabled = saveBusy || (!showDoneButton && !isDirty);
+  const saveDisabled = saveBusy || (!showDoneButton && !showAiDoneButton && !isDirty);
 
-  const mainBottomPadding = showFooter
-    ? (isEditMode && isDirty ? 'pb-44' : 'pb-28')
-    : 'pb-10';
+  const footerHeight = useElementHeight(footerRef, showFooter);
+  const footerReserveFallback = showNotifyToggle ? 180 : 120;
+  const footerReservePx = footerHeight || (showFooter ? footerReserveFallback : 0);
+  const mainBottomPaddingPx = showFooter ? footerReservePx + 12 : 40;
 
   const itemHandlers = isDraft
     ? {
@@ -986,7 +1033,10 @@ export default function ListPage() {
     <div className={`flex min-h-full flex-col ${APP_BACKGROUND} ${PAGE_X} pt-0`}>
       {renderFixedHeader(renderHeaderTitleRow())}
 
-      <main className={`flex flex-1 flex-col gap-3 pt-3 ${mainBottomPadding}`}>
+      <main
+        className="flex flex-1 flex-col gap-3 pt-3"
+        style={{ paddingBottom: mainBottomPaddingPx }}
+      >
         <div className={`${CARD_SURFACE} ${CARD_PAD_V}`}>
           {grouped.length === 0 ? (
             <p className={HINT_TEXT}>
@@ -1042,7 +1092,9 @@ export default function ListPage() {
               isDraft={isDraft}
               listItems={items}
               userId={user.uid}
+              footerReservePx={footerReservePx}
               onDraftAdd={isDraft ? handleDraftAiAdd : undefined}
+              onItemsSavedToList={!isDraft ? handleAiItemsSaved : undefined}
               disabled={persisting || savingChanges}
             />
 
@@ -1081,7 +1133,10 @@ export default function ListPage() {
       </main>
 
       {showFooter && (
-        <footer className={`fixed bottom-0 left-1/2 z-30 w-full max-w-lg -translate-x-1/2 border-t border-gray-200/60 bg-[#f5f5f7]/95 backdrop-blur-md ${PAGE_X} py-4`}>
+        <footer
+          ref={footerRef}
+          className={`fixed bottom-0 left-1/2 z-30 w-full max-w-lg -translate-x-1/2 border-t border-gray-200/60 bg-[#f5f5f7]/95 backdrop-blur-md ${PAGE_X} pt-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))]`}
+        >
           {isArchivedView ? (
             <button
               type="button"
@@ -1093,7 +1148,7 @@ export default function ListPage() {
             </button>
           ) : (
             <>
-              {isEditMode && isDirty && (
+              {showNotifyToggle && (
                 <label className="mb-3 flex cursor-pointer items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-2.5 ring-1 ring-black/[0.04]">
                   <span className="text-sm text-slate-700">Уведомить участников об изменениях</span>
                   <button

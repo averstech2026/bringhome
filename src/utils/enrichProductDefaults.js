@@ -1,7 +1,7 @@
 import { detectCategory } from './categories';
 import { normalizeItemName } from './mergeItems';
 import { getLearnedCategory } from './productCategoryMap';
-import { getRecommendedUnit } from './recommendedUnit';
+import { getAiRecommendedUnit, isHardKgProduct } from './recommendedUnit';
 import { formatQuantity, parseQuantity } from './quantity';
 import {
   findPartialCustomProductMatch,
@@ -31,10 +31,12 @@ export function enrichProductDefaults(product, { listItems = [], firestoreUnit =
   const isDefaultQuantity = !product.quantity || rawQuantity.trim() === '1 шт';
 
   let finalUnit = unit;
-  if (dictEntry?.unit) {
+  if (isHardKgProduct(name) && (isDefaultQuantity || (unit === 'шт' && count === 1))) {
+    finalUnit = 'кг';
+  } else if (dictEntry?.unit && dictEntry.unit !== 'шт') {
     finalUnit = dictEntry.unit;
   } else if (isDefaultQuantity || (unit === 'шт' && count === 1)) {
-    finalUnit = getRecommendedUnit(name, { listItems, firestoreUnit });
+    finalUnit = getAiRecommendedUnit(name, { listItems, firestoreUnit });
   }
 
   return {
@@ -47,5 +49,28 @@ export function enrichProductDefaults(product, { listItems = [], firestoreUnit =
 export function enrichProductsBatch(products, options = {}) {
   return products
     .map((product) => enrichProductDefaults(product, options))
+    .filter(Boolean);
+}
+
+export async function enrichProductsForAi(
+  products,
+  { listItems = [], userId = null, isDraft = false, getProductHistoryUnit },
+) {
+  const historyUnits = await Promise.all(
+    products.map(async (product) => {
+      if (!userId || isDraft || !getProductHistoryUnit) return null;
+      try {
+        return await getProductHistoryUnit(userId, product.name);
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return products
+    .map((product, index) => enrichProductDefaults(product, {
+      listItems,
+      firestoreUnit: historyUnits[index],
+    }))
     .filter(Boolean);
 }

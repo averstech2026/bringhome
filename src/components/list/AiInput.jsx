@@ -29,7 +29,7 @@ import AiLimitModal from './AiLimitModal';
 import BorderGapCard from './BorderGapCard';
 import { useToast } from '../ui/ToastProvider';
 import { HINT_TEXT, INPUT_PLACEHOLDER } from './cardStyles';
-import { enrichProductDefaults } from '../../utils/enrichProductDefaults';
+import { enrichProductsForAi } from '../../utils/enrichProductDefaults';
 import { CATEGORY_ORDER } from '../../utils/categories';
 
 function AiThemeIcon({ icon, className }) {
@@ -58,8 +58,10 @@ export default forwardRef(function AiInput({
   listId,
   isDraft = false,
   onDraftAdd,
+  onItemsSavedToList,
   listItems = [],
   userId = null,
+  footerReservePx = 0,
   disabled = false,
 }, ref) {
   const [text, setText] = useState('');
@@ -236,6 +238,13 @@ export default forwardRef(function AiInput({
       }
       reloadProfile();
 
+      products = await enrichProductsForAi(products, {
+        listItems,
+        userId,
+        isDraft,
+        getProductHistoryUnit,
+      });
+
       const withIds = products.map((p, i) => ({ ...p, _previewId: `preview-${i}` }));
       setPreviewItems(withIds);
       setSelectedIds(new Set(withIds.map((p) => p._previewId)));
@@ -305,28 +314,18 @@ export default forwardRef(function AiInput({
         return;
       }
 
-      const historyUnits = await Promise.all(
-        products.map(async (product) => {
-          if (!userId || isDraft) return null;
-          try {
-            return await getProductHistoryUnit(userId, product.name);
-          } catch {
-            return null;
-          }
-        }),
-      );
-
-      products = products.map((product, index) =>
-        enrichProductDefaults(product, {
-          listItems,
-          firestoreUnit: historyUnits[index],
-        }),
-      ).filter(Boolean);
+      products = await enrichProductsForAi(products, {
+        listItems,
+        userId,
+        isDraft,
+        getProductHistoryUnit,
+      });
 
       if (isDraft) {
         await onDraftAdd?.(products);
       } else if (listId) {
         await addItemsBatch(listId, products);
+        onItemsSavedToList?.(products.length);
       }
 
       await learnProducts(products, { respectExisting: true });
@@ -352,9 +351,12 @@ export default forwardRef(function AiInput({
       <section
         ref={sectionRef}
         className="scroll-mt-[calc(env(safe-area-inset-top,0px)+4.25rem+0.5rem)]"
+        style={{
+          marginBottom: footerReservePx > 0 ? `${footerReservePx + 12}px` : undefined,
+        }}
       >
         <BorderGapCard
-          className={`transition-all duration-300 ${aiTheme.cardClassName} ${glow ? aiTheme.glowClassName : ''}`}
+          className={`flex flex-col transition-all duration-300 ${aiTheme.cardClassName} ${glow ? aiTheme.glowClassName : ''}`}
           borderClassName={aiTheme.borderClassName}
           legendClassName={aiTheme.legendClassName}
           legend={
@@ -388,7 +390,7 @@ export default forwardRef(function AiInput({
             }}
             disabled={disabled || loading}
             onPaste={() => setPasteHint('')}
-            className={`min-h-[200px] w-full resize-none bg-transparent text-left text-sm text-gray-900 outline-none disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
+            className={`min-h-[120px] max-h-[min(200px,32dvh)] w-full overflow-y-auto resize-none bg-transparent text-left text-sm text-gray-900 outline-none [-webkit-overflow-scrolling:touch] disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
           />
 
           {pasteHint && <p className={`mt-2 ${HINT_TEXT} ${aiTheme.hintClassName}`}>{pasteHint}</p>}
