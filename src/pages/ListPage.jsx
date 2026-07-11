@@ -869,10 +869,10 @@ export default function ListPage() {
         : 'Сохранить изменения';
   const saveDisabled = saveBusy || (!showDoneButton && !showAiDoneButton && !isDirty);
 
-  const footerHeight = useElementHeight(footerRef, showFooter);
-  const footerReserveFallback = showNotifyToggle ? 180 : 120;
+  const footerHeight = useElementHeight(footerRef, showFooter, [showNotifyToggle, saveLabel]);
+  const footerReserveFallback = showNotifyToggle ? 204 : 148;
   const footerReservePx = footerHeight || (showFooter ? footerReserveFallback : 0);
-  const mainBottomPaddingPx = showFooter ? footerReservePx + 12 : 40;
+  const mainBottomPaddingPx = showFooter ? footerReservePx + 16 : 40;
 
   const itemHandlers = isDraft
     ? {

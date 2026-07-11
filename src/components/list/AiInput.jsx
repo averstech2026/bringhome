@@ -82,6 +82,7 @@ export default forwardRef(function AiInput({
 
   const sectionRef = useRef(null);
   const textareaRef = useRef(null);
+  const aiButtonRef = useRef(null);
   const { user } = useAuth();
   const { profile, isAdmin, reload: reloadProfile } = useUserProfile(user);
 
@@ -135,13 +136,34 @@ export default forwardRef(function AiInput({
 
   const glowTimerRef = useRef(null);
 
+  const scrollAboveFooter = useCallback(() => {
+    if (!footerReservePx) return;
+
+    const target = aiButtonRef.current || sectionRef.current;
+    if (!target) return;
+
+    const rect = target.getBoundingClientRect();
+    const visibleBottom = window.innerHeight - footerReservePx - 12;
+    const overflow = rect.bottom - visibleBottom;
+    if (overflow > 0) {
+      window.scrollTo({
+        top: window.scrollY + overflow,
+        behavior: 'smooth',
+      });
+    }
+  }, [footerReservePx]);
+
   const reveal = useCallback(() => {
     if (glowTimerRef.current) {
       window.clearTimeout(glowTimerRef.current);
     }
 
     setGlow(true);
-    sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (footerReservePx > 0) {
+      scrollAboveFooter();
+    } else {
+      sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 
     window.setTimeout(() => {
       focusTextareaForManualPaste();
@@ -151,9 +173,24 @@ export default forwardRef(function AiInput({
       setGlow(false);
       glowTimerRef.current = null;
     }, 3600);
-  }, []);
+  }, [footerReservePx, scrollAboveFooter]);
 
   useImperativeHandle(ref, () => ({ reveal }), [reveal]);
+
+  useEffect(() => {
+    if (!footerReservePx) return undefined;
+
+    const frame = requestAnimationFrame(scrollAboveFooter);
+    return () => cancelAnimationFrame(frame);
+  }, [
+    footerReservePx,
+    success,
+    error,
+    pasteHint,
+    limitExhausted,
+    aiTheme.limitExhaustedMessage,
+    scrollAboveFooter,
+  ]);
 
   useEffect(() => () => {
     if (glowTimerRef.current) {
@@ -372,7 +409,8 @@ export default forwardRef(function AiInput({
         ref={sectionRef}
         className="scroll-mt-[calc(env(safe-area-inset-top,0px)+4.25rem+0.5rem)]"
         style={{
-          marginBottom: footerReservePx > 0 ? `${footerReservePx + 12}px` : undefined,
+          marginBottom: footerReservePx > 0 ? `${footerReservePx + 16}px` : undefined,
+          scrollMarginBottom: footerReservePx > 0 ? `${footerReservePx + 16}px` : undefined,
         }}
       >
         <BorderGapCard
@@ -427,6 +465,7 @@ export default forwardRef(function AiInput({
           )}
 
           <button
+            ref={aiButtonRef}
             type="button"
             onClick={handleAiButtonClick}
             disabled={aiButtonDisabled}

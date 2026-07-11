@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 /** Отслеживает высоту элемента (ResizeObserver + resize окна). */
-export function useElementHeight(ref, active = true) {
+export function useElementHeight(ref, active = true, deps = []) {
   const [height, setHeight] = useState(0);
 
   useEffect(() => {
@@ -30,7 +30,8 @@ export function useElementHeight(ref, active = true) {
       observer?.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [ref, active]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- extra deps trigger remeasure when footer content changes
+  }, [ref, active, ...deps]);
 
   return height;
 }

@@ -1,19 +1,43 @@
-import { Link2 } from 'lucide-react';
+import { Link2, Lock } from 'lucide-react';
 import { FamilyAvatarBadge } from './ListExternalShareSection';
-import { getOwnerFamilyDisplay, isExternalGuestList } from '../../utils/listShare';
+import {
+  getOwnerFamilyDisplay,
+  isCrossFamilySharedList,
+  isExternalGuestList,
+} from '../../utils/listShare';
 
-const AVATAR_CLASS = 'h-7 w-7 border-2 border-white text-[10px] shadow-sm';
+const AVATAR_CLASS = 'h-7 w-7 rounded-full object-cover text-[10px]';
 
-function ExternalShareMarker({ title }) {
+function PrivacyBadge({ type, title }) {
+  const Icon = type === 'external' ? Link2 : Lock;
+  const iconClass = type === 'external' ? 'text-indigo-600' : 'text-slate-500';
+
   return (
     <span
-      className="absolute -bottom-0.5 -right-0.5 z-10 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 ring-2 ring-white"
+      className="absolute -bottom-0.5 -right-0.5 z-10 flex h-[17px] w-[17px] items-center justify-center rounded-full bg-white shadow-sm"
       title={title}
       aria-label={title}
     >
-      <Link2 className="h-2 w-2" strokeWidth={2.5} aria-hidden />
+      <Icon className={`h-2.5 w-2.5 ${iconClass}`} strokeWidth={2.5} aria-hidden />
     </span>
   );
+}
+
+function getPrivacyBadge(list) {
+  if (isCrossFamilySharedList(list) || list?.shareInviteToken) {
+    const externalCount = list?.sharedWithFamilyIds?.length ?? 0;
+    const title =
+      externalCount > 0
+        ? 'Список доступен другой семье'
+        : 'Ссылка для приглашения другой семьи активна';
+    return { type: 'external', title };
+  }
+
+  if (!list?.isPublic) {
+    return { type: 'restricted', title: 'Доступ только для избранных членов семьи' };
+  }
+
+  return null;
 }
 
 export default function ListHeaderOwnerAvatar({ list, currentFamily, viewerFamilyId }) {
@@ -30,7 +54,10 @@ export default function ListHeaderOwnerAvatar({ list, currentFamily, viewerFamil
         title={`Список от семьи «${ownerFamily.familyName}»`}
       >
         <FamilyAvatarBadge family={ownerFamily} className={AVATAR_CLASS} />
-        <ExternalShareMarker title={`Список от семьи «${ownerFamily.familyName}»`} />
+        <PrivacyBadge
+          type="external"
+          title={`Список от семьи «${ownerFamily.familyName}»`}
+        />
       </div>
     );
   }
@@ -39,10 +66,16 @@ export default function ListHeaderOwnerAvatar({ list, currentFamily, viewerFamil
     ? { familyName: currentFamily.name, avatarUrl: currentFamily.avatarUrl }
     : getOwnerFamilyDisplay(list, {});
 
-  return (
-    <FamilyAvatarBadge
-      family={family}
-      className={AVATAR_CLASS}
-    />
-  );
+  const privacyBadge = getPrivacyBadge(list);
+
+  if (privacyBadge) {
+    return (
+      <div className="relative shrink-0">
+        <FamilyAvatarBadge family={family} className={AVATAR_CLASS} />
+        <PrivacyBadge type={privacyBadge.type} title={privacyBadge.title} />
+      </div>
+    );
+  }
+
+  return <FamilyAvatarBadge family={family} className={AVATAR_CLASS} />;
 }
