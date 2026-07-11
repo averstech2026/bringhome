@@ -2,8 +2,9 @@ import AppModal from '../ui/AppModal';
 import { PRIMARY_BTN } from './cardStyles';
 
 const THEME_ACCENT = {
-  hogwarts: 'border-amber-200 bg-gradient-to-b from-amber-50 to-white',
+  hogwarts: 'border-red-200 bg-gradient-to-b from-red-50 to-white',
   star_wars: 'border-slate-200 bg-gradient-to-b from-slate-100 to-white',
+  paddington: 'border-blue-200 bg-gradient-to-b from-blue-50 to-white',
   default: 'bg-white',
 };
 

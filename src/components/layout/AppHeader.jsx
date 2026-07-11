@@ -8,6 +8,7 @@ import { useFamily } from '../../hooks/useFamily';
 import { useUnreadFeedbacks } from '../../hooks/useUnreadFeedbacks';
 import { useUnseenFeedbackStatuses } from '../../hooks/useUnseenFeedbackStatuses';
 import { UserAvatar } from '../profile/UserAvatar';
+import { getThemeAccent, resolveUiTheme } from '../../utils/uiThemes';
 import { getUserPhotoUrl } from '../../utils/userPhoto';
 import AiBadge from './AiBadge';
 import NotificationBell from '../notifications/NotificationBell';
@@ -51,7 +52,8 @@ function HeaderBranding({ familyName, titleLoading, showFallbackTitle, variant =
   );
 }
 
-function HeaderProfileLink({ name, photoUrl, avatarClassName }) {
+function HeaderProfileLink({ name, photoUrl, avatarClassName, uiTheme }) {
+  const themeAccent = getThemeAccent(uiTheme);
   const { user } = useAuth();
   const { isSuperAdmin, familyId } = useUserProfile(user);
   const { unreadCount: feedbackUnread } = useUnreadFeedbacks(isSuperAdmin);
@@ -77,10 +79,15 @@ function HeaderProfileLink({ name, photoUrl, avatarClassName }) {
       <span className="max-w-[100px] truncate text-sm font-medium text-slate-900">{name}</span>
       <ChevronRight className="h-4 w-4 shrink-0 text-slate-900 stroke-[1.75]" aria-hidden />
       <span className="relative shrink-0">
-        <UserAvatar photoUrl={photoUrl} name={name} className={avatarClassName} />
+        <UserAvatar
+          photoUrl={photoUrl}
+          name={name}
+          className={avatarClassName}
+          ringClassName={themeAccent.avatarRingClassName}
+        />
         {showFeedbackBadge && (
           <span
-            className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-violet-500 ring-2 ring-white"
+            className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white ${themeAccent.solidClassName}`}
             aria-hidden
           />
         )}
@@ -101,6 +108,7 @@ export default function AppHeader({ variant = 'default' }) {
   const name =
     profile?.displayName || user?.displayName || user?.email?.split('@')[0] || 'Пользователь';
   const photoUrl = getUserPhotoUrl(user, profile);
+  const uiTheme = resolveUiTheme(profile, user?.uid);
 
   if (embedded) {
     return (
@@ -118,6 +126,7 @@ export default function AppHeader({ variant = 'default' }) {
             name={name}
             photoUrl={photoUrl}
             avatarClassName="h-8 w-8 text-xs"
+            uiTheme={uiTheme}
           />
         </div>
       </ScreenTopBar>
@@ -136,7 +145,7 @@ export default function AppHeader({ variant = 'default' }) {
 
         <div className="flex shrink-0 items-center gap-1">
           <NotificationBell userId={user?.uid} />
-          <HeaderProfileLink name={name} photoUrl={photoUrl} avatarClassName="h-9 w-9 text-sm" />
+          <HeaderProfileLink name={name} photoUrl={photoUrl} avatarClassName="h-9 w-9 text-sm" uiTheme={uiTheme} />
         </div>
       </div>
     </header>

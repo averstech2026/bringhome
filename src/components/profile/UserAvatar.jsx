@@ -1,5 +1,12 @@
-export function UserAvatar({ photoUrl, name, className = 'h-9 w-9 text-sm', variant = 'default' }) {
+export function UserAvatar({
+  photoUrl,
+  name,
+  className = 'h-9 w-9 text-sm',
+  variant = 'default',
+  ringClassName = '',
+}) {
   const initial = name?.charAt(0)?.toUpperCase() || '?';
+  const shapeClass = `shrink-0 rounded-full ${ringClassName}`.trim();
 
   const vividInitial =
     'bg-gradient-to-br from-slate-600 to-slate-800 font-bold text-white shadow-md ring-1 ring-white/40';
@@ -22,7 +29,7 @@ export function UserAvatar({ photoUrl, name, className = 'h-9 w-9 text-sm', vari
       <img
         src={photoUrl}
         alt={name || 'Аватар'}
-        className={`shrink-0 rounded-full object-cover ${photoFilter} ${className}`}
+        className={`${shapeClass} object-cover ${photoFilter} ${className}`}
       />
     );
   }
@@ -38,7 +45,7 @@ export function UserAvatar({ photoUrl, name, className = 'h-9 w-9 text-sm', vari
 
   return (
     <div
-      className={`flex shrink-0 items-center justify-center rounded-full ${initialClass} ${className}`}
+      className={`flex items-center justify-center ${shapeClass} ${initialClass} ${className}`}
     >
       {initial}
     </div>
