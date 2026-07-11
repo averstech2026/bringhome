@@ -390,7 +390,7 @@ export default forwardRef(function AiInput({
             }}
             disabled={disabled || loading}
             onPaste={() => setPasteHint('')}
-            className={`min-h-[120px] max-h-[min(200px,32dvh)] w-full overflow-y-auto resize-none bg-transparent text-left text-sm text-gray-900 outline-none [-webkit-overflow-scrolling:touch] disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
+            className={`min-h-[200px] max-h-[min(280px,40dvh)] w-full overflow-y-auto resize-none bg-transparent text-left text-sm text-gray-900 outline-none [-webkit-overflow-scrolling:touch] disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
           />
 
           {pasteHint && <p className={`mt-2 ${HINT_TEXT} ${aiTheme.hintClassName}`}>{pasteHint}</p>}
