@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { LogOut, MessageSquare, Shield } from 'lucide-react';
+import { Camera, LogOut, MessageSquare, Shield } from 'lucide-react';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import { useAuth } from '../hooks/useAuth';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -9,7 +9,6 @@ import { useNotifications } from '../hooks/useNotifications';
 import { useUnreadFeedbacks } from '../hooks/useUnreadFeedbacks';
 import { useUnseenFeedbackStatuses } from '../hooks/useUnseenFeedbackStatuses';
 import { updateUserAvatar, removeUserAvatar, updateOwnUiTheme } from '../services/usersService';
-import { getFamily, updateFamilyName } from '../services/familiesService';
 import {
   isPushSupported,
   enablePushNotifications,
@@ -25,7 +24,7 @@ import PageHeader from '../components/layout/PageHeader';
 import { CARD_SURFACE, PRIMARY_BTN } from '../components/list/cardStyles';
 import { useToast } from '../components/ui/ToastProvider';
 import { AVATAR_FILE_TOO_LARGE_MESSAGE, validateAvatarFile } from '../utils/avatarUpload';
-import { getProfileThemeButtonClass, PROFILE_THEME_OPTIONS, resolveUiTheme } from '../utils/uiThemes';
+import { getProfileThemeButtonClass, PROFILE_THEME_OPTIONS, resolveUiTheme, setCachedUiTheme } from '../utils/uiThemes';
 import packageJson from '../../package.json';
 
 const appVersion = packageJson.version;
@@ -148,52 +147,13 @@ export default function SettingsPage() {
   const [pushSupported, setPushSupported] = useState(true);
   const [pushPermission, setPushPermission] = useState('default');
   const [pushTesting, setPushTesting] = useState(false);
-  const [familyName, setFamilyName] = useState('');
-  const [savedFamilyName, setSavedFamilyName] = useState('');
-  const [familyNameLoading, setFamilyNameLoading] = useState(false);
-  const [familyNameSaving, setFamilyNameSaving] = useState(false);
-  const [familyNameError, setFamilyNameError] = useState('');
-  const [familyNameSuccess, setFamilyNameSuccess] = useState('');
 
   const name = profile?.displayName || user?.displayName || 'Пользователь';
-  const canEditFamilyName = Boolean(familyId && (isFamilyAdmin || isSuperAdmin));
-  const showFamilyName = Boolean(familyId);
-  const hasFamilyNameChanges = familyName.trim() !== savedFamilyName.trim();
   const savedPhotoUrl = profile?.avatarUrl || null;
   const displayPhotoUrl = previewUrl || savedPhotoUrl;
   const hasSavedAvatar = Boolean(profile?.avatarUrl);
   const hasChanges = Boolean(pendingFile);
-  const currentUiTheme = activeUiTheme ?? resolveUiTheme(profile);
-
-  useEffect(() => {
-    if (!showFamilyName) {
-      setFamilyName('');
-      setSavedFamilyName('');
-      return undefined;
-    }
-
-    let active = true;
-    setFamilyNameLoading(true);
-    setFamilyNameError('');
-
-    getFamily(familyId)
-      .then((family) => {
-        if (!active) return;
-        const currentName = family?.name?.trim() || '';
-        setFamilyName(currentName);
-        setSavedFamilyName(currentName);
-      })
-      .catch((err) => {
-        if (active) setFamilyNameError(err?.message || 'Не удалось загрузить название семьи');
-      })
-      .finally(() => {
-        if (active) setFamilyNameLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [showFamilyName, familyId]);
+  const currentUiTheme = activeUiTheme ?? resolveUiTheme(profile, user?.uid);
 
   useEffect(() => {
     if (profile) {
@@ -405,6 +365,7 @@ export default function SettingsPage() {
 
     const previousTheme = currentUiTheme;
     setActiveUiTheme(newTheme);
+    setCachedUiTheme(user.uid, newTheme);
     setSavingTheme(true);
     setError('');
 
@@ -416,27 +377,6 @@ export default function SettingsPage() {
       setError(err?.message || 'Не удалось сохранить тему');
     } finally {
       setSavingTheme(false);
-    }
-  };
-
-  const handleSaveFamilyName = async () => {
-    if (!canEditFamilyName || familyNameSaving || !hasFamilyNameChanges) return;
-
-    setFamilyNameSaving(true);
-    setFamilyNameError('');
-    setFamilyNameSuccess('');
-
-    try {
-      const trimmed = familyName.trim();
-      await updateFamilyName(familyId, trimmed);
-      setFamilyName(trimmed);
-      setSavedFamilyName(trimmed);
-      setFamilyNameSuccess('Название семьи сохранено');
-      setTimeout(() => setFamilyNameSuccess(''), 2500);
-    } catch (err) {
-      setFamilyNameError(err?.message || 'Не удалось сохранить название семьи');
-    } finally {
-      setFamilyNameSaving(false);
     }
   };
 
@@ -482,6 +422,9 @@ export default function SettingsPage() {
                     Изменить
                   </span>
                 )}
+                <span className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-violet-600 text-white shadow-md transition group-hover:bg-violet-700">
+                  <Camera className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden />
+                </span>
               </button>
 
               {avatarMenuOpen && (
@@ -599,55 +542,6 @@ export default function SettingsPage() {
         )}
 
         <section className={`mt-6 overflow-hidden ${CARD_SURFACE}`}>
-          {showFamilyName && (
-            <>
-              <div className="px-4 py-4">
-                <p className="text-[15px] text-slate-800">Название семьи</p>
-                <p className="mt-0.5 text-xs text-slate-400">
-                  {canEditFamilyName
-                    ? 'Отображается для всех участников вашей семьи'
-                    : 'Общее название вашей семьи'}
-                </p>
-                {familyNameLoading ? (
-                  <div className="mt-3 h-11 animate-pulse rounded-xl bg-slate-100" />
-                ) : canEditFamilyName ? (
-                  <input
-                    type="text"
-                    value={familyName}
-                    onChange={(e) => {
-                      setFamilyName(e.target.value);
-                      setFamilyNameError('');
-                      setFamilyNameSuccess('');
-                    }}
-                    placeholder="Например, Семья Ивановых"
-                    maxLength={80}
-                    className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-brand-500"
-                  />
-                ) : (
-                  <p className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-800">
-                    {familyName || 'Без названия'}
-                  </p>
-                )}
-                {canEditFamilyName && hasFamilyNameChanges && !familyNameLoading && (
-                  <button
-                    type="button"
-                    onClick={handleSaveFamilyName}
-                    disabled={familyNameSaving || !familyName.trim()}
-                    className={`mt-3 w-full ${PRIMARY_BTN} !py-3 text-sm disabled:opacity-50`}
-                  >
-                    {familyNameSaving ? 'Сохраняем…' : 'Сохранить'}
-                  </button>
-                )}
-                {familyNameError && <p className="mt-2 text-sm text-red-500">{familyNameError}</p>}
-                {familyNameSuccess && (
-                  <p className="mt-2 text-sm text-emerald-600">{familyNameSuccess}</p>
-                )}
-              </div>
-
-              <div className="mx-4 border-t border-gray-100" />
-            </>
-          )}
-
           <div className="flex items-center justify-between gap-4 px-4 py-4">
             <div className="min-w-0">
               <p className="text-[15px] text-slate-800">Группировать завершенные списки по датам</p>

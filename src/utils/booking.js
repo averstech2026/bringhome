@@ -8,37 +8,144 @@ export function getActiveCategoryItems(items) {
   return items.filter((item) => !item.checked);
 }
 
-export function getCategoryBookingState(items, displayName) {
+/** @param {{ displayName?: string, familyId?: string }} ctx */
+export function isItemBookedByMe(item, ctx = {}) {
+  if (!item?.bookedBy) return false;
+  if (item.bookedByFamilyId && ctx.familyId) {
+    return item.bookedByFamilyId === ctx.familyId;
+  }
+  return item.bookedBy === ctx.displayName;
+}
+
+/** Забронировано другой семьёй (кросс-семейный список) */
+export function isItemBookedByOtherFamily(item, familyId) {
+  if (!item?.bookedBy || !familyId) return false;
+  if (item.bookedByFamilyId) {
+    return item.bookedByFamilyId !== familyId;
+  }
+  return false;
+}
+
+/** @param {{ displayName?: string, familyId?: string }} ctx */
+export function getCategoryBookingState(items, ctx) {
   const active = getActiveCategoryItems(items);
   if (active.length === 0) {
-    return { allMine: false, hasFree: false, activeCount: 0 };
+    return { allMine: false, hasFree: false, activeCount: 0, blockedByOtherFamily: false };
   }
 
-  const mine = active.filter((item) => item.bookedBy === displayName);
+  const mine = active.filter((item) => isItemBookedByMe(item, ctx));
   const free = active.filter((item) => !item.bookedBy);
+  const blocked = active.filter((item) => isItemBookedByOtherFamily(item, ctx.familyId));
 
   return {
     allMine: mine.length === active.length,
     hasFree: free.length > 0,
     activeCount: active.length,
+    blockedByOtherFamily: blocked.length > 0 && mine.length === 0 && free.length === 0,
   };
 }
 
-export function resolveCategoryBookingAction(items, displayName) {
+/** @param {{ displayName?: string, familyId?: string }} ctx */
+export function resolveCategoryBookingAction(items, ctx) {
   const active = getActiveCategoryItems(items);
-  const { allMine } = getCategoryBookingState(items, displayName);
+  const { allMine } = getCategoryBookingState(items, ctx);
 
   if (allMine) {
     return {
-      bookedBy: null,
-      itemIds: active.filter((item) => item.bookedBy === displayName).map((item) => item.id),
+      booking: null,
+      itemIds: active.filter((item) => isItemBookedByMe(item, ctx)).map((item) => item.id),
     };
   }
 
   return {
-    bookedBy: displayName,
+    booking: ctx.displayName
+      ? {
+          bookedBy: ctx.displayName,
+          bookedByFamilyId: ctx.familyId || null,
+          bookedByFamilyName: ctx.familyName || null,
+          bookedByUid: ctx.userId || null,
+        }
+      : null,
     itemIds: active
-      .filter((item) => !item.bookedBy || item.bookedBy === displayName)
+      .filter((item) => {
+        if (!item.bookedBy) return true;
+        if (isItemBookedByMe(item, ctx)) return true;
+        if (isItemBookedByOtherFamily(item, ctx.familyId)) return false;
+        return item.bookedBy === ctx.displayName;
+      })
       .map((item) => item.id),
+  };
+}
+
+export function buildBookingPayload(bookedBy, meta = {}) {
+  if (!bookedBy) {
+    return {
+      bookedBy: null,
+      bookedByFamilyId: null,
+      bookedByFamilyName: null,
+      bookedByUid: null,
+    };
+  }
+
+  return {
+    bookedBy,
+    bookedByFamilyId: meta.familyId || null,
+    bookedByFamilyName: meta.familyName || null,
+    bookedByUid: meta.userId || null,
+  };
+}
+
+export function getBookerDisplayInfo(item, { familyId, externalFamilies = {}, ownerFamily = null } = {}) {
+  if (!item?.bookedBy) return null;
+
+  const ctx = { familyId };
+  if (isItemBookedByMe(item, ctx)) {
+    return {
+      kind: 'mine',
+      label: 'Вы',
+      name: item.bookedBy,
+      avatarUrl: null,
+      familyId: item.bookedByFamilyId || familyId,
+    };
+  }
+
+  if (isItemBookedByOtherFamily(item, familyId)) {
+    const ext = externalFamilies[item.bookedByFamilyId];
+    return {
+      kind: 'otherFamily',
+      label: item.bookedByFamilyName || ext?.familyName || 'Другая семья',
+      name: item.bookedByFamilyName || ext?.familyName || item.bookedBy,
+      avatarUrl: ext?.avatarUrl || null,
+      familyId: item.bookedByFamilyId,
+    };
+  }
+
+  if (item.bookedByFamilyId && item.bookedByFamilyId === familyId) {
+    return {
+      kind: 'otherUser',
+      label: formatBookerLabel(item.bookedBy),
+      name: item.bookedBy,
+      avatarUrl: null,
+      familyId,
+    };
+  }
+
+  if (item.bookedByFamilyId && item.bookedByFamilyId !== familyId) {
+    const ext = externalFamilies[item.bookedByFamilyId] || ownerFamily;
+    return {
+      kind: 'otherFamily',
+      label: item.bookedByFamilyName || ext?.familyName || ext?.name || formatBookerLabel(item.bookedBy),
+      name: item.bookedBy,
+      avatarUrl: ext?.avatarUrl || null,
+      familyId: item.bookedByFamilyId,
+    };
+  }
+
+  return {
+    kind: 'otherUser',
+    label: formatBookerLabel(item.bookedBy),
+    name: item.bookedBy,
+    avatarUrl: null,
+    familyId: null,
   };
 }

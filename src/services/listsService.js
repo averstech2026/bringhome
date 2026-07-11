@@ -16,6 +16,9 @@ import {
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '../firebase';
 import { DEFAULT_GROUP_ID, getListFamilyId } from '../utils/familyGroup';
+import { getExternalSharedLists } from './listShareService';
+import { buildBookingPayload } from '../utils/booking';
+import { getFamily } from './familiesService';
 import { findActiveItemByName, normalizeItemName } from '../utils/mergeItems';
 import { addQuantities, parseQuantity, resetBaseQuantity } from '../utils/quantity';
 import { computeListStatusFromItems } from '../utils/listStatus';
@@ -60,6 +63,17 @@ export async function createList({
   const resolvedAllowed = Array.isArray(allowedUsers) && allowedUsers.length > 0
     ? [...new Set([createdBy, ...allowedUsers.filter(Boolean)])]
     : [createdBy];
+
+  let ownerFamilyName = null;
+  let ownerFamilyAvatarUrl = null;
+  try {
+    const ownerFamily = await getFamily(resolvedFamilyId);
+    ownerFamilyName = ownerFamily?.name || null;
+    ownerFamilyAvatarUrl = ownerFamily?.avatarUrl || null;
+  } catch {
+    // необязательный снимок для карточек гостей
+  }
+
   const ref = await addDoc(collection(db, COLLECTIONS.LISTS), {
     title: formatListTitle(resolvedType, scheduledDate || new Date()),
     description: description.trim() || '',
@@ -69,6 +83,8 @@ export async function createList({
     familyId: resolvedFamilyId,
     groupId: resolvedFamilyId,
     allowedUsers: resolvedAllowed,
+    ownerFamilyName,
+    ownerFamilyAvatarUrl,
     viewedBy: { [createdBy]: true },
     status: 'active',
     archived: false,
@@ -130,7 +146,7 @@ export async function toggleUserListAccess(listId, userId, hasAccess) {
   return addUserToList(listId, userId);
 }
 
-export async function ensureListAccess(listId, userId, { isAdmin = false } = {}) {
+export async function ensureListAccess(listId, userId, { isAdmin = false, userFamilyId } = {}) {
   const listRef = doc(db, COLLECTIONS.LISTS, listId);
 
   let snapshot;
@@ -163,6 +179,9 @@ export async function ensureListAccess(listId, userId, { isAdmin = false } = {})
   }
   if (data.isPublic) return { allowed: true, list: { id: snapshot.id, ...data } };
   if (data.createdBy === userId) return { allowed: true, list: { id: snapshot.id, ...data } };
+  if (userFamilyId && data.sharedWithFamilyIds?.includes(userFamilyId)) {
+    return { allowed: true, list: { id: snapshot.id, ...data } };
+  }
   if (data.allowedUsers?.includes(userId)) {
     return { allowed: true, list: { id: snapshot.id, ...data } };
   }
@@ -244,17 +263,26 @@ export async function getPublicFamilyLists(familyId, { includeArchived = false }
 export async function getHomePageLists(userId, familyId, { isFamilyAdmin = false, includeArchived = false } = {}) {
   if (!userId || !familyId) return [];
 
+  const externalListsPromise = getExternalSharedLists(familyId, { includeArchived });
+
+  let familyLists = [];
   if (isFamilyAdmin) {
-    return getFamilyLists(familyId, { includeArchived });
+    familyLists = await getFamilyLists(familyId, { includeArchived });
+  } else {
+    const [personalLists, publicLists] = await Promise.all([
+      getUserLists(userId, { familyId, includeArchived }),
+      getPublicFamilyLists(familyId, { includeArchived }),
+    ]);
+    const listsById = new Map();
+    for (const list of [...personalLists, ...publicLists]) {
+      listsById.set(list.id, list);
+    }
+    familyLists = [...listsById.values()];
   }
 
-  const [personalLists, publicLists] = await Promise.all([
-    getUserLists(userId, { familyId, includeArchived }),
-    getPublicFamilyLists(familyId, { includeArchived }),
-  ]);
-
+  const externalLists = await externalListsPromise;
   const listsById = new Map();
-  for (const list of [...personalLists, ...publicLists]) {
+  for (const list of [...familyLists, ...externalLists]) {
     listsById.set(list.id, list);
   }
 
@@ -528,20 +556,25 @@ export async function updateItemComment(itemId, comment) {
   });
 }
 
-export async function updateItemBooking(itemId, bookedBy) {
-  await updateDoc(doc(db, COLLECTIONS.ITEMS, itemId), {
-    bookedBy: bookedBy || null,
-  });
+export async function updateItemBooking(itemId, bookedBy, bookingMeta = {}) {
+  const payload = typeof bookedBy === 'object' && bookedBy !== null
+    ? buildBookingPayload(bookedBy.bookedBy, bookedBy)
+    : buildBookingPayload(bookedBy, bookingMeta);
+
+  await updateDoc(doc(db, COLLECTIONS.ITEMS, itemId), payload);
 }
 
 export async function updateItemsBookingBatch(updates) {
   if (!updates?.length) return;
 
   const batch = writeBatch(db);
-  for (const { itemId, bookedBy } of updates) {
-    batch.update(doc(db, COLLECTIONS.ITEMS, itemId), {
-      bookedBy: bookedBy || null,
-    });
+  for (const update of updates) {
+    const { itemId, bookedBy, ...meta } = update;
+    const payload = typeof bookedBy === 'object' && bookedBy !== null
+      ? buildBookingPayload(bookedBy.bookedBy, bookedBy)
+      : buildBookingPayload(bookedBy, meta);
+
+    batch.update(doc(db, COLLECTIONS.ITEMS, itemId), payload);
   }
   await batch.commit();
 }
@@ -698,7 +731,14 @@ export async function toggleItem(itemId, { checked, checkedBy }) {
     checked,
     checkedBy: checked ? checkedBy : null,
     checkedAt: checked ? serverTimestamp() : null,
-    ...(checked ? { bookedBy: null } : {}),
+    ...(checked
+      ? {
+          bookedBy: null,
+          bookedByFamilyId: null,
+          bookedByFamilyName: null,
+          bookedByUid: null,
+        }
+      : {}),
   });
 
   if (listId) await syncListStatus(listId);

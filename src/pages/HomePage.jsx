@@ -19,6 +19,8 @@ import CreateListSheet from '../components/home/CreateListSheet';
 import RequestCustomTypeModal from '../components/home/RequestCustomTypeModal';
 import AppHeader from '../components/layout/AppHeader';
 import ScreenTopPanel from '../components/layout/ScreenTopPanel';
+import ListFilterSegmentedControl from '../components/home/ListFilterSegmentedControl';
+import ListFilterEmptyState from '../components/home/ListFilterEmptyState';
 import ListCard from '../components/home/ListCard';
 import CompletedListsSection from '../components/home/CompletedListsSection';
 import ArchiveListConfirmModal from '../components/home/ArchiveListConfirmModal';
@@ -36,6 +38,10 @@ import {
   cancelListReminder,
 } from '../services/scheduledNotifications';
 import { canArchiveList, getListArchiveAdmins, isListOwner, isListSharedWithUser } from '../utils/listPermissions';
+import { isCrossFamilySharedList, isExternalGuestList, isListOwnerFamily } from '../utils/listShare';
+import { getListFamilyId } from '../utils/familyGroup';
+import { getFamily } from '../services/familiesService';
+import { syncGuestFamilySnapshotOnLists } from '../services/listShareService';
 import { clearRepeatDraft } from '../utils/repeatDraftStorage';
 import {
   clearOnboardingSkippedThisSession,
@@ -44,6 +50,7 @@ import {
   markOnboardingSkippedThisSession,
 } from '../utils/onboardingContent';
 import { formatDateParam } from '../utils/listSchedule';
+import { filterHomeLists, HOME_LIST_FILTER } from '../utils/homeListFilter';
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -52,6 +59,7 @@ export default function HomePage() {
   const toast = useToast();
   const [lists, setLists] = useState([]);
   const [authorsById, setAuthorsById] = useState({});
+  const [familiesById, setFamiliesById] = useState({});
   const [listProgress, setListProgress] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -63,6 +71,7 @@ export default function HomePage() {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState([]);
+  const [listFilter, setListFilter] = useState(HOME_LIST_FILTER.ALL);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -79,6 +88,8 @@ export default function HomePage() {
     try {
       const familyLists = await getHomePageLists(user.uid, familyId, { isFamilyAdmin });
       const active = familyLists.filter((list) => {
+        if (list.sharedWithFamilyIds?.includes(familyId)) return true;
+        if (getListFamilyId(list) === familyId) return true;
         if (list.isPublic) return true;
         if (list.createdBy === user.uid) return true;
         return list.allowedUsers?.includes(user.uid);
@@ -113,8 +124,50 @@ export default function HomePage() {
       try {
         const members = await getFamilyMembers(familyId);
         setAuthorsById(Object.fromEntries(members.map((member) => [member.id, member])));
+
+        const familyIds = new Set([familyId]);
+        for (const list of active) {
+          familyIds.add(getListFamilyId(list));
+          (list.sharedWithFamilyIds || []).forEach((id) => familyIds.add(id));
+        }
+
+        const familiesEntries = await Promise.all(
+          [...familyIds].map(async (id) => {
+            try {
+              const family = await getFamily(id);
+              return family ? [id, family] : null;
+            } catch {
+              return null;
+            }
+          }),
+        );
+        const familiesMap = Object.fromEntries(familiesEntries.filter(Boolean));
+
+        for (const list of active) {
+          if (getListFamilyId(list) !== familyId || list.ownerFamilyName) continue;
+          const ownFamily = familiesMap[familyId];
+          if (!ownFamily?.name) continue;
+
+          const patch = {
+            ownerFamilyName: ownFamily.name,
+            ownerFamilyAvatarUrl: ownFamily.avatarUrl || null,
+          };
+          updateList(list.id, patch).catch(() => {});
+          Object.assign(list, patch);
+        }
+
+        const ownFamily = familiesMap[familyId];
+        if (ownFamily) {
+          syncGuestFamilySnapshotOnLists(familyId, {
+            familyName: ownFamily.name,
+            familyAvatarUrl: ownFamily.avatarUrl || null,
+          }).catch(() => {});
+        }
+
+        setFamiliesById(familiesMap);
       } catch {
         setAuthorsById({});
+        setFamiliesById({});
       }
     } catch (err) {
       setLoadError(err?.message || 'Не удалось загрузить списки');
@@ -261,8 +314,14 @@ export default function HomePage() {
       (list) => resolveListStatus(list, listProgress[list.id]) === 'active',
     ),
   );
-  const myActiveLists = activeLists.filter((list) => isListOwner(list, user?.uid));
+  const myActiveLists = activeLists.filter((list) => {
+    if (isListOwnerFamily(list, familyId)) return true;
+    if (isCrossFamilySharedList(list)) return false;
+    return isListOwner(list, user?.uid);
+  });
   const sharedActiveLists = activeLists.filter((list) => {
+    if (isListOwnerFamily(list, familyId)) return false;
+    if (isCrossFamilySharedList(list) && isExternalGuestList(list, familyId)) return true;
     if (isListOwner(list, user?.uid)) return false;
     if (isListSharedWithUser(list, user?.uid)) return true;
     return isSuperAdmin;
@@ -271,14 +330,27 @@ export default function HomePage() {
     (list) => resolveListStatus(list, listProgress[list.id]) === 'completed',
   );
 
-  const renderActiveListGroup = (groupLists, subtitle, { isFirst = false } = {}) => {
+  const filteredMyActiveLists = filterHomeLists(myActiveLists, listFilter, familyId);
+  const filteredSharedActiveLists = filterHomeLists(sharedActiveLists, listFilter, familyId);
+  const filteredCompletedLists = filterHomeLists(completedLists, listFilter, familyId);
+  const hasFilteredActiveLists = filteredMyActiveLists.length > 0 || filteredSharedActiveLists.length > 0;
+  const showListFilter = !loading && !profileLoading && lists.length > 0;
+
+  const renderActiveSectionHeader = (title, { showFilter = false, className = 'mb-2' } = {}) => (
+    <div className={`flex w-full items-center justify-between gap-2 pl-1 ${className}`}>
+      <h3 className="shrink-0 text-xs font-medium text-slate-500">{title}</h3>
+      {showFilter && (
+        <ListFilterSegmentedControl value={listFilter} onChange={setListFilter} />
+      )}
+    </div>
+  );
+
+  const renderActiveListGroup = (groupLists, subtitle, { isFirst = false, showFilter = false } = {}) => {
     if (groupLists.length === 0) return null;
 
     return (
-      <div className={isFirst ? 'mt-4' : 'mt-5'}>
-        <h3 className="mb-2 pl-1 text-xs font-medium text-slate-500">
-          {subtitle}
-        </h3>
+      <div className={isFirst ? 'mt-2' : 'mt-5'}>
+        {renderActiveSectionHeader(subtitle, { showFilter })}
         <ul className="space-y-2.5">
           {groupLists.map((list) => (
             <li key={list.id}>{renderListCard(list)}</li>
@@ -300,6 +372,8 @@ export default function HomePage() {
         list={listWithAuthor}
         progress={listProgress[list.id]}
         authorsById={authorsById}
+        familiesById={familiesById}
+        viewerFamilyId={familyId}
         currentUserId={user?.uid}
         busy={busyId === list.id}
         dimmed={dimmed}
@@ -317,7 +391,7 @@ export default function HomePage() {
         <AppHeader variant="embedded" />
       </ScreenTopPanel>
 
-      <section className="mt-4">
+      <section className="mt-2">
         {loadError && (
           <p className={`mt-2 ${HINT_TEXT} text-red-500`}>{loadError}</p>
         )}
@@ -332,17 +406,32 @@ export default function HomePage() {
           </p>
         ) : lists.length > 0 ? (
           <>
-            {activeLists.length > 0 && (
+            {hasFilteredActiveLists ? (
               <>
-                {renderActiveListGroup(myActiveLists, 'Мои актуальные', { isFirst: true })}
-                {renderActiveListGroup(sharedActiveLists, 'Доступные актуальные')}
+                {renderActiveListGroup(filteredMyActiveLists, 'Мои актуальные', {
+                  isFirst: true,
+                  showFilter: showListFilter,
+                })}
+                {renderActiveListGroup(filteredSharedActiveLists, 'Доступные актуальные', {
+                  isFirst: filteredMyActiveLists.length === 0,
+                  showFilter: showListFilter && filteredMyActiveLists.length === 0,
+                })}
               </>
+            ) : filteredCompletedLists.length === 0 ? (
+              <>
+                {showListFilter && renderActiveSectionHeader('Мои актуальные', { className: 'mb-3' })}
+                <ListFilterEmptyState
+                  filterLabel={listFilter !== HOME_LIST_FILTER.ALL ? 'Все' : null}
+                />
+              </>
+            ) : (
+              showListFilter && renderActiveSectionHeader('Мои актуальные', { className: 'mb-0' })
             )}
 
-            {completedLists.length > 0 && (
+            {filteredCompletedLists.length > 0 && (
               <CompletedListsSection
                 key={location.key}
-                lists={completedLists}
+                lists={filteredCompletedLists}
                 groupByDate={settings.groupByDate}
                 renderListCard={(list) => renderListCard(list, { dimmed: true, showCompletionDate: true })}
               />

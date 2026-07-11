@@ -5,7 +5,12 @@ import { registerSW } from 'virtual:pwa-register';
 import { AuthProvider } from './hooks/useAuth';
 import { ToastProvider } from './components/ui/ToastProvider';
 import App from './App.jsx';
+import { redirectBrokenListPathToHashRoute } from './utils/hashRouteRedirect.js';
 import './index.css';
+
+redirectBrokenListPathToHashRoute();
+
+redirectBrokenListPathToHashRoute();
 
 // Регистрируем PWA service worker (offline-кэш + фоновые push) и включаем
 // автообновление. immediate: true — регистрируем сразу при загрузке страницы.

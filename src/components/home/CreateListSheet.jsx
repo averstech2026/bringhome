@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_WIDE } from '../ui/AppModal';
 import ScheduleCalendar from '../list/ScheduleCalendar';
+import ListExternalShareSection from '../list/ListExternalShareSection';
 import { PRIMARY_BTN } from '../list/cardStyles';
 import { sanitizeCustomTypeName } from '../../utils/listTypes';
 import {
@@ -109,6 +110,12 @@ export default function CreateListSheet({
   initialScheduledFor = null,
   initialDescription = '',
   readOnly = false,
+  listId = null,
+  list = null,
+  currentUserId = null,
+  ownerFamilyName = '',
+  ownerFamilyAvatarUrl = null,
+  onExternalShareChanged,
 }) {
   const today = useMemo(() => getToday(), []);
   const [selectedType, setSelectedType] = useState('home');
@@ -402,6 +409,18 @@ export default function CreateListSheet({
           maxLength={120}
           className="mt-2.5 w-full resize-none rounded-xl bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
         />
+
+        {isSettings && !readOnly && (
+          <ListExternalShareSection
+            listId={listId}
+            list={list}
+            currentUserId={currentUserId}
+            ownerFamilyName={ownerFamilyName}
+            ownerFamilyAvatarUrl={ownerFamilyAvatarUrl}
+            disabled={readOnly}
+            onAccessChanged={onExternalShareChanged}
+          />
+        )}
       </div>
 
       <div className="sticky bottom-0 z-10 mt-6 border-t border-gray-100 bg-white px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">

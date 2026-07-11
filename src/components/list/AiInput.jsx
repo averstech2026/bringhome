@@ -103,7 +103,7 @@ export default forwardRef(function AiInput({
   const remainingMonthly = useMemo(() => getRemainingMonthly(profile, family), [profile, family]);
   const limitExhausted = !isAdmin && !usageStatus.allowed;
   const showUsageBadge = !isUnlimitedAiUser(profile);
-  const uiTheme = useMemo(() => resolveUiTheme(profile), [profile]);
+  const uiTheme = useMemo(() => resolveUiTheme(profile, user?.uid), [profile, user?.uid]);
   const aiTheme = useMemo(() => getAiInputTheme(uiTheme), [uiTheme]);
 
   useCustomProductsDictionary();

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { mergeItemsBatch } from '../utils/mergeItems';
+import { isItemBookedByMe, isItemBookedByOtherFamily, buildBookingPayload } from '../utils/booking';
 
 export function isPendingListItem(itemId) {
   return String(itemId || '').startsWith('draft-');
@@ -62,24 +63,26 @@ export function usePendingListItems() {
     );
   }, []);
 
-  const updatePendingItemBooking = useCallback((itemId, bookedBy) => {
+  const updatePendingItemBooking = useCallback((itemId, bookingPayload) => {
     setPendingItems((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, bookedBy } : item)),
+      prev.map((item) => (item.id === itemId ? { ...item, ...bookingPayload } : item)),
     );
   }, []);
 
-  const updatePendingCategoryBooking = useCallback((category, bookedBy, displayName) => {
+  const updatePendingCategoryBooking = useCallback((category, bookedBy, ctx) => {
     setPendingItems((prev) =>
       prev.map((item) => {
         if (item.category !== category || item.checked) return item;
 
         if (bookedBy) {
-          if (item.bookedBy && item.bookedBy !== displayName) return item;
-          return { ...item, bookedBy };
+          if (item.bookedBy && !isItemBookedByMe(item, ctx) && isItemBookedByOtherFamily(item, ctx.familyId)) {
+            return item;
+          }
+          return { ...item, ...buildBookingPayload(bookedBy, ctx) };
         }
 
-        if (item.bookedBy === displayName) {
-          return { ...item, bookedBy: null };
+        if (isItemBookedByMe(item, ctx)) {
+          return { ...item, ...buildBookingPayload(null) };
         }
 
         return item;

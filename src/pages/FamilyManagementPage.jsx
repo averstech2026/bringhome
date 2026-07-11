@@ -157,16 +157,19 @@ export default function FamilyManagementPage() {
 
         {family && (
           <div className="mt-6">
-            <FamilySummaryCard family={family} membersCount={members.length} />
+            <FamilySummaryCard
+              family={family}
+              membersCount={members.length}
+              onFamilyUpdated={setFamily}
+            />
           </div>
         )}
 
-        <div className="mb-4 mt-6 flex items-center justify-end">
-          <AddMemberButton onClick={() => setModal({ mode: 'create' })} />
-        </div>
-
         <section>
-          <h2 className={PAGE_SECTION_TITLE}>Участники</h2>
+          <div className="mt-6 flex items-center justify-between gap-3">
+            <h2 className={PAGE_SECTION_TITLE}>Участники</h2>
+            <AddMemberButton onClick={() => setModal({ mode: 'create' })} />
+          </div>
 
           {loading || profileLoading ? (
             <div className="mt-4 flex justify-center">

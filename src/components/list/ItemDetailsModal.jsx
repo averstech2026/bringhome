@@ -3,7 +3,12 @@ import { Check, Hand, X } from 'lucide-react';
 import { CATEGORIES, CATEGORY_EMOJI } from '../../utils/categories';
 import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_SHEET } from '../ui/AppModal';
 import { PRIMARY_BTN } from './cardStyles';
-import { formatBookerLabel } from '../../utils/booking';
+import BookingBadge from './BookingBadge';
+import {
+  isItemBookedByMe,
+  isItemBookedByOtherFamily,
+  getBookerDisplayInfo,
+} from '../../utils/booking';
 
 const STATUS_BTN =
   'flex min-h-[3.25rem] flex-1 items-center justify-center gap-2 rounded-full border border-transparent px-3 py-2.5 text-sm font-semibold shadow-none transition-all duration-150 active:scale-[0.98] disabled:cursor-default disabled:opacity-50';
@@ -20,11 +25,18 @@ const STATUS_BTN_BOOKING_IDLE =
 const STATUS_BTN_BOOKING_ACTIVE =
   'bg-indigo-500 text-white shadow-[0_2px_8px_rgba(99,102,241,0.22)] hover:bg-indigo-600';
 
+const STATUS_BTN_BOOKING_BLOCKED =
+  'cursor-not-allowed bg-slate-100 text-slate-400';
+
 export default function ItemDetailsModal({
   open,
   item,
   displayName,
   userPhotoUrl,
+  bookingContext,
+  externalFamilies = {},
+  ownerFamily = null,
+  membersById = {},
   disabled = false,
   readOnly = false,
   onClose,
@@ -34,6 +46,8 @@ export default function ItemDetailsModal({
   const [bookedBy, setBookedBy] = useState(null);
   const [category, setCategory] = useState('Прочее');
   const [checked, setChecked] = useState(false);
+
+  const ctx = bookingContext || { displayName, userPhotoUrl };
 
   useEffect(() => {
     if (!open || !item) return;
@@ -45,15 +59,36 @@ export default function ItemDetailsModal({
 
   if (!open || !item) return null;
 
-  const isMine = bookedBy && bookedBy === displayName;
-  const isOther = bookedBy && bookedBy !== displayName;
+  const itemSnapshot = { ...item, bookedBy, checked };
+  const isMine = bookedBy && isItemBookedByMe(itemSnapshot, ctx);
+  const isOtherFamily = bookedBy && isItemBookedByOtherFamily(itemSnapshot, ctx.familyId);
+  const isOtherUser = bookedBy && !isMine && !isOtherFamily;
+  const bookerInfo = bookedBy
+    ? getBookerDisplayInfo(itemSnapshot, {
+        familyId: ctx.familyId,
+        externalFamilies,
+        ownerFamily,
+      })
+    : null;
 
-  const buildPayload = ({ nextChecked = checked, nextBookedBy = bookedBy } = {}) => ({
-    comment: comment.trim() || null,
-    bookedBy: nextChecked ? null : nextBookedBy || null,
-    category,
-    checked: nextChecked,
-  });
+  const buildPayload = ({ nextChecked = checked, nextBookedBy = bookedBy } = {}) => {
+    const resolvedBookedBy = nextChecked ? null : nextBookedBy || null;
+    const bookingMeta = resolvedBookedBy
+      ? {
+          familyId: ctx.familyId,
+          familyName: ctx.familyName,
+          userId: ctx.userId,
+        }
+      : {};
+
+    return {
+      comment: comment.trim() || null,
+      bookedBy: resolvedBookedBy,
+      bookingMeta,
+      category,
+      checked: nextChecked,
+    };
+  };
 
   const persistAndClose = (payload) => {
     onSave?.(payload);
@@ -79,10 +114,18 @@ export default function ItemDetailsModal({
   };
 
   const handleToggleBooking = () => {
-    if (!canEditMeta || isOther) return;
+    if (!canEditMeta || isOtherFamily || isOtherUser) return;
     const nextBookedBy = bookedBy === displayName ? null : displayName;
     persistAndClose(buildPayload({ nextBookedBy }));
   };
+
+  const bookingLabel = isOtherFamily
+    ? bookerInfo?.label || 'Другая семья'
+    : isOtherUser
+      ? `Купит ${bookerInfo?.label || bookedBy}`
+      : isMine
+        ? 'Вы берете'
+        : 'Взять на себя';
 
   return (
     <AppModal
@@ -156,19 +199,31 @@ export default function ItemDetailsModal({
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                disabled={!canEditMeta || isOther}
+                disabled={!canEditMeta || isOtherFamily || isOtherUser}
                 onClick={handleToggleBooking}
-                aria-pressed={isMine}
+                aria-pressed={isMine || isOtherFamily || isOtherUser}
                 className={`${STATUS_BTN} ${
-                  isMine || isOther ? STATUS_BTN_BOOKING_ACTIVE : STATUS_BTN_BOOKING_IDLE
-                } ${isOther ? 'disabled:opacity-100' : ''}`}
+                  isOtherFamily || isOtherUser
+                    ? STATUS_BTN_BOOKING_BLOCKED
+                    : isMine
+                      ? STATUS_BTN_BOOKING_ACTIVE
+                      : STATUS_BTN_BOOKING_IDLE
+                } ${isOtherFamily || isOtherUser ? 'disabled:opacity-100' : ''}`}
               >
-                <Hand className="h-4 w-4 shrink-0" strokeWidth={isMine || isOther ? 2.25 : 2} aria-hidden />
-                {isOther
-                  ? `Купит ${formatBookerLabel(bookedBy)}`
-                  : isMine
-                    ? 'Вы берете'
-                    : 'Взять на себя'}
+                {bookedBy ? (
+                  <BookingBadge
+                    item={itemSnapshot}
+                    bookingContext={ctx}
+                    externalFamilies={externalFamilies}
+                    ownerFamily={ownerFamily}
+                    membersById={membersById}
+                    avatarOnly
+                    className="h-5 w-5 text-[9px]"
+                  />
+                ) : (
+                  <Hand className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                )}
+                {bookingLabel}
               </button>
 
               <button

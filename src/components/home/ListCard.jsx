@@ -10,6 +10,10 @@ import { getListProgressClass, getListTypeBadgeProps, isBuiltinListType } from '
 import { formatCompletedListDateLabel } from '../../utils/groupCompletedLists';
 import { getListScheduleBadgeProps, shouldShowScheduleBadge } from '../../utils/listSchedule';
 import { isListUnviewedByUser } from '../../utils/listPermissions';
+import { isCrossFamilySharedList, isExternalGuestList, isListOwnerFamily, getExternalFamiliesList, getOwnerFamilyDisplay } from '../../utils/listShare';
+import { getListFamilyId } from '../../utils/familyGroup';
+import { FamilyAvatarBadge } from '../list/ListExternalShareSection';
+import { Link2 } from 'lucide-react';
 import ListAccessIcon from './ListAccessIcon';
 
 const TYPE_PROGRESS = {
@@ -82,7 +86,107 @@ function getListParticipants(list, authorsById = {}) {
   return [owner, ...others];
 }
 
-function ListParticipantsAvatars({ list, authorsById }) {
+function CrossFamilyShareMarker({ title = 'Совместный список с другой семьёй', className = '' }) {
+  return (
+    <span
+      className={`relative z-10 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 ring-2 ring-white ${className}`}
+      title={title}
+      aria-label={title}
+    >
+      <Link2 className="h-2.5 w-2.5" strokeWidth={2.5} aria-hidden />
+    </span>
+  );
+}
+
+function GuestCrossFamilyAvatars({ list, familiesById }) {
+  const ownerFamily = getOwnerFamilyDisplay(list, familiesById);
+
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <FamilyAvatarBadge
+        family={ownerFamily}
+        className="h-5 w-5 border-2 border-white text-[8px] shadow-sm"
+      />
+      <CrossFamilyShareMarker title={`Список от семьи «${ownerFamily.familyName}»`} />
+    </div>
+  );
+}
+
+function OwnerCrossFamilyAvatars({ list, authorsById, familiesById }) {
+  const participants = getListParticipants(list, authorsById);
+  const ownerFamilyId = getListFamilyId(list);
+  const externalFamilies = getExternalFamiliesList(list, familiesById).filter((family) => family.id !== ownerFamilyId);
+  const externalLabel = externalFamilies.map((family) => family.familyName).join(', ');
+
+  return (
+    <div className="flex shrink-0 items-center">
+      {participants.length > 0 && (
+        <div className="flex -space-x-1.5">
+          {participants.slice(0, 3).map((participant, index) => {
+            const isOwner = participant.id === list.createdBy;
+            return (
+              <ListAuthorAvatar
+                key={participant.id}
+                author={participant}
+                isOwner={isOwner}
+                zIndex={isOwner ? undefined : index + 1}
+              />
+            );
+          })}
+        </div>
+      )}
+      {externalFamilies.length > 0 && (
+        <>
+          <CrossFamilyShareMarker
+            title={
+              externalLabel
+                ? `Совместно с: ${externalLabel}`
+                : 'Совместный список с другой семьёй'
+            }
+            className={participants.length > 0 ? 'mx-0.5' : ''}
+          />
+          <div className="flex -space-x-1.5">
+            {externalFamilies.slice(0, 2).map((family, index) => (
+              <div key={family.id} style={{ zIndex: externalFamilies.length - index }}>
+                <FamilyAvatarBadge
+                  family={family}
+                  className="h-5 w-5 border-2 border-white text-[8px] shadow-sm"
+                />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function CrossFamilyAvatars({ list, familiesById = {}, viewerFamilyId, authorsById }) {
+  if (isExternalGuestList(list, viewerFamilyId)) {
+    return <GuestCrossFamilyAvatars list={list} familiesById={familiesById} />;
+  }
+
+  return (
+    <OwnerCrossFamilyAvatars
+      list={list}
+      authorsById={authorsById}
+      familiesById={familiesById}
+    />
+  );
+}
+
+function ListParticipantsAvatars({ list, authorsById, familiesById, viewerFamilyId }) {
+  if (isCrossFamilySharedList(list)) {
+    return (
+      <CrossFamilyAvatars
+        list={list}
+        familiesById={familiesById}
+        viewerFamilyId={viewerFamilyId}
+        authorsById={authorsById}
+      />
+    );
+  }
+
   const participants = getListParticipants(list, authorsById);
 
   if (participants.length === 0) return null;
@@ -162,7 +266,7 @@ function ListProgressCounter({ checked, total }) {
   );
 }
 
-function ListAvatarsBlock({ list, authorsById, creatorOnly, creator, creatorName }) {
+function ListAvatarsBlock({ list, authorsById, familiesById, viewerFamilyId, creatorOnly, creator, creatorName }) {
   return (
     <div className="flex min-w-0 flex-1 items-center justify-end">
       {creatorOnly ? (
@@ -175,7 +279,12 @@ function ListAvatarsBlock({ list, authorsById, creatorOnly, creator, creatorName
           <ListAuthorAvatar author={creator} isOwner />
         </div>
       ) : (
-        <ListParticipantsAvatars list={list} authorsById={authorsById} />
+        <ListParticipantsAvatars
+          list={list}
+          authorsById={authorsById}
+          familiesById={familiesById}
+          viewerFamilyId={viewerFamilyId}
+        />
       )}
     </div>
   );
@@ -206,6 +315,8 @@ function ListTopMeta({
   list,
   customBadge,
   authorsById,
+  familiesById,
+  viewerFamilyId,
   creatorOnly = false,
 }) {
   const creator = authorsById[list.createdBy];
@@ -216,6 +327,8 @@ function ListTopMeta({
       <ListAvatarsBlock
         list={list}
         authorsById={authorsById}
+        familiesById={familiesById}
+        viewerFamilyId={viewerFamilyId}
         creatorOnly={creatorOnly}
         creator={creator}
         creatorName={creatorName}
@@ -342,6 +455,8 @@ export default function ListCard({
   list,
   progress,
   authorsById,
+  familiesById = {},
+  viewerFamilyId,
   currentUserId,
   archived = false,
   dimmed = false,
@@ -411,6 +526,8 @@ export default function ListCard({
               list={list}
               customBadge={customBadge}
               authorsById={authorsById}
+              familiesById={familiesById}
+              viewerFamilyId={viewerFamilyId}
               creatorOnly={creatorOnly}
             />
           </div>

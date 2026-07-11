@@ -65,6 +65,19 @@ service cloud.firestore {
       return list.get('familyId', list.get('groupId', ''));
     }
 
+    function listSharedWithFamilyIds(list) {
+      return list.get('sharedWithFamilyIds', []);
+    }
+
+    function isExternalFamilyGuest(list) {
+      return userFamilyId() in listSharedWithFamilyIds(list)
+        && listFamilyId(list) != userFamilyId();
+    }
+
+    function hasActiveShareInvite(list) {
+      return list.get('shareInviteToken', null) != null;
+    }
+
     function canReadList(list) {
       return isSuperAdmin() || (
         sameFamily(listFamilyId(list)) && (
@@ -73,7 +86,53 @@ service cloud.firestore {
           || list.createdBy == request.auth.uid
           || request.auth.uid in listAllowedUsers(list)
         )
+      ) || isExternalFamilyGuest(list) || (
+        isSignedIn()
+        && hasActiveShareInvite(list)
+        && !sameFamily(listFamilyId(list))
       );
+    }
+
+    function isShareInviteTokenUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'shareInviteToken', 'shareInviteCreatedAt', 'shareInviteCreatedBy'
+      ])
+      && request.resource.data.shareInviteToken is string
+      && request.resource.data.shareInviteToken.size() > 0;
+    }
+
+    function isExternalFamilyJoinUpdate() {
+      return !(userFamilyId() in listSharedWithFamilyIds(resource.data))
+        && userFamilyId() in listSharedWithFamilyIds(request.resource.data)
+        && userFamilyId() != listFamilyId(resource.data)
+        && resource.data.shareInviteToken != null
+        && request.resource.data.shareInviteToken == resource.data.shareInviteToken
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'sharedWithFamilyIds', 'externalFamilies'
+        ]);
+    }
+
+    function isExternalFamilyRevokeUpdate() {
+      return resource.data.createdBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'sharedWithFamilyIds', 'externalFamilies'
+        ])
+        && listSharedWithFamilyIds(request.resource.data).size()
+          < listSharedWithFamilyIds(resource.data).size();
+    }
+
+    function isExternalFamilySnapshotSyncUpdate() {
+      let fid = userFamilyId();
+      return isExternalFamilyGuest(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['externalFamilies'])
+        && request.resource.data.sharedWithFamilyIds == resource.data.sharedWithFamilyIds
+        && request.resource.data.externalFamilies.diff(resource.data.externalFamilies).affectedKeys().hasOnly([fid])
+        && request.resource.data.externalFamilies[fid].familyName is string
+        && (
+          !('avatarUrl' in request.resource.data.externalFamilies[fid])
+          || request.resource.data.externalFamilies[fid].avatarUrl == null
+          || request.resource.data.externalFamilies[fid].avatarUrl is string
+        );
     }
 
     function canAccessList(listId) {
@@ -102,10 +161,24 @@ service cloud.firestore {
       allow update: if isSuperAdmin() || (
         isFamilyAdmin()
         && sameFamily(familyId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 80
+        && (
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+            && request.resource.data.name is string
+            && request.resource.data.name.size() > 0
+            && request.resource.data.name.size() <= 80
+          )
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatarUrl'])
+            && (
+              request.resource.data.avatarUrl == null
+              || (
+                request.resource.data.avatarUrl is string
+                && request.resource.data.avatarUrl.size() <= 200000
+              )
+            )
+          )
+        )
       );
     }
 
@@ -176,19 +249,33 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.resource.data.createdBy == request.auth.uid
         && sameFamily(listFamilyId(request.resource.data));
-      allow update: if isFamilyIdMigrationUpdate() || (isSignedIn() && sameFamily(listFamilyId(resource.data)) && (
+      allow update: if isFamilyIdMigrationUpdate() || (isSignedIn() && (
         isSuperAdmin() ||
-        resource.data.createdBy == request.auth.uid ||
-        request.auth.uid in listAllowedUsers(resource.data) ||
-        (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['allowedUsers']) &&
-          request.auth.uid in listAllowedUsers(request.resource.data) &&
-          !(request.auth.uid in listAllowedUsers(resource.data))
-        ) ||
         (
           canReadList(resource.data) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewedBy'])
-        )
+        ) ||
+        (
+          sameFamily(listFamilyId(resource.data)) && (
+            resource.data.createdBy == request.auth.uid ||
+            request.auth.uid in listAllowedUsers(resource.data) ||
+            (
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['allowedUsers']) &&
+              request.auth.uid in listAllowedUsers(request.resource.data) &&
+              !(request.auth.uid in listAllowedUsers(resource.data))
+            ) ||
+            (
+              resource.data.createdBy == request.auth.uid &&
+              isShareInviteTokenUpdate()
+            ) ||
+            (
+              resource.data.createdBy == request.auth.uid &&
+              isExternalFamilyRevokeUpdate()
+            )
+          )
+        ) ||
+        isExternalFamilyJoinUpdate() ||
+        isExternalFamilySnapshotSyncUpdate()
       ));
       allow delete: if isSignedIn() && sameFamily(listFamilyId(resource.data)) && (
         resource.data.createdBy == request.auth.uid || isSuperAdmin()

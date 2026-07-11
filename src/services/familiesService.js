@@ -14,6 +14,8 @@ import { db, COLLECTIONS } from '../firebase';
 import { DEFAULT_GROUP_ID } from '../utils/familyGroup';
 import { normalizeAiUsage, resolveFamilyAiLimitMonth } from '../utils/aiLimits';
 import { ROLES } from '../utils/roles';
+import { compressImageToDataUrl } from '../utils/compressImage';
+import { syncGuestFamilySnapshotOnLists } from './listShareService';
 
 export const DEFAULT_FAMILY_LIMITS = {
   maxUsers: 5,
@@ -41,6 +43,27 @@ export async function updateFamilyName(familyId, name) {
   await updateDoc(doc(db, COLLECTIONS.FAMILIES, familyId), {
     name: trimmed,
   });
+
+  syncGuestFamilySnapshotOnLists(familyId, { familyName: trimmed }).catch(() => {});
+}
+
+export async function updateFamilyAvatar(familyId, file) {
+  if (!familyId) throw new Error('Семья не найдена');
+
+  const avatarUrl = await compressImageToDataUrl(file);
+  await updateDoc(doc(db, COLLECTIONS.FAMILIES, familyId), { avatarUrl });
+
+  syncGuestFamilySnapshotOnLists(familyId, { familyAvatarUrl: avatarUrl }).catch(() => {});
+
+  return avatarUrl;
+}
+
+export async function removeFamilyAvatar(familyId) {
+  if (!familyId) throw new Error('Семья не найдена');
+
+  await updateDoc(doc(db, COLLECTIONS.FAMILIES, familyId), { avatarUrl: null });
+
+  syncGuestFamilySnapshotOnLists(familyId, { familyAvatarUrl: null }).catch(() => {});
 }
 
 function normalizeFamilyLimitsPayload(limits) {

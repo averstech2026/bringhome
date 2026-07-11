@@ -23,7 +23,7 @@ import { db, COLLECTIONS, firebaseConfig, auth } from '../firebase';
 import { compressImageToDataUrl } from '../utils/compressImage';
 import { DEFAULT_GROUP_ID, getFamilyId } from '../utils/familyGroup';
 import { DEFAULT_AI_LIMITS, deriveAiLimitsFromMonthly } from '../utils/aiLimits';
-import { UI_THEME_IDS } from '../utils/uiThemes';
+import { UI_THEME_IDS, setCachedUiTheme } from '../utils/uiThemes';
 import { ROLES, normalizeRole, isSuperAdmin, PLATFORM_OWNER_EMAIL } from '../utils/roles';
 import { createFamily } from './familiesService';
 import { createWelcomeOnboardingNotification } from './notificationsService';
@@ -329,6 +329,7 @@ export async function setUserProfileSettings(userId, { isChild, uiTheme }) {
 export async function updateOwnUiTheme(userId, uiTheme) {
   const normalized = UI_THEME_IDS.includes(uiTheme) ? uiTheme : 'default';
   await updateDoc(doc(db, COLLECTIONS.USERS, userId), { uiTheme: normalized });
+  setCachedUiTheme(userId, normalized);
 }
 
 export async function updateUserAvatar(user, file) {

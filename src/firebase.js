@@ -9,6 +9,9 @@ import { getStorage } from 'firebase/storage';
  * lists: {
  *   id, title, description?, type ("home" | "cottage"), isPublic, createdBy,
  *   familyId, groupId?, allowedUsers: string[], viewedBy?: { [uid]: boolean },
+ *   sharedWithFamilyIds?: string[], externalFamilies?: { [familyId]: { familyName, avatarUrl?, joinedAt, joinedBy } },
+ *   ownerFamilyName?: string, ownerFamilyAvatarUrl?: string,
+ *   shareInviteToken?: string, shareInviteCreatedAt?, shareInviteCreatedBy?,
  *   scheduledFor?: Timestamp, remindOnDay?: boolean, createdAt
  * }
  *
@@ -21,7 +24,7 @@ import { getStorage } from 'firebase/storage';
  *
  * items: {
  *   id, listId, name, quantity, category, comment?, checked,
- *   checkedBy, checkedAt, bookedBy?
+ *   checkedBy, checkedAt, bookedBy?, bookedByFamilyId?, bookedByFamilyName?, bookedByUid?
  * }
  *
  * product_history: {
@@ -45,7 +48,7 @@ import { getStorage } from 'firebase/storage';
  * }
  *
  * families: {
- *   id, name, ownerId, aiLimitMonth?, limits: { maxUsers, maxLists, aiRequests }, createdAt, createdBy?
+ *   id, name, ownerId, avatarUrl?, aiLimitMonth?, limits: { maxUsers, maxLists, aiRequests }, createdAt, createdBy?
  * }
  *
  * invites: {

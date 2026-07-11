@@ -2,15 +2,20 @@ import { Hand } from 'lucide-react';
 import ItemRow from './ItemRow';
 import { getCategoryLabel, getCategoryHeaderClass } from '../../utils/categories';
 import { getCategoryBookingState, resolveCategoryBookingAction } from '../../utils/booking';
-function CategoryBookButton({ items, displayName, disabled, onBookCategory }) {
-  const { allMine, hasFree, activeCount } = getCategoryBookingState(items, displayName);
+
+function CategoryBookButton({ items, bookingContext, disabled, onBookCategory }) {
+  const { allMine, hasFree, activeCount, blockedByOtherFamily } = getCategoryBookingState(
+    items,
+    bookingContext,
+  );
   if (activeCount === 0) return null;
 
   const canToggle = allMine || hasFree;
+  const softDisabled = blockedByOtherFamily && !canToggle;
 
   const handleClick = () => {
-    const { bookedBy, itemIds } = resolveCategoryBookingAction(items, displayName);
-    onBookCategory?.(itemIds, bookedBy);
+    const { booking, itemIds } = resolveCategoryBookingAction(items, bookingContext);
+    onBookCategory?.(itemIds, booking);
   };
 
   return (
@@ -18,11 +23,19 @@ function CategoryBookButton({ items, displayName, disabled, onBookCategory }) {
       type="button"
       disabled={disabled || !canToggle}
       onClick={handleClick}
-      title={allMine ? 'Снять бронь с отдела' : 'Забронировать весь отдел'}
+      title={
+        softDisabled
+          ? 'Отдел забронирован другой семьёй'
+          : allMine
+            ? 'Снять бронь с отдела'
+            : 'Забронировать весь отдел'
+      }
       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-transparent shadow-sm transition-all duration-150 active:scale-95 disabled:opacity-40 ${
-        allMine
-          ? 'bg-indigo-500 text-white shadow-indigo-200/50 hover:bg-indigo-600'
-          : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+        softDisabled
+          ? 'cursor-not-allowed bg-slate-100 text-slate-300'
+          : allMine
+            ? 'bg-indigo-500 text-white shadow-indigo-200/50 hover:bg-indigo-600'
+            : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
       }`}
     >
       <Hand className="h-3.5 w-3.5" strokeWidth={allMine ? 2.25 : 2} aria-hidden />
@@ -35,6 +48,10 @@ export default function CategoryGroup({
   items,
   displayName,
   userPhotoUrl,
+  bookingContext,
+  externalFamilies = {},
+  ownerFamily = null,
+  membersById = {},
   onToggle,
   onQuantityChange,
   onRemove,
@@ -47,9 +64,10 @@ export default function CategoryGroup({
   isFirst = false,
 }) {
   const headerColor = getCategoryHeaderClass(category);
+  const resolvedContext = bookingContext || { displayName, userPhotoUrl };
 
-  const handleCategoryBook = (itemIds, bookedBy) => {
-    onCategoryBooking?.(category, itemIds, bookedBy);
+  const handleCategoryBook = (itemIds, booking) => {
+    onCategoryBooking?.(category, itemIds, booking);
   };
 
   return (
@@ -58,11 +76,12 @@ export default function CategoryGroup({
         className={`-mx-3 flex items-center justify-between gap-2 py-2 pl-3 pr-6 font-bold text-xs uppercase tracking-wider ${headerColor} ${
           isFirst ? 'mt-0 rounded-md' : 'mt-3 rounded-md'
         }`}
-      >        <span className="min-w-0 truncate">{getCategoryLabel(category)}</span>
+      >
+        <span className="min-w-0 truncate">{getCategoryLabel(category)}</span>
         {!readOnly && (
           <CategoryBookButton
             items={items}
-            displayName={displayName}
+            bookingContext={resolvedContext}
             disabled={disabled}
             onBookCategory={handleCategoryBook}
           />
@@ -75,6 +94,10 @@ export default function CategoryGroup({
             item={item}
             displayName={displayName}
             userPhotoUrl={userPhotoUrl}
+            bookingContext={resolvedContext}
+            externalFamilies={externalFamilies}
+            ownerFamily={ownerFamily}
+            membersById={membersById}
             onToggle={onToggle}
             onQuantityChange={onQuantityChange}
             onRemove={onRemove}

@@ -1,5 +1,24 @@
 export const UI_THEME_IDS = ['default', 'hogwarts', 'star_wars'];
 
+const UI_THEME_CACHE_PREFIX = 'bringhome_ui_theme_';
+
+export function getCachedUiTheme(userId) {
+  if (!userId || typeof localStorage === 'undefined') return null;
+  const theme = localStorage.getItem(`${UI_THEME_CACHE_PREFIX}${userId}`);
+  return UI_THEME_IDS.includes(theme) ? theme : null;
+}
+
+export function setCachedUiTheme(userId, themeId) {
+  if (!userId || typeof localStorage === 'undefined') return;
+  localStorage.setItem(`${UI_THEME_CACHE_PREFIX}${userId}`, resolveThemeId(themeId));
+}
+
+function resolveUiThemeFromProfile(profile) {
+  const theme = profile?.uiTheme;
+  if (UI_THEME_IDS.includes(theme)) return theme;
+  return profile?.isChild ? 'hogwarts' : 'default';
+}
+
 export const PROFILE_THEME_OPTIONS = [
   { id: 'default', label: 'Обычная' },
   { id: 'hogwarts', label: 'Магия Хогвартса ✨' },
@@ -119,10 +138,19 @@ export function getProfileThemeButtonClass(themeId, active) {
   return `${PROFILE_THEME_BUTTON_BASE} border border-transparent ${activeClass}`;
 }
 
-export function resolveUiTheme(profile) {
-  const theme = profile?.uiTheme;
-  if (UI_THEME_IDS.includes(theme)) return theme;
-  return profile?.isChild ? 'hogwarts' : 'default';
+export function resolveUiTheme(profile, userId) {
+  if (profile) {
+    const resolved = resolveUiThemeFromProfile(profile);
+    if (userId) setCachedUiTheme(userId, resolved);
+    return resolved;
+  }
+
+  if (userId) {
+    const cached = getCachedUiTheme(userId);
+    if (cached) return cached;
+  }
+
+  return 'default';
 }
 
 export function getAiInputTheme(themeId) {

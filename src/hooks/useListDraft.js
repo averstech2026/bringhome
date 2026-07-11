@@ -153,7 +153,8 @@ export function useListDraft(listType) {
     );
   }, []);
 
-  const updateDraftCategoryBooking = useCallback((category, bookedBy, displayName) => {
+  const updateDraftCategoryBooking = useCallback((category, bookedBy, ctx) => {
+    const displayName = typeof ctx === 'string' ? ctx : ctx?.displayName;
     setDraftItems((prev) =>
       prev.map((item) => {
         if (item.category !== category || item.checked) return item;

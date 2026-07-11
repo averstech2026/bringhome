@@ -17,7 +17,11 @@ import {
   notifyListUpdated,
   notifyUserAddedToList,
 } from '../services/pushNotification';
-import { getFamilyId } from '../utils/familyGroup';
+import { getFamilyId, getListFamilyId } from '../utils/familyGroup';
+import { buildBookingPayload } from '../utils/booking';
+import { acceptListShare } from '../services/listShareService';
+import { isCrossFamilySharedList } from '../utils/listShare';
+import { getFamily } from '../services/familiesService';
 import ListHeaderProgress from '../components/list/ListHeaderProgress';
 import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, clearAllListItems, updateList, markListViewed, updateItemsBookingBatch, addItemsBatch, toggleItem, updateItemQuantity, updateItemCategory, updateItemComment, updateItemBooking, deleteItem } from '../services/listsService';
 import { groupItemsByCategory, getListProgress } from '../utils/groupByCategory';
@@ -27,7 +31,7 @@ import AiInput from '../components/list/AiInput';
 import ShareControls from '../components/list/ShareControls';
 import CreateListAccess from '../components/list/CreateListAccess';
 import { getFamilyMembers } from '../services/usersService';
-import ListAccessIcon from '../components/home/ListAccessIcon';
+import ListHeaderOwnerAvatar from '../components/list/ListHeaderOwnerAvatar';
 import CreateListSheet from '../components/home/CreateListSheet';
 import RepeatListModal from '../components/home/RepeatListModal';
 import { saveRepeatDraft } from '../utils/repeatDraftStorage';
@@ -62,7 +66,7 @@ export default function ListPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, displayName } = useAuth();
-  const { profile, isSuperAdmin } = useUserProfile(user);
+  const { profile, isSuperAdmin, familyId } = useUserProfile(user);
   const userPhotoUrl = getUserPhotoUrl(user, profile);
 
   const listHeaderRef = useVisualViewportFixedTop();
@@ -136,11 +140,41 @@ export default function ListPage() {
   const [repeatBusy, setRepeatBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [currentFamily, setCurrentFamily] = useState(null);
+  const [ownerFamily, setOwnerFamily] = useState(null);
   const [isHighlighting, setIsHighlighting] = useState(false);
   const shareLinkRef = useRef(null);
   const aiInputRef = useRef(null);
   const prevListIdRef = useRef(listId);
+  const shareProcessedRef = useRef(null);
   const shareHighlightPendingRef = useRef(location.state?.highlightShareLink === true);
+  const shareToken = searchParams.get('share');
+
+  const bookingContext = useMemo(
+    () => ({
+      displayName,
+      familyId: familyId || getFamilyId(profile),
+      familyName: currentFamily?.name || 'Семья',
+      userId: user?.uid,
+      userPhotoUrl,
+    }),
+    [displayName, familyId, profile, currentFamily?.name, user?.uid, userPhotoUrl],
+  );
+
+  const membersById = useMemo(
+    () => Object.fromEntries(familyMembers.map((member) => [member.id, member])),
+    [familyMembers],
+  );
+
+  useEffect(() => {
+    const resolvedFamilyId = familyId || getFamilyId(profile);
+    if (!resolvedFamilyId) {
+      setCurrentFamily(null);
+      return;
+    }
+    getFamily(resolvedFamilyId).then(setCurrentFamily).catch(() => setCurrentFamily(null));
+  }, [familyId, profile]);
+
   const [showCreationDone, setShowCreationDone] = useState(
     () => location.state?.highlightShareLink === true,
   );
@@ -151,18 +185,62 @@ export default function ListPage() {
   const { items: liveItems, loading: itemsLoading, error: itemsError } = useItems(canLoadList ? listId : null);
 
   useEffect(() => {
+    if (!list || isDraft) {
+      setOwnerFamily(null);
+      return;
+    }
+    const ownerFamilyId = getListFamilyId(list);
+    getFamily(ownerFamilyId).then(setOwnerFamily).catch(() => setOwnerFamily(null));
+  }, [list, isDraft]);
+
+  useEffect(() => {
     if (isDraft || !listId || !user) return undefined;
+    if (shareToken && !currentFamily) return undefined;
 
     let cancelled = false;
     setAccessChecked(false);
     setAccessForListId(null);
     setAccessError(null);
 
-    const checkAccess = isArchivedView
-      ? ensureArchivedListAccess(listId)
-      : ensureListAccess(listId, user.uid, { isAdmin: isSuperAdmin });
+    const resolvedFamilyId = familyId || getFamilyId(profile);
 
-    checkAccess
+    const runAccessCheck = async () => {
+      if (shareToken && currentFamily) {
+        const processKey = `${listId}:${shareToken}`;
+        if (shareProcessedRef.current !== processKey) {
+          shareProcessedRef.current = processKey;
+          try {
+            const { joined, alreadyJoined } = await acceptListShare({
+              listId,
+              token: shareToken,
+              userId: user.uid,
+              familyId: resolvedFamilyId,
+              familyName: currentFamily.name,
+              familyAvatarUrl: currentFamily.avatarUrl,
+            });
+            if (joined) {
+              toast.success(`Список подключён к семье «${currentFamily.name}»`);
+            } else if (alreadyJoined) {
+              toast.success('Ваша семья уже подключена к этому списку', { durationMs: 2500 });
+            }
+            navigate(`/list/${listId}`, { replace: true });
+          } catch (err) {
+            toast.error(err?.message || 'Не удалось подключиться к списку');
+          }
+        }
+      }
+
+      if (isArchivedView) {
+        return ensureArchivedListAccess(listId);
+      }
+
+      return ensureListAccess(listId, user.uid, {
+        isAdmin: isSuperAdmin,
+        userFamilyId: resolvedFamilyId,
+      });
+    };
+
+    runAccessCheck()
       .then(({ allowed, reason }) => {
         if (cancelled) return;
         if (!allowed) {
@@ -193,7 +271,20 @@ export default function ListPage() {
     return () => {
       cancelled = true;
     };
-  }, [listId, user, isDraft, isArchivedView, isAdminView, isSuperAdmin]);
+  }, [
+    listId,
+    user,
+    isDraft,
+    isArchivedView,
+    isAdminView,
+    isSuperAdmin,
+    familyId,
+    profile,
+    shareToken,
+    currentFamily,
+    navigate,
+    toast,
+  ]);
 
   useEffect(() => {
     if (!canLoadList || !user?.uid || isReadOnlyView) return;
@@ -203,10 +294,10 @@ export default function ListPage() {
   useEffect(() => {
     resetPendingItems();
     resetPendingAccess();
-    // Сбрасываем выбор доступа, чтобы следующий черновик начинался с чистого листа.
+    // Сбрасываем выбор доступа при смене списка или семьи активного пользователя.
     setDraftSharedWith([]);
     setDraftIsPublic(true);
-  }, [listId, resetPendingItems, resetPendingAccess]);
+  }, [listId, familyId, resetPendingItems, resetPendingAccess]);
 
   useEffect(() => {
     if (!isDraft) return;
@@ -225,25 +316,60 @@ export default function ListPage() {
     }
   }, [isDraft, listId, searchParams, setDraftScheduledFor, setDraftDescription, location.state?.description]);
 
-  // Черновик: подтягиваем членов семьи. По умолчанию тумблер «Для всей семьи»
-  // включён (список общий), поэтому индивидуальный выбор не предзаполняем —
-  // иначе при выключенном тумблере все выглядели бы выбранными.
+  // Члены семьи нужны для аватарок в брони и настройках доступа (черновик и существующий список).
   useEffect(() => {
-    if (!isDraft || !user) return undefined;
+    if (!user?.uid || !familyId) {
+      setFamilyMembers([]);
+      return undefined;
+    }
 
     let cancelled = false;
-    getFamilyMembers(getFamilyId(profile))
-      .then((members) => {
-        if (!cancelled) setFamilyMembers(members);
-      })
-      .catch(() => {
+
+    const loadMembers = async () => {
+      const membersByKey = new Map();
+
+      const addMembers = (members) => {
+        members.forEach((member) => {
+          membersByKey.set(member.id, member);
+        });
+      };
+
+      try {
+        const currentMembers = await getFamilyMembers(familyId);
+        addMembers(currentMembers);
+
+        if (list && isCrossFamilySharedList(list)) {
+          const ownerFamilyId = getListFamilyId(list);
+          if (ownerFamilyId && ownerFamilyId !== familyId) {
+            const ownerMembers = await getFamilyMembers(ownerFamilyId);
+            addMembers(ownerMembers);
+          }
+
+          for (const guestFamilyId of list.sharedWithFamilyIds || []) {
+            if (guestFamilyId === familyId || guestFamilyId === getListFamilyId(list)) continue;
+            try {
+              const guestMembers = await getFamilyMembers(guestFamilyId);
+              addMembers(guestMembers);
+            } catch {
+              // гостевая семья может быть недоступна для чтения участников
+            }
+          }
+        }
+
+        if (!cancelled) {
+          setFamilyMembers([...membersByKey.values()]);
+        }
+      } catch {
         if (!cancelled) setFamilyMembers([]);
-      });
+      }
+    };
+
+    loadMembers();
 
     return () => {
       cancelled = true;
     };
-  }, [isDraft, user]);
+  }, [user?.uid, familyId, list?.id, list?.sharedWithFamilyIds, list?.familyId, list?.groupId]);
 
   const handleDraftTogglePublic = useCallback((value) => {
     setDraftIsPublic(value);
@@ -364,9 +490,11 @@ export default function ListPage() {
     mergeDraftItems([newItem]);
   };
 
-  const handleCategoryBooking = async (category, itemIds, bookedBy) => {
+  const handleCategoryBooking = async (category, itemIds, booking) => {
+    const payload = buildBookingPayload(booking?.bookedBy || null, booking || bookingContext);
+
     if (isDraft) {
-      updateDraftCategoryBooking(category, bookedBy, displayName);
+      updateDraftCategoryBooking(category, booking?.bookedBy || null, bookingContext);
       return;
     }
 
@@ -375,18 +503,16 @@ export default function ListPage() {
       const liveIds = itemIds.filter((id) => !isPendingListItem(id));
 
       if (pendingIds.length > 0) {
-        updatePendingCategoryBooking(category, bookedBy, displayName);
+        updatePendingCategoryBooking(category, booking?.bookedBy || null, bookingContext);
       }
 
       if (liveIds.length > 0) {
-        await updateItemsBookingBatch(liveIds.map((itemId) => ({ itemId, bookedBy })));
+        await updateItemsBookingBatch(liveIds.map((itemId) => ({ itemId, ...payload })));
       }
       return;
     }
 
-    await updateItemsBookingBatch(
-      itemIds.map((itemId) => ({ itemId, bookedBy })),
-    );
+    await updateItemsBookingBatch(itemIds.map((itemId) => ({ itemId, ...payload })));
   };
 
   const handleDeferredToggle = async (itemId, name) => {
@@ -436,12 +562,12 @@ export default function ListPage() {
     await updateItemComment(itemId, comment);
   };
 
-  const handleDeferredBookingToggle = async (itemId, bookedBy) => {
+  const handleDeferredBookingToggle = async (itemId, bookingPayload) => {
     if (isPendingListItem(itemId)) {
-      updatePendingItemBooking(itemId, bookedBy);
+      updatePendingItemBooking(itemId, bookingPayload);
       return;
     }
-    await updateItemBooking(itemId, bookedBy);
+    await updateItemBooking(itemId, bookingPayload);
   };
 
   const handleDraftAiAdd = async (products) => {
@@ -468,7 +594,11 @@ export default function ListPage() {
   };
 
   const handleCreateList = async () => {
-    const familyId = getFamilyId(profile);
+    const resolvedFamilyId = familyId || getFamilyId(profile);
+    if (!resolvedFamilyId) {
+      toast.error('Не удалось определить семью. Попробуйте обновить страницу.');
+      return;
+    }
     // Доступ выбран на экране создания: при «для всей семьи» открываем всем,
     // иначе — только отмеченным участникам. Автора добавит сам сервис.
     const allowedUsers = draftIsPublic
@@ -476,8 +606,8 @@ export default function ListPage() {
       : [...new Set([user.uid, ...draftSharedWith])];
 
     const newListId = await persistWithItems(user.uid, draftItems, {
-      groupId: familyId,
-      familyId,
+      groupId: resolvedFamilyId,
+      familyId: resolvedFamilyId,
       isPublic: draftIsPublic,
       allowedUsers,
     });
@@ -498,8 +628,8 @@ export default function ListPage() {
           title: formatListTitle(listType, draftScheduledFor || new Date()),
           isPublic: draftIsPublic,
           allowedUsers,
-          familyId,
-          groupId: familyId,
+          familyId: resolvedFamilyId,
+          groupId: resolvedFamilyId,
         },
         author: { uid: user.uid, name: profile?.displayName || displayName, photoUrl: userPhotoUrl },
       }).catch((err) => console.warn('[push] Не удалось отправить уведомление', err));
@@ -776,7 +906,13 @@ export default function ListPage() {
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-1.5">
-        {!isDraft && !isReadOnlyView && <ListAccessIcon list={displayList || activeList} />}
+        {!isDraft && (
+          <ListHeaderOwnerAvatar
+            list={displayList || activeList}
+            currentFamily={currentFamily}
+            viewerFamilyId={familyId || getFamilyId(profile)}
+          />
+        )}
 
         {isAdminView && (
           <span className="inline-flex shrink-0 items-center rounded-md bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
@@ -869,6 +1005,10 @@ export default function ListPage() {
                   items={categoryItems}
                   displayName={displayName}
                   userPhotoUrl={userPhotoUrl}
+                  bookingContext={bookingContext}
+                  externalFamilies={list?.externalFamilies || {}}
+                  ownerFamily={ownerFamily}
+                  membersById={membersById}
                   isFirst={index === 0}
                   readOnly={isReadOnlyView}
                   onToggle={itemHandlers.onToggle}
@@ -1005,6 +1145,11 @@ export default function ListPage() {
         initialScheduledFor={listScheduledFor}
         initialDescription={listDescription}
         readOnly={isReadOnlyView}
+        listId={listId}
+        list={list}
+        currentUserId={user?.uid}
+        ownerFamilyName={currentFamily?.name || ''}
+        ownerFamilyAvatarUrl={currentFamily?.avatarUrl || null}
       />
     </div>
   );

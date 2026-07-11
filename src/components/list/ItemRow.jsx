@@ -2,10 +2,14 @@ import { useState } from 'react';
 import ItemCheckbox from './ItemCheckbox';
 import ItemDetailsModal from './ItemDetailsModal';
 import QuantityStepper from './QuantityStepper';
-import { UserAvatar } from '../profile/UserAvatar';
+import BookingBadge from './BookingBadge';
 import { getQuantityDisplay } from '../../utils/quantity';
 import { learnProducts } from '../../utils/productLearning';
-import { formatBookerLabel } from '../../utils/booking';
+import {
+  isItemBookedByMe,
+  isItemBookedByOtherFamily,
+  buildBookingPayload,
+} from '../../utils/booking';
 import {
   toggleItem,
   updateItemQuantity,
@@ -19,6 +23,10 @@ export default function ItemRow({
   item,
   displayName,
   userPhotoUrl,
+  bookingContext,
+  externalFamilies = {},
+  ownerFamily = null,
+  membersById = {},
   onToggle,
   onQuantityChange,
   onRemove,
@@ -30,9 +38,12 @@ export default function ItemRow({
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
 
+  const ctx = bookingContext || { displayName, userPhotoUrl, familyId: null };
   const isBooked = Boolean(item.bookedBy);
   const rowMuted = isBooked && !item.checked;
-  const isMyBooking = item.bookedBy === displayName;
+  const isMyBooking = isItemBookedByMe(item, ctx);
+  const blockedByOtherFamily = isItemBookedByOtherFamily(item, ctx.familyId);
+  const bookingDisabled = disabled || (blockedByOtherFamily && !isMyBooking);
 
   const handleToggle = async () => {
     if (onToggle) {
@@ -61,7 +72,7 @@ export default function ItemRow({
     await deleteItem(item.id);
   };
 
-  const handleDetailsSave = async ({ comment, bookedBy, category, checked }) => {
+  const handleDetailsSave = async ({ comment, bookedBy, bookingMeta, category, checked }) => {
     if (checked !== item.checked) {
       if (onToggle) {
         onToggle(item.id, displayName);
@@ -88,16 +99,16 @@ export default function ItemRow({
       await updateItemComment(item.id, comment);
     }
 
+    const bookingPayload = buildBookingPayload(bookedBy, bookingMeta);
     if (onBookingToggle) {
-      onBookingToggle(item.id, bookedBy);
+      onBookingToggle(item.id, bookingPayload);
     } else {
-      await updateItemBooking(item.id, bookedBy);
+      await updateItemBooking(item.id, bookingPayload);
     }
   };
 
   const checkerPhotoUrl =
     item.checked && item.checkedBy === displayName ? userPhotoUrl : undefined;
-  const bookerPhotoUrl = isMyBooking ? userPhotoUrl : undefined;
   const { label: quantityLabel } = getQuantityDisplay(item.quantity);
   const showMeta = Boolean(item.comment || item.bookedBy);
 
@@ -106,7 +117,7 @@ export default function ItemRow({
       <div
         className={`flex w-full items-center justify-between px-3 py-2 transition-opacity ${
           rowMuted ? 'bg-slate-50/60' : ''
-        }`}
+        } ${blockedByOtherFamily && !item.checked ? 'opacity-90' : ''}`}
       >
         <div className={`min-w-0 flex-1 pr-3 ${item.checked ? 'opacity-60' : rowMuted ? 'opacity-75' : ''}`}>
           <div className="flex items-start gap-1">
@@ -125,19 +136,13 @@ export default function ItemRow({
           {showMeta && (
             <div className="mt-0.5 space-y-0.5">
               {item.bookedBy && (
-                <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <UserAvatar
-                    photoUrl={bookerPhotoUrl}
-                    name={item.bookedBy}
-                    className="h-4 w-4 text-[8px]"
-                    variant="vivid"
-                  />
-                  <span className="whitespace-nowrap">
-                    {isMyBooking
-                      ? '✨ Вы'
-                      : `Купит ${formatBookerLabel(item.bookedBy)}`}
-                  </span>
-                </div>
+                <BookingBadge
+                  item={item}
+                  bookingContext={ctx}
+                  externalFamilies={externalFamilies}
+                  ownerFamily={ownerFamily}
+                  membersById={membersById}
+                />
               )}
               {item.comment && (
                 <p className="text-xs text-slate-400">{item.comment}</p>
@@ -151,10 +156,14 @@ export default function ItemRow({
             {quantityLabel}
           </span>
         ) : (
-          <div className={`${item.checked ? 'pointer-events-none opacity-60' : rowMuted ? 'opacity-75' : ''}`}>
+          <div
+            className={`${item.checked ? 'pointer-events-none opacity-60' : rowMuted ? 'opacity-75' : ''} ${
+              bookingDisabled && !item.checked ? 'pointer-events-none opacity-50' : ''
+            }`}
+          >
             <QuantityStepper
               quantity={item.quantity}
-              disabled={disabled || item.checked}
+              disabled={bookingDisabled || item.checked}
               onChange={handleQuantityChange}
               onRemove={handleRemove}
               itemName={item.name}
@@ -177,7 +186,11 @@ export default function ItemRow({
         item={item}
         displayName={displayName}
         userPhotoUrl={userPhotoUrl}
-        disabled={disabled}
+        bookingContext={ctx}
+        externalFamilies={externalFamilies}
+        ownerFamily={ownerFamily}
+        membersById={membersById}
+        disabled={bookingDisabled}
         readOnly={readOnly}
         onClose={() => setDetailsOpen(false)}
         onSave={handleDetailsSave}
