@@ -6,8 +6,9 @@ import { PRIMARY_BTN } from '../list/cardStyles';
 import { getHintById } from '../../utils/hintsContent';
 import { DEFAULT_AI_INPUT_PLACEHOLDER } from '../../utils/uiThemes';
 
-const SLIDE_HEIGHT = 'min-h-[14rem]';
-const FOOTER_HEIGHT = 'min-h-[6rem]';
+const SLIDE_HEIGHT = 'h-[14rem]';
+const FOOTER_HEIGHT = 'h-[7.5rem]';
+const FOOTER_HINT_HEIGHT = 'h-[4.5rem]';
 const FOOTER_HINT_CLASS = 'text-xs leading-relaxed text-slate-500';
 
 const LIST_TYPE_CHIPS = [
@@ -135,12 +136,14 @@ function StepVisuals({ step }) {
 
 function StepCard({ step }) {
   return (
-    <div className="flex h-full min-h-[14rem] w-full flex-col px-1">
+    <div className="flex h-full w-full flex-col overflow-hidden px-1">
       <div className="space-y-2">
-        {step.emoji && (
-          <span className="block text-3xl" aria-hidden>
+        {step.emoji ? (
+          <span className="block h-8 text-3xl leading-none" aria-hidden>
             {step.emoji}
           </span>
+        ) : (
+          <span className="block h-8" aria-hidden />
         )}
         <h3 className="text-lg font-bold text-slate-900">{step.title}</h3>
         <p className="text-sm leading-relaxed text-slate-600">{step.description}</p>
@@ -181,16 +184,16 @@ function HintFooter({
         </div>
       )}
       {isLastStep ? (
-        <div className="relative mt-2 min-h-[3rem]">
+        <div className={`relative mt-2 ${FOOTER_HINT_HEIGHT}`}>
           <p
-            className={`absolute inset-0 transition-opacity duration-300 ease-in-out ${FOOTER_HINT_CLASS} ${
+            className={`absolute inset-0 overflow-hidden transition-opacity duration-300 ease-in-out ${FOOTER_HINT_CLASS} ${
               dontShowAgain ? 'pointer-events-none opacity-0' : 'opacity-100'
             }`}
           >
             {repeatOnNextVisitHint}
           </p>
           <p
-            className={`absolute inset-0 transition-opacity duration-300 ease-in-out ${FOOTER_HINT_CLASS} ${
+            className={`absolute inset-0 overflow-hidden transition-opacity duration-300 ease-in-out ${FOOTER_HINT_CLASS} ${
               dontShowAgain ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
           >
@@ -198,7 +201,7 @@ function HintFooter({
           </p>
         </div>
       ) : (
-        <p className={`mt-2 min-h-[3rem] ${FOOTER_HINT_CLASS}`}>
+        <p className={`mt-2 overflow-hidden ${FOOTER_HINT_HEIGHT} ${FOOTER_HINT_CLASS}`}>
           {tip || inboxHint}
         </p>
       )}
@@ -280,7 +283,7 @@ export default function HintGuideModal({
       overlayClassName={MODAL_OVERLAY_SHEET}
       panelClassName={`${MODAL_PANEL_WIDE} p-5 sm:p-6`}
     >
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col">
         <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
           Подсказка
         </p>
@@ -293,10 +296,10 @@ export default function HintGuideModal({
             <div
               ref={scrollRef}
               onScroll={updateActiveFromScroll}
-              className={`mt-5 flex ${SLIDE_HEIGHT} shrink-0 snap-x snap-mandatory overflow-x-auto no-scrollbar`}
+              className={`mt-5 flex ${SLIDE_HEIGHT} shrink-0 snap-x snap-mandatory overflow-x-auto overflow-y-hidden no-scrollbar`}
             >
               {steps.map((step) => (
-                <div key={step.id} className="flex h-full min-h-[14rem] w-full shrink-0 snap-center">
+                <div key={step.id} className={`flex h-full w-full shrink-0 snap-center ${SLIDE_HEIGHT}`}>
                   <StepCard step={step} />
                 </div>
               ))}
