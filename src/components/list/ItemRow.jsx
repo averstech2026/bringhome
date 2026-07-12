@@ -6,6 +6,7 @@ import QuantityStepper from './QuantityStepper';
 import BookingBadge from './BookingBadge';
 import { getQuantityDisplay } from '../../utils/quantity';
 import { learnProducts } from '../../utils/productLearning';
+import { resolveCheckerPhotoUrl } from '../../utils/userPhoto';
 import {
   isItemBookedByMe,
   isItemBookedByOtherFamily,
@@ -74,6 +75,13 @@ export default function ItemRow({
     syncTimersRef.current.push(timerId);
   };
 
+  const togglePayload = (checked) => ({
+    checked,
+    checkedBy: displayName,
+    checkedByUid: checked ? ctx.userId : null,
+    checkedByPhotoUrl: checked ? userPhotoUrl : null,
+  });
+
   const handleToggle = async () => {
     if (readOnly || disabled || isSyncing) return;
 
@@ -83,10 +91,7 @@ export default function ItemRow({
       if (onToggle) {
         onToggle(item.id, displayName);
       } else {
-        await toggleItem(item.id, {
-          checked: newChecked,
-          checkedBy: displayName,
-        });
+        await toggleItem(item.id, togglePayload(newChecked));
       }
       return;
     }
@@ -101,10 +106,7 @@ export default function ItemRow({
       if (onToggle) {
         await onToggle(item.id, displayName, newChecked);
       } else {
-        await toggleItem(item.id, {
-          checked: newChecked,
-          checkedBy: displayName,
-        });
+        await toggleItem(item.id, togglePayload(newChecked));
       }
 
       setIsSyncing(false);
@@ -149,10 +151,7 @@ export default function ItemRow({
       if (onToggle) {
         onToggle(item.id, displayName);
       } else {
-        await toggleItem(item.id, {
-          checked,
-          checkedBy: displayName,
-        });
+        await toggleItem(item.id, togglePayload(checked));
       }
     }
 
@@ -182,8 +181,16 @@ export default function ItemRow({
   const displayCheckedBy = displayChecked
     ? (localChecked !== null ? displayName : item.checkedBy)
     : undefined;
-  const checkerPhotoUrl =
-    displayChecked && displayCheckedBy === displayName ? userPhotoUrl : undefined;
+  const checkerPhotoUrl = displayChecked
+    ? resolveCheckerPhotoUrl({
+        checkedByName: displayCheckedBy,
+        checkedByUid: localChecked !== null ? ctx.userId : item.checkedByUid,
+        checkedByPhotoUrl: localChecked !== null ? userPhotoUrl : item.checkedByPhotoUrl,
+        membersById,
+        currentDisplayName: displayName,
+        currentUserPhotoUrl: userPhotoUrl,
+      })
+    : undefined;
   const { label: quantityLabel } = getQuantityDisplay(item.quantity);
   const showMeta = Boolean(item.comment || item.bookedBy);
 

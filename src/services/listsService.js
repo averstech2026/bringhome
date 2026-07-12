@@ -722,7 +722,7 @@ export async function syncListStatus(listId) {
   }
 }
 
-export async function toggleItem(itemId, { checked, checkedBy }) {
+export async function toggleItem(itemId, { checked, checkedBy, checkedByUid, checkedByPhotoUrl }) {
   const itemRef = doc(db, COLLECTIONS.ITEMS, itemId);
   const itemSnap = await getDoc(itemRef);
   const listId = itemSnap.data()?.listId;
@@ -730,6 +730,8 @@ export async function toggleItem(itemId, { checked, checkedBy }) {
   await updateDoc(itemRef, {
     checked,
     checkedBy: checked ? checkedBy : null,
+    checkedByUid: checked ? (checkedByUid || null) : null,
+    checkedByPhotoUrl: checked ? (checkedByPhotoUrl || null) : null,
     checkedAt: checked ? serverTimestamp() : null,
     ...(checked
       ? {

@@ -92,8 +92,9 @@ export default function ListPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, displayName } = useAuth();
+  const { user, displayName: authDisplayName } = useAuth();
   const { profile, isSuperAdmin, familyId } = useUserProfile(user);
+  const displayName = profile?.displayName || authDisplayName;
   const userPhotoUrl = getUserPhotoUrl(user, profile);
 
   const listHeaderRef = useVisualViewportFixedTop();
@@ -669,6 +670,8 @@ export default function ListPage() {
     await toggleItem(itemId, {
       checked: nextChecked,
       checkedBy: name,
+      checkedByUid: nextChecked ? user?.uid : null,
+      checkedByPhotoUrl: nextChecked ? userPhotoUrl : null,
     });
   };
 

@@ -25,7 +25,7 @@ import { getStorage } from 'firebase/storage';
  *
  * items: {
  *   id, listId, name, quantity, category, comment?, checked,
- *   checkedBy, checkedAt, bookedBy?, bookedByFamilyId?, bookedByFamilyName?, bookedByUid?
+ *   checkedBy, checkedAt, checkedByUid?, checkedByPhotoUrl?, bookedBy?, bookedByFamilyId?, bookedByFamilyName?, bookedByUid?
  * }
  *
  * product_history: {
