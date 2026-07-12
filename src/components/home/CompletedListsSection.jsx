@@ -107,7 +107,7 @@ function CompletedDateGroup({ group, expanded, onToggle, renderListCard }) {
   );
 }
 
-function CompletedListsGrouped({ lists, renderListCard }) {
+function CompletedListsGrouped({ lists, totalCount, renderListCard }) {
   const groups = groupCompletedListsByDate(lists);
   const [expandedKeys, setExpandedKeys] = useState(() => new Set());
 
@@ -132,7 +132,7 @@ function CompletedListsGrouped({ lists, renderListCard }) {
 
   return (
     <>
-      <CompletedSectionDivider count={lists.length} />
+      <CompletedSectionDivider count={totalCount ?? lists.length} />
 
       {groups.length > 1 && (
         <div className="mt-2 flex justify-end">
@@ -161,12 +161,12 @@ function CompletedListsGrouped({ lists, renderListCard }) {
   );
 }
 
-function CompletedListsFlat({ lists, renderListCard }) {
+function CompletedListsFlat({ lists, totalCount, renderListCard }) {
   const sorted = sortCompletedListsByDate(lists);
 
   return (
     <>
-      <CompletedSectionDivider count={lists.length} />
+      <CompletedSectionDivider count={totalCount ?? lists.length} />
       <ul className="mt-3 space-y-2.5">
         {sorted.map((list) => (
           <li key={list.id}>{renderListCard(list)}</li>
@@ -176,15 +176,22 @@ function CompletedListsFlat({ lists, renderListCard }) {
   );
 }
 
-export default function CompletedListsSection({ lists, renderListCard, groupByDate = false }) {
+export default function CompletedListsSection({
+  lists,
+  renderListCard,
+  groupByDate = false,
+  totalCount,
+}) {
   if (lists.length === 0) return null;
+
+  const dividerCount = totalCount ?? lists.length;
 
   return (
     <section className="mt-8">
       {groupByDate ? (
-        <CompletedListsGrouped lists={lists} renderListCard={renderListCard} />
+        <CompletedListsGrouped lists={lists} totalCount={dividerCount} renderListCard={renderListCard} />
       ) : (
-        <CompletedListsFlat lists={lists} renderListCard={renderListCard} />
+        <CompletedListsFlat lists={lists} totalCount={dividerCount} renderListCard={renderListCard} />
       )}
     </section>
   );

@@ -24,6 +24,22 @@ import { HINT_TEXT, PAGE_SECTION_TITLE } from '../components/list/cardStyles';
 import DeleteListConfirmModal from '../components/home/DeleteListConfirmModal';
 import { useToast } from '../components/ui/ToastProvider';
 
+const LIST_PAGE_SIZE = 10;
+
+function LoadMoreButton({ onClick }) {
+  return (
+    <div className="flex justify-center pt-2">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex h-9 items-center justify-center rounded-full border border-slate-200/80 bg-white px-4 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
+      >
+        Ещё
+      </button>
+    </div>
+  );
+}
+
 function sortActiveLists(lists) {
   return [...lists].sort((a, b) => getListSortTimestamp(b) - getListSortTimestamp(a));
 }
@@ -75,12 +91,21 @@ export default function AdminGroupListsPage() {
   const [busyId, setBusyId] = useState(null);
   const [repeatTarget, setRepeatTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [visibleActiveCount, setVisibleActiveCount] = useState(LIST_PAGE_SIZE);
+  const [visibleReadyCount, setVisibleReadyCount] = useState(LIST_PAGE_SIZE);
 
   const resolvedFamilyId = familyId || getFamilyId(profile);
 
   useEffect(() => {
     setFilter('all');
+    setVisibleActiveCount(LIST_PAGE_SIZE);
+    setVisibleReadyCount(LIST_PAGE_SIZE);
   }, [resolvedFamilyId]);
+
+  useEffect(() => {
+    setVisibleActiveCount(LIST_PAGE_SIZE);
+    setVisibleReadyCount(LIST_PAGE_SIZE);
+  }, [filter]);
 
   const loadData = async () => {
     if (!user?.uid || !resolvedFamilyId) return;
@@ -153,6 +178,11 @@ export default function AdminGroupListsPage() {
       ),
     [filteredLists, listProgress],
   );
+
+  const visibleActiveLists = activeLists.slice(0, visibleActiveCount);
+  const visibleReadyLists = readyLists.slice(0, visibleReadyCount);
+  const hasMoreActive = activeLists.length > visibleActiveCount;
+  const hasMoreReady = readyLists.length > visibleReadyCount;
 
   const handleDeleteRequest = (listId, title) => {
     setDeleteTarget({ listId, title });
@@ -242,11 +272,18 @@ export default function AdminGroupListsPage() {
           ) : (
             <>
               {activeLists.length > 0 ? (
-                <ul className="mt-4 space-y-2.5">
-                  {activeLists.map((list) => (
-                    <li key={list.id}>{renderListCard(list)}</li>
-                  ))}
-                </ul>
+                <>
+                  <ul className="mt-4 space-y-2.5">
+                    {visibleActiveLists.map((list) => (
+                      <li key={list.id}>{renderListCard(list)}</li>
+                    ))}
+                  </ul>
+                  {hasMoreActive && (
+                    <LoadMoreButton
+                      onClick={() => setVisibleActiveCount((count) => count + LIST_PAGE_SIZE)}
+                    />
+                  )}
+                </>
               ) : (
                 <p className={`mt-4 ${HINT_TEXT}`}>
                   {filter === 'mine'
@@ -260,12 +297,18 @@ export default function AdminGroupListsPage() {
               {readyLists.length > 0 && (
                 <div className="mt-8">
                   <CompletedListsSection
-                    lists={readyLists}
+                    lists={visibleReadyLists}
+                    totalCount={readyLists.length}
                     groupByDate={settings.groupByDate && filter === 'all'}
                     renderListCard={(list) =>
                       renderListCard(list, { dimmed: true, showCompletionDate: true })
                     }
                   />
+                  {hasMoreReady && (
+                    <LoadMoreButton
+                      onClick={() => setVisibleReadyCount((count) => count + LIST_PAGE_SIZE)}
+                    />
+                  )}
                 </div>
               )}
 
