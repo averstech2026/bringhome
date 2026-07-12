@@ -8,12 +8,12 @@ function CategoryBookButton({ items, bookingContext, disabled, onBookCategory })
     items,
     bookingContext,
   );
-  if (activeCount === 0) return null;
-
-  const canToggle = allMine || hasFree;
-  const softDisabled = blockedByOtherFamily && !canToggle;
+  const isCompleted = activeCount === 0;
+  const canToggle = !isCompleted && (allMine || hasFree);
+  const softDisabled = isCompleted || (blockedByOtherFamily && !canToggle);
 
   const handleClick = () => {
+    if (!canToggle) return;
     const { booking, itemIds } = resolveCategoryBookingAction(items, bookingContext);
     onBookCategory?.(itemIds, booking);
   };
@@ -24,11 +24,13 @@ function CategoryBookButton({ items, bookingContext, disabled, onBookCategory })
       disabled={disabled || !canToggle}
       onClick={handleClick}
       title={
-        softDisabled
-          ? 'Отдел забронирован другой семьёй'
-          : allMine
-            ? 'Снять бронь с отдела'
-            : 'Забронировать весь отдел'
+        isCompleted
+          ? 'Все позиции в отделе отмечены'
+          : softDisabled
+            ? 'Отдел забронирован другой семьёй'
+            : allMine
+              ? 'Снять бронь с отдела'
+              : 'Забронировать весь отдел'
       }
       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-transparent shadow-sm transition-all duration-150 active:scale-95 disabled:opacity-40 ${
         softDisabled
@@ -37,8 +39,9 @@ function CategoryBookButton({ items, bookingContext, disabled, onBookCategory })
             ? 'bg-indigo-500 text-white shadow-indigo-200/50 hover:bg-indigo-600'
             : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
       }`}
+      aria-disabled={!canToggle}
     >
-      <Hand className="h-3.5 w-3.5" strokeWidth={allMine ? 2.25 : 2} aria-hidden />
+      <Hand className="h-3.5 w-3.5" strokeWidth={allMine && !isCompleted ? 2.25 : 2} aria-hidden />
     </button>
   );
 }
