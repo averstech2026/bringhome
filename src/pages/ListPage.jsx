@@ -52,6 +52,7 @@ import { parseDateParam, formatDateParam, parseListScheduledFor, resolveSchedule
 import { normalizeListTypeForCreate } from '../utils/listTypes';
 import { useVisualViewportFixedTop } from '../hooks/useVisualViewportFixedTop';
 import { useElementHeight } from '../hooks/useElementHeight';
+import { getNeutralExitLabel, resolveUiTheme } from '../utils/uiThemes';
 import {
   scheduleListReminder,
   cancelListReminder,
@@ -96,6 +97,7 @@ export default function ListPage() {
   const { profile, isSuperAdmin, familyId } = useUserProfile(user);
   const displayName = profile?.displayName || authDisplayName;
   const userPhotoUrl = getUserPhotoUrl(user, profile);
+  const uiTheme = useMemo(() => resolveUiTheme(profile, user?.uid), [profile, user?.uid]);
 
   const listHeaderRef = useVisualViewportFixedTop();
   const isDraft = listId === 'new';
@@ -988,7 +990,7 @@ export default function ListPage() {
       ? (savingChanges ? 'Сохранение...' : 'Сохранить и выйти')
       : hasSessionActivity
         ? 'Готово, выйти! 👍'
-        : 'Просто выйти обратно';
+        : getNeutralExitLabel(uiTheme);
   const exitButtonClassName = isCloudSyncing
     ? (hasSessionActivity || isDirty ? PRIMARY_BTN : EXIT_BTN_NEUTRAL)
     : isDirty || hasSessionActivity
@@ -1300,7 +1302,9 @@ export default function ListPage() {
               {showNeutralExitIcon && (
                 <ArrowLeft className="h-4 w-4 shrink-0 opacity-80" strokeWidth={2.25} aria-hidden />
               )}
-              {exitButtonLabel}
+              <span className={showNeutralExitIcon ? 'leading-tight' : undefined}>
+                {exitButtonLabel}
+              </span>
             </button>
           )}
         </footer>

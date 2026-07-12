@@ -36,8 +36,8 @@ export default function ItemCheckbox({
         aria-label={checked && checkedByName ? `Отмечено: ${checkedByName}` : 'Отметить товар'}
         disabled={disabled || isSyncing}
         onClick={onChange}
-        className={`group relative flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 active:scale-95 ${
-          isSyncing ? 'overflow-visible opacity-100 disabled:opacity-100' : 'overflow-hidden disabled:opacity-50'
+        className={`group relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full transition-all duration-200 active:scale-95 disabled:opacity-50 ${
+          isSyncing ? 'opacity-100 disabled:opacity-100' : ''
         } ${syncSuccessPulse ? 'animate-sync-success-pulse' : ''} ${
           isSyncing
             ? 'border-0 bg-white shadow-none ring-0'
@@ -56,9 +56,11 @@ export default function ItemCheckbox({
               variant="checkbox"
               className="h-full w-full text-[11px]"
             />
-            <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm ring-1 ring-white/90">
-              <CheckMicroIcon />
-            </span>
+            {!isSyncing && (
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center overflow-hidden rounded-full bg-emerald-600 text-white shadow-sm ring-1 ring-white/90">
+                <CheckMicroIcon />
+              </span>
+            )}
           </>
         ) : checked ? (
           <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-400 to-emerald-600 text-white">
@@ -70,13 +72,13 @@ export default function ItemCheckbox({
           </span>
         )}
         </span>
-        {isSyncing && (
-          <span
-            className="pointer-events-none absolute -inset-0.5 z-10 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-500"
-            aria-hidden
-          />
-        )}
       </button>
+      {isSyncing && (
+        <span
+          className="pointer-events-none absolute -inset-0.5 z-10 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-500"
+          aria-hidden
+        />
+      )}
     </div>
   );
 }

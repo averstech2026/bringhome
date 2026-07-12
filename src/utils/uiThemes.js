@@ -270,6 +270,20 @@ export function resolveUiTheme(profile, userId) {
   return 'default';
 }
 
+/** Текст нейтральной кнопки выхода из списка без изменений. */
+export function getNeutralExitLabel(themeId) {
+  switch (resolveThemeId(themeId)) {
+    case 'star_wars':
+      return 'Всё спокойно в Галактике';
+    case 'paddington':
+      return 'Мармелад цел, я назад 🧸';
+    case 'hogwarts':
+      return 'Шалость удалась, выхожу 🪄';
+    default:
+      return 'Ничего не менялось, назад';
+  }
+}
+
 export function getThemeAccent(themeId) {
   const chrome = getThemeChrome(themeId);
   return {
