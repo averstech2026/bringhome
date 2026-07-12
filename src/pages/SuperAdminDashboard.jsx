@@ -14,7 +14,7 @@ import {
   runHintForMe,
   subscribeToGlobalHintTemplates,
 } from '../services/notificationsService';
-import { SYSTEM_HINTS } from '../utils/hintsContent';
+import { SYSTEM_HINTS, buildHintsAdminSummary, getHintAdminDisplayStatus } from '../utils/hintsContent';
 import {
   subscribeToAllFeedbacks,
   subscribeToUnreadFeedbacks,
@@ -375,9 +375,70 @@ function getCreatedAtMillis(createdAt) {
   return createdAt?.toMillis?.() ?? 0;
 }
 
+function HintStatusBadge({ hintId, state }) {
+  const status = getHintAdminDisplayStatus(hintId, state);
+
+  if (status === 'auto') {
+    return (
+      <span className="rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-medium text-sky-700 ring-1 ring-inset ring-sky-100">
+        Авто для новых
+      </span>
+    );
+  }
+
+  if (status === 'launched') {
+    return (
+      <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
+        Запущена
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-500">
+      Скрыта
+    </span>
+  );
+}
+
+function HintsStatusSummary({ hintStateById }) {
+  const { autoHints, launchedHints } = buildHintsAdminSummary(SYSTEM_HINTS, hintStateById);
+
+  return (
+    <div className="mb-3 rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/50 via-white to-sky-50/30 p-4">
+      <p className="text-sm font-semibold text-slate-900">Что видят пользователи сейчас</p>
+
+      {autoHints.length > 0 && (
+        <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <span className="font-medium text-sky-700">Автоматически: </span>
+          {autoHints.map((hint) => hint.title).join(', ')}
+          <span className="text-slate-500">
+            {' '}
+            — при регистрации во «Входящих» и на главной, пока не пройден онбординг
+          </span>
+        </p>
+      )}
+
+      {launchedHints.length > 0 ? (
+        <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <span className="font-medium text-emerald-700">Запущено вами: </span>
+          {launchedHints.map((hint) => hint.title).join(', ')}
+          <span className="text-slate-500"> — карточка во «Входящих» у всех пользователей</span>
+        </p>
+      ) : (
+        <p className="mt-2 text-sm text-slate-500">
+          Дополнительных подсказок во «Входящих» сейчас нет — нажмите «Запустить для всех» на нужной карточке
+        </p>
+      )}
+    </div>
+  );
+}
+
 function HintTemplateCard({ hint, state, onLaunch, onPreview, launching, previewing }) {
-  const isActive = state?.isActive === true;
-  const launchLabel = isActive ? 'Перезапустить' : 'Запустить для всех';
+  const status = getHintAdminDisplayStatus(hint.hintId, state);
+  const isLaunched = status === 'launched';
+  const isWelcome = hint.hintId === 'welcome';
+  const launchLabel = isWelcome || isLaunched ? 'Перезапустить' : 'Запустить';
   const busy = launching || previewing;
 
   return (
@@ -391,46 +452,45 @@ function HintTemplateCard({ hint, state, onLaunch, onPreview, launching, preview
             <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-100">
               Шаблон подсказки
             </span>
-            {isActive ? (
-              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
-                Активна
-              </span>
-            ) : (
-              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-500">
-                Скрыта
-              </span>
-            )}
+            <HintStatusBadge hintId={hint.hintId} state={state} />
           </div>
           <p className="mt-2 text-sm font-semibold text-slate-900">{hint.title}</p>
           <p className="mt-1 text-sm leading-snug text-slate-700">{hint.body}</p>
+          {isWelcome && (
+            <p className="mt-1.5 text-xs leading-relaxed text-sky-700/80">
+              Не требует запуска: создаётся каждому при регистрации. «Перезапустить» обновит её у всех.
+            </p>
+          )}
           {state?.createdAt && (
             <p className="mt-1.5 text-xs text-slate-400">
-              {isActive ? 'Последний запуск: ' : 'Создано: '}
+              {isLaunched || (isWelcome && state?.isActive) ? 'Последний запуск: ' : 'Шаблон создан: '}
               {formatNotificationTime(state.createdAt)}
             </p>
           )}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
               disabled={busy}
+              title="Посмотреть у себя"
               onClick={() => onPreview(hint.hintId)}
-              className="inline-flex h-9 items-center gap-2 rounded-full border border-violet-200 bg-transparent px-4 text-sm font-medium text-violet-700 transition hover:border-violet-300 hover:bg-violet-50/60 disabled:opacity-60"
+              className="inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-full border border-violet-200 bg-transparent px-3 text-sm font-medium text-violet-700 transition hover:border-violet-300 hover:bg-violet-50/60 disabled:opacity-60"
             >
-              <Eye className="h-4 w-4" strokeWidth={2} />
-              {previewing ? 'Добавляем…' : 'Посмотреть у себя'}
+              <Eye className="h-4 w-4 shrink-0" strokeWidth={2} />
+              <span className="truncate">{previewing ? '…' : 'У себя'}</span>
             </button>
             <button
               type="button"
               disabled={busy}
+              title={isWelcome || isLaunched ? 'Перезапустить для всех' : 'Запустить для всех'}
               onClick={() => onLaunch(hint.hintId)}
-              className="inline-flex h-9 items-center gap-2 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 px-4 text-sm font-semibold text-white shadow-sm shadow-violet-300/40 transition hover:from-violet-700 hover:to-indigo-700 disabled:opacity-60"
+              className="inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 px-3 text-sm font-semibold text-white shadow-sm shadow-violet-300/40 transition hover:from-violet-700 hover:to-indigo-700 disabled:opacity-60"
             >
-              {isActive ? (
-                <RefreshCw className={`h-4 w-4 ${launching ? 'animate-spin' : ''}`} strokeWidth={2.5} />
+              {isLaunched ? (
+                <RefreshCw className={`h-4 w-4 shrink-0 ${launching ? 'animate-spin' : ''}`} strokeWidth={2.5} />
               ) : (
-                <Rocket className="h-4 w-4" strokeWidth={2.5} />
+                <Rocket className="h-4 w-4 shrink-0" strokeWidth={2.5} />
               )}
-              {launching ? 'Запуск…' : launchLabel}
+              <span className="truncate">{launching ? '…' : launchLabel}</span>
             </button>
           </div>
         </div>
@@ -621,7 +681,7 @@ function NotificationsTab() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Системные подсказки</h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              Фиксированные шаблоны во «Входящих» у всех пользователей
+              Шаблоны подсказок во «Входящих». Знакомство — автоматически для новых пользователей
             </p>
           </div>
           <button
@@ -639,7 +699,9 @@ function NotificationsTab() {
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
           </div>
         ) : (
-          <ul className="space-y-2">
+          <>
+            <HintsStatusSummary hintStateById={hintStateById} />
+            <ul className="space-y-2">
             {SYSTEM_HINTS.map((hint) => (
               <HintTemplateCard
                 key={hint.hintId}
@@ -651,7 +713,8 @@ function NotificationsTab() {
                 previewing={previewingHintId === hint.hintId}
               />
             ))}
-          </ul>
+            </ul>
+          </>
         )}
       </section>
 

@@ -205,6 +205,32 @@ export function getHintIds() {
   return SYSTEM_HINTS.map((hint) => hint.hintId);
 }
 
+/** Статус подсказки в панели владельца (не совпадает с isActive для welcome). */
+export function getHintAdminDisplayStatus(hintId, state) {
+  if (hintId === 'welcome') return 'auto';
+  if (state?.isActive === true) return 'launched';
+  return 'hidden';
+}
+
+/** Сводка: что сейчас видят пользователи. */
+export function buildHintsAdminSummary(hints, hintStateById) {
+  const autoHints = [];
+  const launchedHints = [];
+  const hiddenHints = [];
+
+  for (const hint of hints) {
+    const state = typeof hintStateById?.get === 'function'
+      ? hintStateById.get(hint.hintId)
+      : hintStateById?.[hint.hintId];
+    const status = getHintAdminDisplayStatus(hint.hintId, state);
+    if (status === 'auto') autoHints.push(hint);
+    else if (status === 'launched') launchedHints.push(hint);
+    else hiddenHints.push(hint);
+  }
+
+  return { autoHints, launchedHints, hiddenHints };
+}
+
 export function isHintNotification(notification) {
   if (!notification) return false;
   if (notification.type === HINT_TYPE) return true;
