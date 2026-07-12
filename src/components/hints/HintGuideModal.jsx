@@ -6,8 +6,8 @@ import { PRIMARY_BTN } from '../list/cardStyles';
 import { getHintById } from '../../utils/hintsContent';
 import { DEFAULT_AI_INPUT_PLACEHOLDER } from '../../utils/uiThemes';
 
-const SLIDE_HEIGHT = 'h-[11rem]';
-const FOOTER_HEIGHT = 'h-[6.25rem]';
+const SLIDE_HEIGHT = 'min-h-[14rem]';
+const FOOTER_HEIGHT = 'min-h-[6rem]';
 const FOOTER_HINT_CLASS = 'text-xs leading-relaxed text-slate-500';
 
 const LIST_TYPE_CHIPS = [
@@ -31,7 +31,7 @@ const THEME_CHIPS = [
 function StepVisuals({ step }) {
   if (step.showCreateListDemo) {
     return (
-      <div className="mt-3 space-y-2">
+      <div className="mt-2 space-y-1.5">
         <div className="flex flex-wrap gap-1.5">
           {LIST_TYPE_CHIPS.map((chip) => (
             <span
@@ -72,7 +72,7 @@ function StepVisuals({ step }) {
 
   if (step.showAiInputDemo) {
     return (
-      <div className="mt-3 rounded-2xl border border-violet-200/80 bg-gradient-to-b from-violet-50/80 to-white p-3">
+      <div className="mt-2 rounded-2xl border border-violet-200/80 bg-gradient-to-b from-violet-50/80 to-white p-2.5">
         <div className="flex items-center gap-1.5 text-xs font-medium text-violet-700">
           <Sparkles className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
           Умный ввод
@@ -135,15 +135,15 @@ function StepVisuals({ step }) {
 
 function StepCard({ step }) {
   return (
-    <div className="flex h-full w-full flex-col justify-between px-1">
-      <div>
+    <div className="flex h-full min-h-[14rem] w-full flex-col px-1">
+      <div className="space-y-2">
         {step.emoji && (
-          <span className="mb-3 block text-3xl" aria-hidden>
+          <span className="block text-3xl" aria-hidden>
             {step.emoji}
           </span>
         )}
         <h3 className="text-lg font-bold text-slate-900">{step.title}</h3>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">{step.description}</p>
+        <p className="text-sm leading-relaxed text-slate-600">{step.description}</p>
         <StepVisuals step={step} />
       </div>
     </div>
@@ -181,16 +181,16 @@ function HintFooter({
         </div>
       )}
       {isLastStep ? (
-        <div className="relative mt-2 h-14">
+        <div className="relative mt-2 min-h-[3rem]">
           <p
-            className={`absolute inset-0 line-clamp-3 transition-opacity duration-300 ease-in-out ${FOOTER_HINT_CLASS} ${
+            className={`absolute inset-0 transition-opacity duration-300 ease-in-out ${FOOTER_HINT_CLASS} ${
               dontShowAgain ? 'pointer-events-none opacity-0' : 'opacity-100'
             }`}
           >
             {repeatOnNextVisitHint}
           </p>
           <p
-            className={`absolute inset-0 line-clamp-3 transition-opacity duration-300 ease-in-out ${FOOTER_HINT_CLASS} ${
+            className={`absolute inset-0 transition-opacity duration-300 ease-in-out ${FOOTER_HINT_CLASS} ${
               dontShowAgain ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
           >
@@ -198,7 +198,7 @@ function HintFooter({
           </p>
         </div>
       ) : (
-        <p className={`mt-2 line-clamp-3 h-14 ${FOOTER_HINT_CLASS}`}>
+        <p className={`mt-2 min-h-[3rem] ${FOOTER_HINT_CLASS}`}>
           {tip || inboxHint}
         </p>
       )}
@@ -280,7 +280,7 @@ export default function HintGuideModal({
       overlayClassName={MODAL_OVERLAY_SHEET}
       panelClassName={`${MODAL_PANEL_WIDE} p-5 sm:p-6`}
     >
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
           Подсказка
         </p>
@@ -296,13 +296,13 @@ export default function HintGuideModal({
               className={`mt-5 flex ${SLIDE_HEIGHT} shrink-0 snap-x snap-mandatory overflow-x-auto no-scrollbar`}
             >
               {steps.map((step) => (
-                <div key={step.id} className="flex h-full w-full shrink-0 snap-center">
+                <div key={step.id} className="flex h-full min-h-[14rem] w-full shrink-0 snap-center">
                   <StepCard step={step} />
                 </div>
               ))}
             </div>
 
-            <div className="mt-4 flex justify-center gap-1.5">
+            <div className="mt-5 flex shrink-0 justify-center gap-1.5 pb-1">
               {steps.map((step, index) => (
                 <button
                   key={step.id}
@@ -334,7 +334,7 @@ export default function HintGuideModal({
           type="button"
           disabled={submitting}
           onClick={handlePrimaryAction}
-          className={`mt-3 ${PRIMARY_BTN}`}
+          className={`mt-3 shrink-0 ${PRIMARY_BTN}`}
         >
           <span
             key={isLastStep ? String(dontShowAgain) : 'next'}

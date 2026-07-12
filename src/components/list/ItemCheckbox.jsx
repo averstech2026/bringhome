@@ -2,7 +2,7 @@ import { UserAvatar } from '../profile/UserAvatar';
 
 function CheckMicroIcon() {
   return (
-    <svg className="h-1.5 w-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
+    <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
     </svg>
   );
@@ -28,12 +28,6 @@ export default function ItemCheckbox({
 }) {
   return (
     <div className={`relative shrink-0 ${className}`}>
-      {isSyncing && (
-        <span
-          className="pointer-events-none absolute -inset-0.5 animate-sync-spin rounded-full border-2 border-emerald-500 border-t-transparent"
-          aria-hidden
-        />
-      )}
       <button
         type="button"
         role="checkbox"
@@ -42,14 +36,17 @@ export default function ItemCheckbox({
         aria-label={checked && checkedByName ? `Отмечено: ${checkedByName}` : 'Отметить товар'}
         disabled={disabled || isSyncing}
         onClick={onChange}
-        className={`group relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full transition-all duration-200 active:scale-95 disabled:opacity-50 ${
-          isSyncing ? 'opacity-60' : ''
+        className={`group relative flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 active:scale-95 ${
+          isSyncing ? 'overflow-visible opacity-100 disabled:opacity-100' : 'overflow-hidden disabled:opacity-50'
         } ${syncSuccessPulse ? 'animate-sync-success-pulse' : ''} ${
-          checked
-            ? 'border-2 border-emerald-400 bg-white shadow-[0_2px_10px_rgba(16,185,129,0.35)] ring-2 ring-emerald-100'
-            : 'border-2 border-emerald-200/80 bg-gradient-to-br from-white to-emerald-50/40 shadow-[0_2px_8px_rgba(16,185,129,0.12)] hover:border-emerald-400 hover:shadow-[0_4px_14px_rgba(16,185,129,0.22)] hover:ring-2 hover:ring-emerald-100'
+          isSyncing
+            ? 'border-0 bg-white shadow-none ring-0'
+            : checked
+              ? 'border border-emerald-400/80 bg-white shadow-[0_1px_6px_rgba(16,185,129,0.28)] ring-1 ring-emerald-200/60'
+              : 'border border-emerald-200/80 bg-gradient-to-br from-white to-emerald-50/40 shadow-[0_1px_6px_rgba(16,185,129,0.1)] hover:border-emerald-400/70 hover:shadow-[0_2px_10px_rgba(16,185,129,0.18)] hover:ring-1 hover:ring-emerald-100/70'
         }`}
       >
+        <span className={`relative flex h-full w-full items-center justify-center ${isSyncing ? 'opacity-60' : ''}`}>
         {checked && checkedByName ? (
           <>
             <UserAvatar
@@ -59,7 +56,7 @@ export default function ItemCheckbox({
               variant="checkbox"
               className="h-full w-full text-[11px]"
             />
-            <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm ring-2 ring-white">
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm ring-1 ring-white/90">
               <CheckMicroIcon />
             </span>
           </>
@@ -71,6 +68,13 @@ export default function ItemCheckbox({
           <span className="flex h-full w-full items-center justify-center text-emerald-300/0 transition-colors group-hover:text-emerald-400/70">
             <CheckIcon />
           </span>
+        )}
+        </span>
+        {isSyncing && (
+          <span
+            className="pointer-events-none absolute -inset-0.5 z-10 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-500"
+            aria-hidden
+          />
         )}
       </button>
     </div>
