@@ -1,0 +1,24 @@
+---
+description: Матрица доступа multi-tenant — читай перед изменениями lists/sharing/rules
+alwaysApply: true
+---
+
+# Access matrix (multi-tenant security)
+
+Полная матрица, Mermaid-граф и таблицы примеров: **`ACCESS_MATRIX.md`** (корень проекта).  
+Перед правками доступа к спискам **прочитай этот файл** и сверься с `firestore.rules` → `canReadList`.
+
+## Инварианты (не нарушать)
+
+1. **Изоляция тенантов** — чужой `familyId` → только `sharedWithFamilyIds` или `shareInviteToken`; иначе `permission-denied` (403).
+2. **Внутренняя приватность** — `isPublic: false` + `allowedUsers`: член семьи **не в списке** → список скрыт (жёлтая зона).
+3. **Внешний шеринг** — гость читает/items ✅; метаданные списка менять ❌ (кроме `externalFamilies` sync).
+4. **Синхронизация** — UI-фильтр (`HomePage.jsx`), клиент (`listsService.js`) и правила Firestore должны совпадать.
+
+## Обязательно после изменений правил
+
+```bash
+npm run test   # tests/firestore/listAccess.rules.test.js
+```
+
+При расширении сценариев доступа — обнови **`ACCESS_MATRIX.md`** и тесты.
