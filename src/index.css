@@ -191,12 +191,19 @@ body {
 .ai-btn-shimmer {
   position: relative;
   overflow: hidden;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: calc(100% + 4px) calc(100% + 4px);
+  background-clip: border-box;
+  -webkit-background-clip: border-box;
+  transform: translateZ(0);
 }
 
 .ai-btn-shimmer::after {
   content: '';
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   background: linear-gradient(
     105deg,
     transparent 35%,
@@ -209,18 +216,22 @@ body {
 }
 
 .ai-btn-shimmer-default {
+  background-color: #7c3aed;
   background-image: linear-gradient(to right, #7c3aed, #6366f1);
 }
 
 .ai-btn-shimmer-hogwarts {
+  background-color: #450a0a;
   background-image: linear-gradient(to right, #450a0a, #991b1b, #d97706);
 }
 
 .ai-btn-shimmer-star-wars {
+  background-color: #1e293b;
   background-image: linear-gradient(to right, #1e293b, #2563eb, #38bdf8);
 }
 
 .ai-btn-shimmer-paddington {
+  background-color: #172554;
   background-image: linear-gradient(to right, #172554, #1e3a8a, #2563eb);
 }
 

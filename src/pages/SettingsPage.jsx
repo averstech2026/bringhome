@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Camera, LogOut, MessageSquare, Shield } from 'lucide-react';
+import { Camera, ChevronDown, LogOut, MessageSquare, Shield } from 'lucide-react';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import { useAuth } from '../hooks/useAuth';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -24,54 +24,20 @@ import PageHeader from '../components/layout/PageHeader';
 import { CARD_SURFACE, PRIMARY_BTN } from '../components/list/cardStyles';
 import { useToast } from '../components/ui/ToastProvider';
 import { AVATAR_FILE_TOO_LARGE_MESSAGE, validateAvatarFile } from '../utils/avatarUpload';
-import { getProfileThemeButtonClass, getThemeAccent, PROFILE_THEME_OPTIONS, resolveUiTheme, setCachedUiTheme } from '../utils/uiThemes';
+import {
+  getProfileThemeButtonClass,
+  getThemeAccent,
+  PROFILE_THEME_OPTIONS,
+  resolveUiTheme,
+  setCachedUiTheme,
+} from '../utils/uiThemes';
+import UiThemeModal from '../components/profile/UiThemeModal';
 import packageJson from '../../package.json';
 
 const appVersion = packageJson.version;
 const buildDate = __BUILD_DATE__;
 const PUSH_LOGO = `${import.meta.env.BASE_URL}icons/logo.png`;
 const PUSH_BADGE = `${import.meta.env.BASE_URL}icons/badge.png`;
-const THEME_SCROLL_PEEK = 18;
-
-const THEME_CAROUSEL_CLASS =
-  '-mx-4 mt-3 flex snap-x snap-mandatory flex-nowrap gap-2 overflow-x-auto scroll-smooth scroll-pl-4 scroll-pr-4 px-4 pb-1 no-scrollbar';
-
-function scrollThemeButtonIntoView(container, button, { smooth = true } = {}) {
-  if (!container || !button) return;
-
-  const viewWidth = container.clientWidth;
-  const maxScroll = Math.max(0, container.scrollWidth - viewWidth);
-  const buttonLeft = button.offsetLeft;
-  const buttonRight = buttonLeft + button.offsetWidth;
-
-  let targetScroll = buttonRight - viewWidth + THEME_SCROLL_PEEK;
-  targetScroll = Math.max(0, Math.min(maxScroll, targetScroll));
-
-  const firstButton = container.querySelector('[data-theme-chip]');
-  if (firstButton) {
-    const firstRight = firstButton.offsetLeft + firstButton.offsetWidth;
-    const peekScroll = Math.max(0, firstRight - THEME_SCROLL_PEEK);
-    if (targetScroll > peekScroll && buttonRight - peekScroll <= viewWidth) {
-      targetScroll = Math.min(peekScroll, maxScroll);
-    }
-  }
-
-  const lastButton = container.querySelector('[data-theme-chip]:last-of-type');
-  if (lastButton && lastButton !== firstButton) {
-    const lastRight = lastButton.offsetLeft + lastButton.offsetWidth;
-    const trailingPeekScroll = Math.max(0, lastRight - viewWidth + THEME_SCROLL_PEEK);
-    if (targetScroll < trailingPeekScroll && lastRight - targetScroll >= viewWidth - THEME_SCROLL_PEEK) {
-      targetScroll = Math.min(trailingPeekScroll, maxScroll);
-    }
-  }
-
-  if (Math.abs(targetScroll - container.scrollLeft) < 1) return;
-
-  container.scrollTo({
-    left: targetScroll,
-    behavior: smooth ? 'smooth' : 'instant',
-  });
-}
 
 function SettingsSwitch({ enabled, onChange, disabled = false }) {
   return (
@@ -128,9 +94,6 @@ export default function SettingsPage() {
   );
   const fileInputRef = useRef(null);
   const avatarMenuRef = useRef(null);
-  const themeCarouselRef = useRef(null);
-  const themeButtonRefs = useRef({});
-  const themeScrollInitialized = useRef(false);
 
   const [pendingFile, setPendingFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -141,6 +104,7 @@ export default function SettingsPage() {
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const [removingAvatar, setRemovingAvatar] = useState(false);
   const [savingTheme, setSavingTheme] = useState(false);
+  const [themeModalOpen, setThemeModalOpen] = useState(false);
   const [activeUiTheme, setActiveUiTheme] = useState(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
@@ -154,6 +118,8 @@ export default function SettingsPage() {
   const hasSavedAvatar = Boolean(profile?.avatarUrl);
   const hasChanges = Boolean(pendingFile);
   const currentUiTheme = activeUiTheme ?? resolveUiTheme(profile, user?.uid);
+  const currentThemeLabel =
+    PROFILE_THEME_OPTIONS.find((option) => option.id === currentUiTheme)?.label || 'Обычная';
   const themeAccent = getThemeAccent(currentUiTheme);
 
   useEffect(() => {
@@ -202,21 +168,6 @@ export default function SettingsPage() {
       if (unsubscribe) unsubscribe();
     };
   }, []);
-
-  useEffect(() => {
-    const container = themeCarouselRef.current;
-    const button = themeButtonRefs.current[currentUiTheme];
-    if (!container || !button) return undefined;
-
-    const frame = window.requestAnimationFrame(() => {
-      scrollThemeButtonIntoView(container, button, {
-        smooth: themeScrollInitialized.current,
-      });
-      themeScrollInitialized.current = true;
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [currentUiTheme]);
 
   useEffect(() => {
     return () => {
@@ -369,12 +320,14 @@ export default function SettingsPage() {
     setCachedUiTheme(user.uid, newTheme);
     setSavingTheme(true);
     setError('');
+    setThemeModalOpen(false);
 
     try {
       await updateOwnUiTheme(user.uid, newTheme);
       reload();
     } catch (err) {
       setActiveUiTheme(previousTheme);
+      setThemeModalOpen(true);
       setError(err?.message || 'Не удалось сохранить тему');
     } finally {
       setSavingTheme(false);
@@ -603,53 +556,51 @@ export default function SettingsPage() {
           className={`mt-6 ${CARD_SURFACE}`}
           aria-labelledby="profile-ui-theme-title"
         >
-          <div className="px-4 py-4">
-            <p id="profile-ui-theme-title" className="text-[15px] text-slate-800">Тема интерфейса</p>
-            <p className="mt-0.5 text-xs text-slate-400">
-              Стиль кнопки распознавания ИИ — настраивается для каждого члена семьи отдельно
-            </p>
-            {profile?.isChild && (
-              <p className="mt-1 text-xs text-amber-700">
-                Детский аккаунт: защита от товаров 18+ активна.
+          <button
+            type="button"
+            onClick={() => setThemeModalOpen(true)}
+            disabled={profileLoading || !profile || savingTheme}
+            className="flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-slate-50/80 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <div className="min-w-0">
+              <p id="profile-ui-theme-title" className="text-[15px] text-slate-800">Тема интерфейса</p>
+              <p className="mt-0.5 text-xs text-slate-400">
+                Нажмите, чтобы изменить стиль кнопки распознавания ИИ
               </p>
-            )}
-
-            {profileLoading || !profile ? (
-              <div className={THEME_CAROUSEL_CLASS} aria-hidden>
-                {PROFILE_THEME_OPTIONS.map((option) => (
-                  <div
-                    key={option.id}
-                    className="h-[34px] shrink-0 snap-start animate-pulse rounded-full bg-slate-100"
-                    style={{ width: `${Math.max(88, option.label.length * 8)}px` }}
+              {profile?.isChild && (
+                <p className="mt-1 text-xs text-amber-700">
+                  Детский аккаунт: защита от товаров 18+ активна.
+                </p>
+              )}
+            </div>
+            <span className="flex shrink-0 items-center">
+              {profileLoading || !profile ? (
+                <span className="h-[34px] w-28 animate-pulse rounded-full bg-slate-100" aria-hidden />
+              ) : (
+                <span
+                  className={`${getProfileThemeButtonClass(currentUiTheme, true)} inline-flex max-w-[11rem] items-center`}
+                  aria-hidden
+                >
+                  <span className="truncate">{currentThemeLabel}</span>
+                  <ChevronDown
+                    className="ml-2 h-3.5 w-3.5 shrink-0 text-white/80"
+                    strokeWidth={2.5}
+                    aria-hidden
                   />
-                ))}
-              </div>
-            ) : (
-              <div ref={themeCarouselRef} className={THEME_CAROUSEL_CLASS}>
-                {PROFILE_THEME_OPTIONS.map((option) => {
-                  const active = currentUiTheme === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      ref={(node) => {
-                        if (node) themeButtonRefs.current[option.id] = node;
-                      }}
-                      type="button"
-                      data-theme-chip
-                      disabled={savingTheme}
-                      aria-pressed={active}
-                      onClick={() => handleThemeChange(option.id)}
-                      className={getProfileThemeButtonClass(option.id, active)}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                </span>
+              )}
+            </span>
+          </button>
         </section>
         )}
+
+        <UiThemeModal
+          open={themeModalOpen}
+          currentTheme={currentUiTheme}
+          saving={savingTheme}
+          onClose={() => setThemeModalOpen(false)}
+          onSelect={handleThemeChange}
+        />
 
         <section className={`mt-6 overflow-hidden ${CARD_SURFACE}`}>
           {[

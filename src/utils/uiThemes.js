@@ -22,7 +22,7 @@ function resolveUiThemeFromProfile(profile) {
 export const PROFILE_THEME_OPTIONS = [
   { id: 'default', label: 'Обычная' },
   { id: 'hogwarts', label: 'Магия Хогвартса ✨' },
-  { id: 'star_wars', label: 'Путь Джедая 🌌' },
+  { id: 'star_wars', label: 'Путь Джедая ⚔️' },
   { id: 'paddington', label: 'Медвежонок Паддингтон 🧸' },
 ];
 
@@ -205,7 +205,7 @@ const THEME_CHROME = {
   }),
   star_wars: buildThemeChrome(THEME_ACCENTS.star_wars, {
     placeholder: 'Например: синие наггетсы 1 уп, сухой паёк 3 шт, кореллианский эль, космо-чечевица',
-    label: 'Да прибудет с нами Сила! 🌌',
+    label: 'Да прибудет с нами Сила! ⚔️',
     loadingLabel: 'Сканируем галактику…',
     icon: 'sword',
   }),
@@ -252,7 +252,7 @@ export function getProfileThemeButtonClass(themeId, active) {
   }
 
   const activeClass = PROFILE_THEME_ACTIVE_CLASSES[resolveThemeId(themeId)];
-  return `${PROFILE_THEME_BUTTON_BASE} border border-transparent ${activeClass}`;
+  return `${PROFILE_THEME_BUTTON_BASE} border-0 ${activeClass}`;
 }
 
 export function resolveUiTheme(profile, userId) {
