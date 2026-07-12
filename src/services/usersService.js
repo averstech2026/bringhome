@@ -15,6 +15,7 @@ import {
   deleteField,
   serverTimestamp,
   arrayUnion,
+  arrayRemove,
   query,
   orderBy,
   where,
@@ -26,7 +27,7 @@ import { DEFAULT_AI_LIMITS, deriveAiLimitsFromMonthly } from '../utils/aiLimits'
 import { UI_THEME_IDS, setCachedUiTheme } from '../utils/uiThemes';
 import { ROLES, normalizeRole, isSuperAdmin, PLATFORM_OWNER_EMAIL } from '../utils/roles';
 import { createFamily } from './familiesService';
-import { createWelcomeOnboardingNotification } from './notificationsService';
+import { createWelcomeHintForUser } from './notificationsService';
 
 export const OWNER_EMAIL = PLATFORM_OWNER_EMAIL;
 
@@ -87,7 +88,7 @@ export async function createBootstrapAdmin({ email, password, displayName }) {
     createdBy: null,
   });
 
-  await createWelcomeOnboardingNotification(cred.user.uid).catch(() => {});
+  await createWelcomeHintForUser(cred.user.uid).catch(() => {});
 
   await setDoc(doc(db, COLLECTIONS.CONFIG, 'setup'), {
     initialized: true,
@@ -230,7 +231,7 @@ export async function createUserAsAdmin({
 
     await setDoc(doc(db, COLLECTIONS.USERS, cred.user.uid), userPayload);
 
-    await createWelcomeOnboardingNotification(cred.user.uid).catch(() => {});
+    await createWelcomeHintForUser(cred.user.uid).catch(() => {});
 
     await signOut(secondaryAuth);
     return cred.user.uid;
@@ -348,6 +349,20 @@ export async function setOnboardingCompleted(userId, completed) {
   if (!userId) return;
   await updateDoc(doc(db, COLLECTIONS.USERS, userId), {
     onboardingCompleted: completed === true,
+  });
+}
+
+export async function dismissHintForUser(userId, hintId) {
+  if (!userId || !hintId) return;
+  await updateDoc(doc(db, COLLECTIONS.USERS, userId), {
+    dismissedHints: arrayUnion(hintId),
+  });
+}
+
+export async function undismissHintForUser(userId, hintId) {
+  if (!userId || !hintId) return;
+  await updateDoc(doc(db, COLLECTIONS.USERS, userId), {
+    dismissedHints: arrayRemove(hintId),
   });
 }
 

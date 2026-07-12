@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ItemCheckbox from './ItemCheckbox';
+import { isPendingListItem } from '../../hooks/usePendingListItems';
 import ItemDetailsModal from './ItemDetailsModal';
 import QuantityStepper from './QuantityStepper';
 import BookingBadge from './BookingBadge';
@@ -33,27 +34,98 @@ export default function ItemRow({
   onCategoryChange,
   onCommentChange,
   onBookingToggle,
+  onSyncStateChange,
   disabled = false,
   readOnly = false,
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [localChecked, setLocalChecked] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncFailed, setSyncFailed] = useState(false);
+  const [syncSuccessPulse, setSyncSuccessPulse] = useState(false);
+  const syncTimersRef = useRef([]);
 
   const ctx = bookingContext || { displayName, userPhotoUrl, familyId: null };
+  const displayChecked = localChecked !== null ? localChecked : item.checked;
+  const requiresCloudSync = !readOnly && !isPendingListItem(item.id);
   const isBooked = Boolean(item.bookedBy);
-  const rowMuted = isBooked && !item.checked;
+  const rowMuted = isBooked && !displayChecked;
   const isMyBooking = isItemBookedByMe(item, ctx);
   const blockedByOtherFamily = isItemBookedByOtherFamily(item, ctx.familyId);
   const bookingDisabled = disabled || (blockedByOtherFamily && !isMyBooking);
 
+  useEffect(() => {
+    if (localChecked !== null && item.checked === localChecked && !isSyncing) {
+      setLocalChecked(null);
+    }
+  }, [item.checked, localChecked, isSyncing]);
+
+  useEffect(() => {
+    return () => {
+      syncTimersRef.current.forEach(clearTimeout);
+    };
+  }, []);
+
+  const scheduleSyncTimer = (callback, delay) => {
+    const timerId = window.setTimeout(() => {
+      syncTimersRef.current = syncTimersRef.current.filter((id) => id !== timerId);
+      callback();
+    }, delay);
+    syncTimersRef.current.push(timerId);
+  };
+
   const handleToggle = async () => {
-    if (onToggle) {
-      onToggle(item.id, displayName);
+    if (readOnly || disabled || isSyncing) return;
+
+    const newChecked = !displayChecked;
+
+    if (!requiresCloudSync) {
+      if (onToggle) {
+        onToggle(item.id, displayName);
+      } else {
+        await toggleItem(item.id, {
+          checked: newChecked,
+          checkedBy: displayName,
+        });
+      }
       return;
     }
-    await toggleItem(item.id, {
-      checked: !item.checked,
-      checkedBy: displayName,
-    });
+
+    setLocalChecked(newChecked);
+    setIsSyncing(true);
+    setSyncFailed(false);
+    setSyncSuccessPulse(false);
+    onSyncStateChange?.({ itemId: item.id, syncing: true });
+
+    try {
+      if (onToggle) {
+        await onToggle(item.id, displayName, newChecked);
+      } else {
+        await toggleItem(item.id, {
+          checked: newChecked,
+          checkedBy: displayName,
+        });
+      }
+
+      setIsSyncing(false);
+      onSyncStateChange?.({
+        itemId: item.id,
+        syncing: false,
+        confirmed: true,
+        checked: newChecked,
+        bookedBy: newChecked ? null : (item.bookedBy ?? null),
+      });
+      if (newChecked) {
+        setSyncSuccessPulse(true);
+        scheduleSyncTimer(() => setSyncSuccessPulse(false), 220);
+      }
+    } catch {
+      setIsSyncing(false);
+      onSyncStateChange?.({ itemId: item.id, syncing: false, confirmed: false });
+      setLocalChecked(null);
+      setSyncFailed(true);
+      scheduleSyncTimer(() => setSyncFailed(false), 1200);
+    }
   };
 
   const handleQuantityChange = async (newQuantity) => {
@@ -107,8 +179,11 @@ export default function ItemRow({
     }
   };
 
+  const displayCheckedBy = displayChecked
+    ? (localChecked !== null ? displayName : item.checkedBy)
+    : undefined;
   const checkerPhotoUrl =
-    item.checked && item.checkedBy === displayName ? userPhotoUrl : undefined;
+    displayChecked && displayCheckedBy === displayName ? userPhotoUrl : undefined;
   const { label: quantityLabel } = getQuantityDisplay(item.quantity);
   const showMeta = Boolean(item.comment || item.bookedBy);
 
@@ -117,16 +192,18 @@ export default function ItemRow({
       <div
         className={`flex w-full items-center justify-between px-3 py-2 transition-opacity ${
           rowMuted ? 'bg-slate-50/60' : ''
-        } ${blockedByOtherFamily && !item.checked ? 'opacity-90' : ''}`}
+        } ${blockedByOtherFamily && !displayChecked ? 'opacity-90' : ''} ${
+          syncFailed ? 'animate-sync-error-flash' : ''
+        }`}
       >
-        <div className={`min-w-0 flex-1 pr-3 ${item.checked ? 'opacity-60' : rowMuted ? 'opacity-75' : ''}`}>
+        <div className={`min-w-0 flex-1 pr-3 ${displayChecked ? 'opacity-60' : rowMuted ? 'opacity-75' : ''}`}>
           <div className="flex items-start gap-1">
             <button
               type="button"
               disabled={disabled}
               onClick={() => setDetailsOpen(true)}
               className={`min-w-0 flex-1 text-left text-sm font-medium text-slate-700 ${
-                item.checked ? 'line-through' : ''
+                displayChecked ? 'line-through' : ''
               } cursor-pointer hover:text-slate-900`}
             >
               {item.name}
@@ -157,13 +234,13 @@ export default function ItemRow({
           </span>
         ) : (
           <div
-            className={`${item.checked ? 'pointer-events-none opacity-60' : rowMuted ? 'opacity-75' : ''} ${
-              bookingDisabled && !item.checked ? 'pointer-events-none opacity-50' : ''
+            className={`${displayChecked ? 'pointer-events-none opacity-60' : rowMuted ? 'opacity-75' : ''} ${
+              bookingDisabled && !displayChecked ? 'pointer-events-none opacity-50' : ''
             }`}
           >
             <QuantityStepper
               quantity={item.quantity}
-              disabled={bookingDisabled || item.checked}
+              disabled={bookingDisabled || displayChecked}
               onChange={handleQuantityChange}
               onRemove={handleRemove}
               itemName={item.name}
@@ -172,12 +249,14 @@ export default function ItemRow({
         )}
 
         <ItemCheckbox
-          className="ml-3 shrink-0"
-          checked={item.checked}
+          className="ml-3"
+          checked={displayChecked}
           onChange={readOnly ? undefined : handleToggle}
-          checkedByName={item.checked ? item.checkedBy : undefined}
+          checkedByName={displayCheckedBy}
           checkedByPhotoUrl={checkerPhotoUrl}
-          disabled={readOnly}
+          disabled={readOnly || disabled}
+          isSyncing={isSyncing}
+          syncSuccessPulse={syncSuccessPulse}
         />
       </div>
 

@@ -180,15 +180,17 @@ export default forwardRef(function AiInput({
   useEffect(() => {
     if (!footerReservePx) return undefined;
 
-    const frame = requestAnimationFrame(scrollAboveFooter);
-    return () => cancelAnimationFrame(frame);
+    if (success || error || pasteHint) {
+      const frame = requestAnimationFrame(scrollAboveFooter);
+      return () => cancelAnimationFrame(frame);
+    }
+
+    return undefined;
   }, [
     footerReservePx,
     success,
     error,
     pasteHint,
-    limitExhausted,
-    aiTheme.limitExhaustedMessage,
     scrollAboveFooter,
   ]);
 
@@ -408,10 +410,6 @@ export default forwardRef(function AiInput({
       <section
         ref={sectionRef}
         className="scroll-mt-[calc(env(safe-area-inset-top,0px)+4.25rem+0.5rem)]"
-        style={{
-          marginBottom: footerReservePx > 0 ? `${footerReservePx + 16}px` : undefined,
-          scrollMarginBottom: footerReservePx > 0 ? `${footerReservePx + 16}px` : undefined,
-        }}
       >
         <BorderGapCard
           className={`flex flex-col transition-all duration-300 ${aiTheme.cardClassName} ${glow ? aiTheme.glowClassName : ''}`}
@@ -448,6 +446,11 @@ export default forwardRef(function AiInput({
             }}
             disabled={disabled || loading}
             onPaste={() => setPasteHint('')}
+            onFocus={() => {
+              if (footerReservePx > 0) {
+                requestAnimationFrame(scrollAboveFooter);
+              }
+            }}
             className={`min-h-[200px] max-h-[min(280px,40dvh)] w-full overflow-y-auto resize-none bg-transparent text-left text-sm text-gray-900 outline-none [-webkit-overflow-scrolling:touch] disabled:opacity-50 ${INPUT_PLACEHOLDER}`}
           />
 

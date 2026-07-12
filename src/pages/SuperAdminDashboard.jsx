@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronRight, Copy, LayoutTemplate, Megaphone, Plus, Trash2 } from 'lucide-react';
+import { ChevronRight, Copy, Eye, LayoutTemplate, Megaphone, Plus, RefreshCw, Rocket, Trash2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { createInvite, getAllInvites, getInviteRegisterUrl, revokeInvite } from '../services/invitesService';
 import { getAllFamilies, getFamilyUsageStats, resolveFamilyAiLimitMonth } from '../services/familiesService';
@@ -8,6 +8,13 @@ import { useUserProfile } from '../hooks/useUserProfile';
 import { useNotifications } from '../hooks/useNotifications';
 import CreateAnnouncementModal from '../components/profile/CreateAnnouncementModal';
 import { getAllAnnouncements } from '../services/announcementsService';
+import {
+  ensureGlobalHintTemplates,
+  launchHintForAll,
+  runHintForMe,
+  subscribeToGlobalHintTemplates,
+} from '../services/notificationsService';
+import { SYSTEM_HINTS } from '../utils/hintsContent';
 import {
   subscribeToAllFeedbacks,
   subscribeToUnreadFeedbacks,
@@ -368,6 +375,70 @@ function getCreatedAtMillis(createdAt) {
   return createdAt?.toMillis?.() ?? 0;
 }
 
+function HintTemplateCard({ hint, state, onLaunch, onPreview, launching, previewing }) {
+  const isActive = state?.isActive === true;
+  const launchLabel = isActive ? 'Перезапустить' : 'Запустить для всех';
+  const busy = launching || previewing;
+
+  return (
+    <li className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/30 via-white to-indigo-50/20 p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-100 to-indigo-100">
+          <LayoutTemplate className="h-4 w-4 text-violet-600" strokeWidth={2} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-100">
+              Шаблон подсказки
+            </span>
+            {isActive ? (
+              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
+                Активна
+              </span>
+            ) : (
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-500">
+                Скрыта
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-sm font-semibold text-slate-900">{hint.title}</p>
+          <p className="mt-1 text-sm leading-snug text-slate-700">{hint.body}</p>
+          {state?.createdAt && (
+            <p className="mt-1.5 text-xs text-slate-400">
+              {isActive ? 'Последний запуск: ' : 'Создано: '}
+              {formatNotificationTime(state.createdAt)}
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onPreview(hint.hintId)}
+              className="inline-flex h-9 items-center gap-2 rounded-full border border-violet-200 bg-transparent px-4 text-sm font-medium text-violet-700 transition hover:border-violet-300 hover:bg-violet-50/60 disabled:opacity-60"
+            >
+              <Eye className="h-4 w-4" strokeWidth={2} />
+              {previewing ? 'Добавляем…' : 'Посмотреть у себя'}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onLaunch(hint.hintId)}
+              className="inline-flex h-9 items-center gap-2 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 px-4 text-sm font-semibold text-white shadow-sm shadow-violet-300/40 transition hover:from-violet-700 hover:to-indigo-700 disabled:opacity-60"
+            >
+              {isActive ? (
+                <RefreshCw className={`h-4 w-4 ${launching ? 'animate-spin' : ''}`} strokeWidth={2.5} />
+              ) : (
+                <Rocket className="h-4 w-4" strokeWidth={2.5} />
+              )}
+              {launching ? 'Запуск…' : launchLabel}
+            </button>
+          </div>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 function UnifiedNotificationCard({ item }) {
   if (item.kind === 'announcement') {
     const announcement = item.data;
@@ -440,9 +511,15 @@ function UnifiedNotificationCard({ item }) {
 function NotificationsTab() {
   const { user } = useAuth();
   const { profile } = useUserProfile(user);
+  const toast = useToast();
   const [createOpen, setCreateOpen] = useState(false);
   const [featureAnnouncements, setFeatureAnnouncements] = useState([]);
   const [featureLoading, setFeatureLoading] = useState(true);
+  const [hintStates, setHintStates] = useState([]);
+  const [hintsLoading, setHintsLoading] = useState(true);
+  const [launchingHintId, setLaunchingHintId] = useState(null);
+  const [previewingHintId, setPreviewingHintId] = useState(null);
+  const [launchConfirmHint, setLaunchConfirmHint] = useState(null);
   const { notifications, loading: notificationsLoading } = useNotifications(user?.uid, { mode: 'outgoing' });
   const senderDisplayName = profile?.displayName || user?.displayName || 'Администратор';
 
@@ -458,6 +535,28 @@ function NotificationsTab() {
     loadFeatureAnnouncements();
   }, []);
 
+  useEffect(() => {
+    if (!user?.uid) return undefined;
+
+    setHintsLoading(true);
+    ensureGlobalHintTemplates(user.uid)
+      .catch(() => {})
+      .finally(() => setHintsLoading(false));
+
+    return subscribeToGlobalHintTemplates((items) => {
+      setHintStates(items);
+      setHintsLoading(false);
+    });
+  }, [user?.uid]);
+
+  const hintStateById = useMemo(() => {
+    const map = new Map();
+    for (const state of hintStates) {
+      if (state.hintId) map.set(state.hintId, state);
+    }
+    return map;
+  }, [hintStates]);
+
   const unifiedFeed = useMemo(() => {
     const items = [
       ...featureAnnouncements.map((announcement) => ({
@@ -466,12 +565,14 @@ function NotificationsTab() {
         createdAt: announcement.createdAt,
         data: announcement,
       })),
-      ...notifications.map((notification) => ({
-        kind: 'notification',
-        id: `notification-${notification.id}`,
-        createdAt: notification.createdAt,
-        data: notification,
-      })),
+      ...notifications
+        .filter((notification) => notification.type !== 'hint')
+        .map((notification) => ({
+          kind: 'notification',
+          id: `notification-${notification.id}`,
+          createdAt: notification.createdAt,
+          data: notification,
+        })),
     ];
 
     return items.sort(
@@ -479,36 +580,99 @@ function NotificationsTab() {
     );
   }, [featureAnnouncements, notifications]);
 
-  const loading = featureLoading || notificationsLoading;
+  const loading = featureLoading || notificationsLoading || hintsLoading;
+
+  const handlePreviewHint = async (hintId) => {
+    if (!user?.uid || previewingHintId || launchingHintId) return;
+    setPreviewingHintId(hintId);
+    try {
+      await runHintForMe(user.uid, hintId);
+      toast.success('Подсказка добавлена в ваши Входящие. Проверьте, как она работает!');
+    } catch (err) {
+      toast.error(err?.message || 'Не удалось добавить подсказку');
+    } finally {
+      setPreviewingHintId(null);
+    }
+  };
+
+  const handleLaunchHint = async (hintId) => {
+    if (!user?.uid || launchingHintId) return;
+    setLaunchingHintId(hintId);
+    try {
+      await launchHintForAll(hintId, user.uid);
+      toast.success(hintId === 'welcome' ? 'Знакомство перезапущено для всех' : 'Подсказка запущена для всех пользователей');
+      setLaunchConfirmHint(null);
+    } catch (err) {
+      toast.error(err?.message || 'Не удалось запустить подсказку');
+    } finally {
+      setLaunchingHintId(null);
+    }
+  };
+
+  const handleLaunchRequest = (hintId) => {
+    const hint = SYSTEM_HINTS.find((item) => item.hintId === hintId);
+    if (hint) setLaunchConfirmHint(hint);
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-end">
-        <button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-4 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
-        >
-          <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
-          Создать
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="flex justify-center py-6">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+    <div className="space-y-6">
+      <section>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Системные подсказки</h3>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Фиксированные шаблоны во «Входящих» у всех пользователей
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-4 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-slate-50 hover:text-slate-900"
+          >
+            <Plus className="h-4 w-4 stroke-[2.5]" aria-hidden />
+            Создать
+          </button>
         </div>
-      ) : unifiedFeed.length === 0 ? (
-        <p className="text-sm text-slate-400">
-          Пока нет анонсов и уведомлений — нажмите «Создать»
-        </p>
-      ) : (
-        <ul className="space-y-2">
-          {unifiedFeed.map((item) => (
-            <UnifiedNotificationCard key={item.id} item={item} />
-          ))}
-        </ul>
-      )}
+
+        {loading ? (
+          <div className="flex justify-center py-6">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {SYSTEM_HINTS.map((hint) => (
+              <HintTemplateCard
+                key={hint.hintId}
+                hint={hint}
+                state={hintStateById.get(hint.hintId)}
+                onLaunch={handleLaunchRequest}
+                onPreview={handlePreviewHint}
+                launching={launchingHintId === hint.hintId}
+                previewing={previewingHintId === hint.hintId}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h3 className="mb-3 text-sm font-semibold text-slate-900">Анонсы и рассылки</h3>
+        {loading ? (
+          <div className="flex justify-center py-6">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+          </div>
+        ) : unifiedFeed.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            Пока нет анонсов и уведомлений — нажмите «Создать»
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {unifiedFeed.map((item) => (
+              <UnifiedNotificationCard key={item.id} item={item} />
+            ))}
+          </ul>
+        )}
+      </section>
 
       <CreateAnnouncementModal
         open={createOpen}
@@ -520,6 +684,22 @@ function NotificationsTab() {
             loadFeatureAnnouncements();
           }
         }}
+      />
+
+      <ConfirmModal
+        open={Boolean(launchConfirmHint)}
+        title="Запустить подсказку для всех?"
+        titleId="launch-hint-confirm-title"
+        message={
+          launchConfirmHint
+            ? `«${launchConfirmHint.title}» появится во «Входящих» у всех пользователей — у Марины и остальных. Уверены?`
+            : ''
+        }
+        confirmLabel="Запустить для всех"
+        confirming={Boolean(launchingHintId)}
+        confirmingLabel="Запускаем…"
+        onConfirm={() => launchConfirmHint && handleLaunchHint(launchConfirmHint.hintId)}
+        onCancel={() => !launchingHintId && setLaunchConfirmHint(null)}
       />
     </div>
   );

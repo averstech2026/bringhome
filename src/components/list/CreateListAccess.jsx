@@ -22,7 +22,7 @@ export default function CreateListAccess({
 
   return (
     <section className="pb-1">
-      <BorderGapCard legend="Доступ к списку">
+      <BorderGapCard legend="Доступ к списку" compactTop>
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-gray-800">Для всей семьи</p>

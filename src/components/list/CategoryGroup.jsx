@@ -59,6 +59,7 @@ export default function CategoryGroup({
   onCommentChange,
   onBookingToggle,
   onCategoryBooking,
+  onSyncStateChange,
   disabled = false,
   readOnly = false,
   isFirst = false,
@@ -104,6 +105,7 @@ export default function CategoryGroup({
             onCategoryChange={onCategoryChange}
             onCommentChange={onCommentChange}
             onBookingToggle={onBookingToggle}
+            onSyncStateChange={onSyncStateChange}
             disabled={disabled}
             readOnly={readOnly}
           />

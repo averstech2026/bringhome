@@ -219,19 +219,15 @@ export default function HomePage() {
     };
   }, [profile, profileLoading, location.key, user?.uid, onboardingOpen]);
 
-  const handleOnboardingComplete = async (dontShowAgain) => {
+  const handleOnboardingComplete = async () => {
     if (user?.uid) {
-      if (dontShowAgain) {
-        try {
-          await setOnboardingCompleted(user.uid, true);
-          clearOnboardingSkippedThisSession(user.uid);
-          reload();
-        } catch (err) {
-          toast.error(err?.message || 'Не удалось сохранить настройку');
-          return;
-        }
-      } else {
-        markOnboardingSkippedThisSession(user.uid);
+      try {
+        await setOnboardingCompleted(user.uid, true);
+        clearOnboardingSkippedThisSession(user.uid);
+        reload();
+      } catch (err) {
+        toast.error(err?.message || 'Не удалось сохранить настройку');
+        return;
       }
     }
     setOnboardingOpen(false);
@@ -490,7 +486,6 @@ export default function HomePage() {
         onClose={() => setOnboardingOpen(false)}
         onComplete={handleOnboardingComplete}
         mode="home"
-        onboardingCompleted={isOnboardingCompleted(profile)}
       />
 
       <FeatureAnnouncementModal

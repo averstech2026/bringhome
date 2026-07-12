@@ -15,6 +15,7 @@ export function useItems(listId) {
       return;
     }
 
+    setItems([]);
     setLoading(true);
     setError(null);
 

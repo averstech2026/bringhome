@@ -10,10 +10,11 @@ export default function BorderGapCard({
   className = 'bg-white',
   legendClassName = '',
   borderClassName = 'border-slate-200',
+  compactTop = false,
 }) {
   return (
     <div
-      className={`relative mt-6 rounded-2xl border px-4 pb-4 pt-6 ${borderClassName} ${className}`}
+      className={`relative ${compactTop ? 'mt-4' : 'mt-6'} rounded-2xl border px-4 pb-4 pt-6 ${borderClassName} ${className}`}
     >
       <div className="absolute left-4 top-0 z-10 -translate-y-1/2">
         <span className={legendClassName || LEGEND_CAPSULE}>{legend}</span>

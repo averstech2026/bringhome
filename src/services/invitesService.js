@@ -19,7 +19,7 @@ import {
 } from 'firebase/auth';
 import { db, COLLECTIONS, firebaseConfig } from '../firebase';
 import { createFamily } from './familiesService';
-import { createWelcomeOnboardingNotification } from './notificationsService';
+import { createWelcomeHintForUser } from './notificationsService';
 import { ROLES } from '../utils/roles';
 
 function generateInviteToken() {
@@ -156,7 +156,7 @@ export async function registerFamilyAdminViaInvite({
       createdBy: null,
     });
 
-    await createWelcomeOnboardingNotification(uid, secondaryDb).catch(() => {});
+    await createWelcomeHintForUser(uid, secondaryDb).catch(() => {});
 
     await runTransaction(secondaryDb, async (transaction) => {
       const inviteRefOnSecondary = doc(secondaryDb, COLLECTIONS.INVITES, token.trim());

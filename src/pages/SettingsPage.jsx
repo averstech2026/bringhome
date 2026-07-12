@@ -86,7 +86,7 @@ export default function SettingsPage() {
   const { user, signOut, reloadUser } = useAuth();
   const { settings, updateSetting } = useAppSettings();
   const { profile, isSuperAdmin, isFamilyAdmin, familyId, reload, loading: profileLoading } = useUserProfile(user);
-  const { unreadCount } = useNotifications(user?.uid, { familyId });
+  const { unreadCount } = useNotifications(user?.uid, { familyId, profile });
   const { unreadCount: feedbackUnreadCount } = useUnreadFeedbacks(isSuperAdmin);
   const { unseenCount: feedbackStatusUnseenCount } = useUnseenFeedbackStatuses(
     user?.uid,

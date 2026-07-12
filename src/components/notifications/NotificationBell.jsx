@@ -6,8 +6,8 @@ import { useNotifications } from '../../hooks/useNotifications';
 
 export default function NotificationBell({ userId }) {
   const { user } = useAuth();
-  const { familyId } = useUserProfile(user);
-  const { unreadCount } = useNotifications(userId, { familyId });
+  const { familyId, profile } = useUserProfile(user);
+  const { unreadCount } = useNotifications(userId, { familyId, profile });
 
   if (!userId) return null;
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { getUserPhotoUrl } from '../utils/userPhoto';
@@ -43,6 +43,8 @@ import {
   APP_BACKGROUND,
   PAGE_X,
   PRIMARY_BTN,
+  EXIT_BTN_NEUTRAL,
+  CREATE_BTN_DISABLED,
   SCREEN_TOP_INNER,
 } from '../components/list/cardStyles';
 import { useToast } from '../components/ui/ToastProvider';
@@ -54,6 +56,30 @@ import {
   scheduleListReminder,
   cancelListReminder,
 } from '../services/scheduledNotifications';
+
+function itemDiffersFromBaseline(initial, { checked, bookedBy }) {
+  if (!initial) return true;
+  return initial.checked !== checked || (initial.bookedBy ?? null) !== (bookedBy ?? null);
+}
+
+function resolveItemSessionState(item, overrides) {
+  const override = overrides[item.id];
+  return {
+    checked: override?.checked ?? Boolean(item.checked),
+    bookedBy: override?.bookedBy !== undefined ? override.bookedBy : (item.bookedBy ?? null),
+  };
+}
+
+function applySessionOverride(prev, itemId, state, baseline) {
+  const initial = baseline?.get(itemId);
+  const next = { ...prev };
+  if (initial && !itemDiffersFromBaseline(initial, state)) {
+    delete next[itemId];
+  } else {
+    next[itemId] = state;
+  }
+  return next;
+}
 
 const LIST_FIXED_HEADER =
   `fixed left-1/2 top-0 z-50 w-full max-w-lg -translate-x-1/2 rounded-b-2xl border border-t-0 border-gray-50/80 bg-white pt-[env(safe-area-inset-top,0px)] ${CARD_SHADOW}`;
@@ -127,8 +153,55 @@ export default function ListPage() {
   } = usePendingListAccess();
 
   const [savingChanges, setSavingChanges] = useState(false);
+  const [syncingCount, setSyncingCount] = useState(0);
+  const [sessionBaseline, setSessionBaseline] = useState(null);
+  const [sessionOverrides, setSessionOverrides] = useState({});
   const [notifyOnSave, setNotifyOnSave] = useState(false);
   const [aiSavedThisSession, setAiSavedThisSession] = useState(false);
+  const sessionBaselineListRef = useRef(null);
+  const sessionBaselineRef = useRef(null);
+
+  useEffect(() => {
+    sessionBaselineRef.current = sessionBaseline;
+  }, [sessionBaseline]);
+
+  const handleItemSyncStateChange = useCallback(({ syncing, confirmed, itemId, checked, bookedBy }) => {
+    setSyncingCount((count) => (syncing ? count + 1 : Math.max(0, count - 1)));
+    if (!syncing && confirmed && itemId && typeof checked === 'boolean') {
+      setSessionOverrides((prev) => applySessionOverride(
+        prev,
+        itemId,
+        { checked, bookedBy: bookedBy ?? null },
+        sessionBaselineRef.current,
+      ));
+    }
+  }, []);
+
+  const runCloudSync = useCallback(async (itemIds, action, patchById = {}) => {
+    setSyncingCount((count) => count + 1);
+    try {
+      await action();
+      setSessionOverrides((prev) => {
+        let next = prev;
+        itemIds.forEach((id) => {
+          const patch = patchById[id];
+          if (!patch) return;
+          next = applySessionOverride(next, id, patch, sessionBaselineRef.current);
+        });
+        return next;
+      });
+    } finally {
+      setSyncingCount((count) => Math.max(0, count - 1));
+    }
+  }, []);
+
+  useEffect(() => {
+    sessionBaselineListRef.current = null;
+    setSessionBaseline(null);
+    setSessionOverrides({});
+    setSyncingCount(0);
+  }, [listId]);
+
   // Доступ к списку выбираем ещё на экране создания, чтобы участники получили пуш сразу.
   const [familyMembers, setFamilyMembers] = useState([]);
   // По умолчанию список общий для всей семьи (тумблер включён) — чтобы состояние
@@ -185,7 +258,46 @@ export default function ListPage() {
   const canLoadList = !isDraft && accessChecked && accessForListId === listId && !accessError;
 
   const { list, loading: listLoading, error: listError } = useList(canLoadList ? listId : null);
-  const { items: liveItems, loading: itemsLoading, error: itemsError } = useItems(canLoadList ? listId : null);
+  const { items: liveItems, loading: itemsLoading, error: itemsError } = useItems(!isDraft && listId ? listId : null);
+
+  useEffect(() => {
+    if (isDraft || !listId || itemsLoading) return;
+    if (sessionBaselineListRef.current === listId) return;
+
+    sessionBaselineListRef.current = listId;
+    setSessionBaseline(
+      new Map(
+        liveItems.map((item) => [
+          item.id,
+          { checked: Boolean(item.checked), bookedBy: item.bookedBy ?? null },
+        ]),
+      ),
+    );
+  }, [isDraft, listId, itemsLoading, liveItems]);
+
+  useEffect(() => {
+    setSessionOverrides((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+
+      let changed = false;
+      const next = { ...prev };
+
+      for (const [id, override] of Object.entries(prev)) {
+        const item = liveItems.find((entry) => entry.id === id);
+        if (!item) continue;
+
+        if (
+          Boolean(item.checked) === override.checked
+          && (item.bookedBy ?? null) === (override.bookedBy ?? null)
+        ) {
+          delete next[id];
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [liveItems]);
 
   useEffect(() => {
     if (!list || isDraft) {
@@ -422,6 +534,29 @@ export default function ListPage() {
         || listItemsHaveChanges(liveItems, applyPendingItemEdits(liveItems, pendingEdits))
       );
 
+  const hasSessionActivity = useMemo(() => {
+    if (aiSavedThisSession) return true;
+
+    if (!sessionBaseline || sessionBaseline.size === 0) {
+      return Object.keys(sessionOverrides).length > 0;
+    }
+
+    for (const [id, initial] of sessionBaseline) {
+      const item = liveItems.find((entry) => entry.id === id);
+      const state = item
+        ? resolveItemSessionState(item, sessionOverrides)
+        : sessionOverrides[id];
+      if (!state) continue;
+      if (itemDiffersFromBaseline(initial, state)) return true;
+    }
+
+    for (const id of Object.keys(sessionOverrides)) {
+      if (!sessionBaseline.has(id)) return true;
+    }
+
+    return false;
+  }, [liveItems, sessionBaseline, sessionOverrides, aiSavedThisSession]);
+
   const scrollToShareAndHighlight = useCallback(() => {
     window.setTimeout(() => {
       shareLinkRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -508,25 +643,31 @@ export default function ListPage() {
       }
 
       if (liveIds.length > 0) {
-        await updateItemsBookingBatch(liveIds.map((itemId) => ({ itemId, ...payload })));
+        await runCloudSync(liveIds, () =>
+          updateItemsBookingBatch(liveIds.map((itemId) => ({ itemId, ...payload }))),
+        );
       }
       return;
     }
 
-    await updateItemsBookingBatch(itemIds.map((itemId) => ({ itemId, ...payload })));
+    await runCloudSync(itemIds, () =>
+      updateItemsBookingBatch(itemIds.map((itemId) => ({ itemId, ...payload }))),
+    );
   };
 
-  const handleDeferredToggle = async (itemId, name) => {
+  const handleDeferredToggle = async (itemId, name, checked) => {
     if (isPendingListItem(itemId)) {
       togglePendingItem(itemId, name);
       return;
     }
 
-    const item = items.find((entry) => entry.id === itemId);
+    const item = liveItems.find((entry) => entry.id === itemId);
     if (!item) return;
 
+    const nextChecked = typeof checked === 'boolean' ? checked : !Boolean(item.checked);
+
     await toggleItem(itemId, {
-      checked: !item.checked,
+      checked: nextChecked,
       checkedBy: name,
     });
   };
@@ -568,7 +709,7 @@ export default function ListPage() {
       updatePendingItemBooking(itemId, bookingPayload);
       return;
     }
-    await updateItemBooking(itemId, bookingPayload);
+    await runCloudSync([itemId], () => updateItemBooking(itemId, bookingPayload));
   };
 
   const handleDraftAiAdd = async (products) => {
@@ -599,6 +740,8 @@ export default function ListPage() {
   };
 
   const handleCreateList = async () => {
+    if (draftItems.length === 0) return;
+
     const resolvedFamilyId = familyId || getFamilyId(profile);
     if (!resolvedFamilyId) {
       toast.error('Не удалось определить семью. Попробуйте обновить страницу.');
@@ -732,51 +875,30 @@ export default function ListPage() {
     }
   };
 
-  const handleAiSessionDone = async () => {
-    if (!listId || !list) return;
+  const handleExitList = async () => {
+    if (syncingCount > 0) return;
 
-    setSavingChanges(true);
-    try {
-      if (notifyOnSave) {
-        const author = { uid: user.uid, name: profile?.displayName || displayName, photoUrl: userPhotoUrl };
-        await notifyListUpdated({
-          list: {
-            id: listId,
-            title: list.title,
-            isPublic: list.isPublic,
-            allowedUsers: list.allowedUsers,
-            groupId: list.groupId || list.familyId,
-            familyId: list.familyId || list.groupId,
-          },
-          author,
-        });
-      }
-
-      setAiSavedThisSession(false);
-      setNotifyOnSave(false);
-      navigate(-1);
-    } catch (err) {
-      toast.error(err?.message || 'Не удалось завершить');
-    } finally {
-      setSavingChanges(false);
-    }
-  };
-
-  const handleSave = async () => {
-    if (isEditMode && aiSavedThisSession && !isDirty) {
-      await handleAiSessionDone();
+    if (isDirty) {
+      await handleSaveChanges();
       return;
     }
-    if (isEditMode && !isDirty && showCreationDone) {
+
+    if (showCreationDone) {
       setShowCreationDone(false);
       navigate('/');
       return;
     }
+
+    navigate(backTarget);
+  };
+
+  const handleBack = () => navigate(backTarget);
+
+  const handleSave = async () => {
     if (isDraft) {
+      if (draftItems.length === 0) return;
       await handleCreateList();
-      return;
     }
-    await handleSaveChanges();
   };
 
   const handleRepeatConfirm = async (type) => {
@@ -856,21 +978,31 @@ export default function ListPage() {
   const settingsListType = isDraft ? listType : list?.type || 'home';
 
   const showFooter = !isAdminView && (isDraft || isArchivedView || isEditMode);
-  const showAiDoneButton = isEditMode && aiSavedThisSession && !isDirty;
-  const showDoneButton = isEditMode && !isDirty && !aiSavedThisSession && showCreationDone;
-  const showNotifyToggle = isEditMode && (isDirty || aiSavedThisSession);
+  const isCloudSyncing = syncingCount > 0;
+  const exitButtonLabel = isCloudSyncing
+    ? 'Сохраняю в облако...'
+    : isDirty
+      ? (savingChanges ? 'Сохранение...' : 'Сохранить и выйти')
+      : hasSessionActivity
+        ? 'Готово, выйти! 👍'
+        : 'Просто выйти обратно';
+  const exitButtonClassName = isCloudSyncing
+    ? (hasSessionActivity || isDirty ? PRIMARY_BTN : EXIT_BTN_NEUTRAL)
+    : isDirty || hasSessionActivity
+      ? PRIMARY_BTN
+      : EXIT_BTN_NEUTRAL;
+  const exitButtonDisabled = isCloudSyncing || savingChanges;
+  const showNeutralExitIcon = !isDirty && !hasSessionActivity && !isCloudSyncing;
+  const isDraftEmpty = isDraft && draftItems.length === 0;
   const saveBusy = persisting || savingChanges;
+  const draftCreateDisabled = isDraftEmpty || saveBusy;
   const saveLabel = isDraft
-    ? (persisting ? 'Создаём…' : 'Создать список')
-    : savingChanges
-      ? 'Сохранение...'
-      : showAiDoneButton || showDoneButton
-        ? 'Готово'
-        : 'Сохранить изменения';
-  const saveDisabled = saveBusy || (!showDoneButton && !showAiDoneButton && !isDirty);
+    ? (persisting ? 'Создаём…' : isDraftEmpty ? 'Добавьте продукты, чтобы создать список' : 'Создать список 🚀')
+    : exitButtonLabel;
+  const draftCreateBtnClass = isDraftEmpty && !persisting ? CREATE_BTN_DISABLED : PRIMARY_BTN;
 
-  const footerHeight = useElementHeight(footerRef, showFooter, [showNotifyToggle, saveLabel]);
-  const footerReserveFallback = showNotifyToggle ? 204 : 148;
+  const footerHeight = useElementHeight(footerRef, showFooter, [saveLabel, isDraft]);
+  const footerReserveFallback = 148;
   const footerReservePx = footerHeight || (showFooter ? footerReserveFallback : 0);
   const mainBottomPaddingPx = showFooter ? footerReservePx + 16 : 40;
 
@@ -894,7 +1026,6 @@ export default function ListPage() {
         }
       : {};
 
-  const handleBack = () => navigate(backTarget);
 
   const renderBackButton = () => (
     <button
@@ -1068,6 +1199,7 @@ export default function ListPage() {
                   onCommentChange={itemHandlers.onCommentChange}
                   onBookingToggle={itemHandlers.onBookingToggle}
                   onCategoryBooking={!isReadOnlyView ? handleCategoryBooking : undefined}
+                  onSyncStateChange={handleItemSyncStateChange}
                   disabled={persisting || savingChanges}
                 />
               ))}
@@ -1076,7 +1208,7 @@ export default function ListPage() {
         </div>
 
         {!isReadOnlyView && (
-          <>
+          <div className="flex flex-col gap-4">
             <AddItemForm
               listId={isDraft || deferAdds ? null : listId}
               userId={user.uid}
@@ -1128,7 +1260,7 @@ export default function ListPage() {
                 />
               </div>
             )}
-          </>
+          </div>
         )}
       </main>
 
@@ -1146,38 +1278,27 @@ export default function ListPage() {
             >
               Повторить список
             </button>
+          ) : isDraft ? (
+            <button
+              type="button"
+              onClick={handleSave}
+              className={draftCreateBtnClass}
+              disabled={draftCreateDisabled}
+            >
+              {saveLabel}
+            </button>
           ) : (
-            <>
-              {showNotifyToggle && (
-                <label className="mb-3 flex cursor-pointer items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-2.5 ring-1 ring-black/[0.04]">
-                  <span className="text-sm text-slate-700">Уведомить участников об изменениях</span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={notifyOnSave}
-                    onClick={() => setNotifyOnSave((value) => !value)}
-                    disabled={saveBusy}
-                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 disabled:opacity-40 ${
-                      notifyOnSave ? 'bg-emerald-500' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                        notifyOnSave ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </label>
+            <button
+              type="button"
+              onClick={handleExitList}
+              className={exitButtonClassName}
+              disabled={exitButtonDisabled}
+            >
+              {showNeutralExitIcon && (
+                <ArrowLeft className="h-4 w-4 shrink-0 opacity-80" strokeWidth={2.25} aria-hidden />
               )}
-              <button
-                type="button"
-                onClick={handleSave}
-                className={`${PRIMARY_BTN} disabled:cursor-not-allowed`}
-                disabled={saveDisabled}
-              >
-                {saveLabel}
-              </button>
-            </>
+              {exitButtonLabel}
+            </button>
           )}
         </footer>
       )}

@@ -5,6 +5,7 @@ import {
   markNotificationRead,
   isNotificationRead,
 } from '../services/notificationsService';
+import { filterVisibleHints } from '../utils/onboardingContent';
 
 function sortByCreatedAt(items) {
   return [...items].sort((a, b) => {
@@ -14,7 +15,7 @@ function sortByCreatedAt(items) {
   });
 }
 
-export function useNotifications(userId, { mode = 'incoming', familyId = null } = {}) {
+export function useNotifications(userId, { mode = 'incoming', familyId = null, profile = null } = {}) {
   const [incomingNotifications, setIncomingNotifications] = useState([]);
   const [outgoingNotifications, setOutgoingNotifications] = useState([]);
   const [loadingIncoming, setLoadingIncoming] = useState(true);
@@ -51,8 +52,13 @@ export function useNotifications(userId, { mode = 'incoming', familyId = null } 
     });
   }, [userId, needsOutgoing]);
 
+  const filteredIncoming = useMemo(
+    () => filterVisibleHints(incomingNotifications, userId, profile),
+    [incomingNotifications, userId, profile],
+  );
+
   const notifications = useMemo(() => {
-    if (mode === 'incoming') return incomingNotifications;
+    if (mode === 'incoming') return filteredIncoming;
     if (mode === 'outgoing') return outgoingNotifications;
 
     const byId = new Map();
@@ -61,17 +67,17 @@ export function useNotifications(userId, { mode = 'incoming', familyId = null } 
         byId.set(item.id, { ...item, direction: 'outgoing' });
       }
     }
-    for (const item of incomingNotifications) {
+    for (const item of filteredIncoming) {
       if (!byId.has(item.id)) {
         byId.set(item.id, { ...item, direction: 'incoming' });
       }
     }
     return sortByCreatedAt([...byId.values()]);
-  }, [mode, incomingNotifications, outgoingNotifications, userId]);
+  }, [mode, filteredIncoming, outgoingNotifications, userId]);
 
   const loading = (needsIncoming && loadingIncoming) || (needsOutgoing && loadingOutgoing);
 
-  const unreadCount = incomingNotifications.filter((n) => !isNotificationRead(n, userId)).length;
+  const unreadCount = filteredIncoming.filter((n) => !isNotificationRead(n, userId)).length;
 
   const markRead = (notificationId, notification) =>
     markNotificationRead(notificationId, { userId, notification });

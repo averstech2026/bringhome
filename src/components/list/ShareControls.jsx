@@ -75,7 +75,7 @@ export default function ShareControls({
 
   return (
     <section className="pb-2">
-      <BorderGapCard legend="Совместный доступ">
+      <BorderGapCard legend="Совместный доступ" compactTop>
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-gray-800">Для всей семьи</p>

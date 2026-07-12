@@ -66,4 +66,10 @@ export const INPUT_PLACEHOLDER =
 export const CARD_PRESS = 'transition active:scale-[0.99]';
 
 export const PRIMARY_BTN =
-  'w-full rounded-full bg-emerald-500 py-3.5 text-[15px] font-semibold text-white shadow-[0_4px_14px_rgba(16,185,129,0.3)] transition-all duration-150 hover:bg-emerald-600 hover:shadow-[0_6px_20px_rgba(16,185,129,0.38)] active:scale-[0.98] disabled:opacity-50 disabled:shadow-none disabled:active:scale-100';
+  'w-full rounded-full bg-emerald-500 py-3.5 text-[15px] font-semibold text-white shadow-[0_4px_14px_rgba(16,185,129,0.3)] transition-all duration-150 hover:bg-emerald-600 hover:shadow-[0_6px_20px_rgba(16,185,129,0.38)] active:scale-[0.98] disabled:opacity-50 disabled:shadow-none disabled:active:scale-100 disabled:cursor-not-allowed';
+
+export const EXIT_BTN_NEUTRAL =
+  'flex w-full items-center justify-center gap-2 rounded-full border border-slate-400/35 bg-slate-300/55 py-3.5 text-[15px] font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] backdrop-blur-sm transition-all duration-100 ease-out hover:border-slate-400/50 hover:bg-slate-300/70 hover:text-slate-800 active:scale-[0.97] active:border-slate-500/45 active:bg-slate-400/45 active:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100';
+
+export const CREATE_BTN_DISABLED =
+  'flex w-full items-center justify-center gap-2 rounded-full border border-slate-400/30 bg-slate-300/45 py-3.5 text-[15px] font-semibold text-slate-600/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.4)] backdrop-blur-sm cursor-not-allowed disabled:cursor-not-allowed';

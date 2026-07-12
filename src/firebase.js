@@ -19,7 +19,8 @@ import { getStorage } from 'firebase/storage';
  *   userId?, type, title, body, link, isRead?, createdAt,
  *   senderId?, senderDisplayName?, receiverIds?: string[],
  *   familyId?: string, familyName?: string,
- *   readByUids?: string[], sendAsPush?: boolean
+ *   readByUids?: string[], sendAsPush?: boolean,
+ *   hintId?: string, isActive?: boolean
  * }
  *
  * items: {
@@ -44,6 +45,7 @@ import { getStorage } from 'firebase/storage';
  *   familyId, groupId?, avatarUrl, aiLimitMonth?, aiLimits?, aiUsage?, isChild?, uiTheme?,
  *   pushEnabled?: boolean, fcmTokens?: string[],
  *   onboardingCompleted?: boolean, readAnnouncements?: string[],
+ *   unlockedHints?: string[], dismissedHints?: string[],
  *   createdAt, createdBy
  * }
  *

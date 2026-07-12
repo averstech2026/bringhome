@@ -5,16 +5,16 @@ import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { useNotifications } from '../../hooks/useNotifications';
 import CreateAnnouncementModal from './CreateAnnouncementModal';
-import OnboardingModal from '../onboarding/OnboardingModal';
+import HintGuideModal from '../hints/HintGuideModal';
 import NotificationDetailModal from '../notifications/NotificationDetailModal';
 import { canSendFamilyAnnouncement } from '../../utils/notificationAdmin';
 import { getFamily } from '../../services/familiesService';
-import { ONBOARDING_GUIDE_TYPE } from '../../services/notificationsService';
 import { setOnboardingCompleted } from '../../services/usersService';
 import {
-  isOnboardingCompleted,
-  isOnboardingGuideNotification,
-  withVirtualWelcomeNotification,
+  filterVisibleHints,
+  getNotificationHintId,
+  isHintNotification,
+  withVirtualWelcomeHint,
 } from '../../utils/onboardingContent';
 
 const APP_ICON = `${import.meta.env.BASE_URL || '/'}icons/logo.png`;
@@ -88,17 +88,27 @@ function DirectionBadge({ direction }) {
   );
 }
 
+function HintBadge() {
+  return (
+    <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-100">
+      Подсказка
+    </span>
+  );
+}
+
 function NotificationIcon({ notification, read }) {
-  if (notification.type === ONBOARDING_GUIDE_TYPE) {
+  if (isHintNotification(notification)) {
     return (
       <span
         className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-          read ? 'bg-slate-100' : 'bg-violet-100'
+          read
+            ? 'bg-violet-50/80'
+            : 'bg-gradient-to-br from-violet-100 to-indigo-100 shadow-sm shadow-violet-200/50'
         }`}
         aria-hidden
       >
         <BookOpen
-          className={`h-4 w-4 ${read ? 'text-slate-400' : 'text-violet-600'}`}
+          className={`h-4 w-4 ${read ? 'text-violet-400' : 'text-violet-600'}`}
           strokeWidth={2}
         />
       </span>
@@ -135,19 +145,26 @@ function NotificationIcon({ notification, read }) {
 
 function IncomingNotificationItem({ notification, read, onSelect, showDirectionBadge }) {
   const isAnnouncement = notification.type === 'admin_announcement';
-  const isGuide = isOnboardingGuideNotification(notification);
+  const isHint = isHintNotification(notification);
 
   return (
     <button
       type="button"
       onClick={() => onSelect(notification)}
-      className={`flex w-full gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left shadow-sm transition hover:bg-slate-50 active:bg-slate-100/80 ${
-        read ? 'opacity-75' : 'bg-emerald-50/40'
+      className={`flex w-full gap-3 rounded-2xl border px-4 py-3.5 text-left shadow-sm transition active:bg-slate-100/80 ${
+        isHint
+          ? `border-violet-100/80 bg-gradient-to-br from-violet-50/40 via-white to-indigo-50/30 hover:from-violet-50/60 ${read ? 'opacity-80' : ''}`
+          : `border-slate-100 bg-white hover:bg-slate-50 ${read ? 'opacity-75' : 'bg-emerald-50/40'}`
       }`}
     >
       <NotificationIcon notification={notification} read={read} />
       <div className="min-w-0 flex-1">
-        {(isAnnouncement || isGuide) && notification.title && (
+        {isHint && (
+          <div className="mb-1">
+            <HintBadge />
+          </div>
+        )}
+        {(isAnnouncement || isHint) && notification.title && (
           <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
         )}
         {isAnnouncement && (
@@ -155,7 +172,7 @@ function IncomingNotificationItem({ notification, read, onSelect, showDirectionB
             {getAnnouncementLabel(notification)}
           </p>
         )}
-        <p className={`text-sm leading-snug text-slate-800 ${(isAnnouncement || isGuide) && notification.title ? 'mt-1' : ''}`}>
+        <p className={`text-sm leading-snug text-slate-800 ${(isAnnouncement || isHint) && notification.title ? 'mt-1' : ''}`}>
           {notification.body}
         </p>
         <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
@@ -241,7 +258,7 @@ export default function NotificationsList({ userId }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [familyName, setFamilyName] = useState('');
   const [detailNotification, setDetailNotification] = useState(null);
-  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [activeHintId, setActiveHintId] = useState(null);
 
   const canSendAnnouncement = canSendFamilyAnnouncement({ profile, platformAdminUid });
   const senderDisplayName = profile?.displayName || user?.displayName || 'Администратор';
@@ -273,7 +290,7 @@ export default function NotificationsList({ userId }) {
       ? 'outgoing'
       : 'incoming';
 
-  const { notifications, loading, markRead, isRead } = useNotifications(userId, { mode, familyId });
+  const { notifications, loading, markRead, isRead } = useNotifications(userId, { mode, familyId, profile });
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -284,10 +301,12 @@ export default function NotificationsList({ userId }) {
       return notifications.filter((notification) => notification.senderId === userId);
     }
 
-    return withVirtualWelcomeNotification(notifications, userId, {
+    const withWelcome = withVirtualWelcomeHint(notifications, userId, {
       createdAt: profile?.createdAt ?? null,
     });
-  }, [notifications, filter, userId, profile?.createdAt]);
+
+    return filterVisibleHints(withWelcome, userId, profile);
+  }, [notifications, filter, userId, profile]);
 
   const displayedNotifications = visibleNotifications.slice(0, visibleCount);
   const hasMore = visibleNotifications.length > visibleCount;
@@ -298,18 +317,22 @@ export default function NotificationsList({ userId }) {
       markRead(notification.id, notification).catch(() => {});
     }
 
-    if (isOnboardingGuideNotification(notification)) {
-      setOnboardingOpen(true);
+    if (isHintNotification(notification)) {
+      const hintId = getNotificationHintId(notification);
+      if (hintId) {
+        setActiveHintId(hintId);
+      }
       return;
     }
 
     setDetailNotification(notification);
   };
 
-  const handleOnboardingComplete = async (dontShowAgain) => {
-    if (!userId) return;
+  const handleHintComplete = async () => {
+    if (!userId || !activeHintId) return;
+    if (activeHintId !== 'welcome') return;
     try {
-      await setOnboardingCompleted(userId, dontShowAgain);
+      await setOnboardingCompleted(userId, true);
       reloadProfile();
     } catch {
       // modal still closes
@@ -404,12 +427,12 @@ export default function NotificationsList({ userId }) {
         onNavigate={navigate}
       />
 
-      <OnboardingModal
-        open={onboardingOpen}
-        onClose={() => setOnboardingOpen(false)}
-        onComplete={handleOnboardingComplete}
+      <HintGuideModal
+        open={Boolean(activeHintId)}
+        hintId={activeHintId || 'welcome'}
+        onClose={() => setActiveHintId(null)}
+        onComplete={handleHintComplete}
         mode="review"
-        onboardingCompleted={isOnboardingCompleted(profile)}
       />
     </div>
   );
