@@ -149,6 +149,14 @@ export function isUnlimitedAiUser(profile) {
   return isSuperAdmin(profile);
 }
 
+export function isAiMonthlyLimitReached(profile, family = null, date = new Date()) {
+  if (isUnlimitedAiUser(profile)) return false;
+
+  const limitMonth = resolveEffectiveAiLimitMonth(profile, family);
+  const usage = normalizeAiUsage(profile?.aiUsage, date);
+  return usage.monthly.count >= limitMonth;
+}
+
 export function checkAiUsageAllowed(profile, family = null, date = new Date()) {
   if (isUnlimitedAiUser(profile)) {
     return { allowed: true, unlimited: true, limitMonth: null, usage: null };
@@ -156,18 +164,23 @@ export function checkAiUsageAllowed(profile, family = null, date = new Date()) {
 
   const limits = resolveAiLimits(profile, family);
   const usage = normalizeAiUsage(profile?.aiUsage, date);
+  const limitMonth = resolveEffectiveAiLimitMonth(profile, family);
 
-  if (usage.daily.count >= limits.daily) {
-    return { allowed: false, reason: 'daily', limitMonth: limits.monthly, limits, usage };
-  }
-  if (usage.weekly.count >= limits.weekly) {
-    return { allowed: false, reason: 'weekly', limitMonth: limits.monthly, limits, usage };
-  }
-  if (usage.monthly.count >= limits.monthly) {
-    return { allowed: false, reason: 'monthly', limitMonth: limits.monthly, limits, usage };
+  // Участники семьи с общим месячным пулом — только месячный лимит (без derived daily/weekly).
+  if (hasGranularAiLimits(profile)) {
+    if (usage.daily.count >= limits.daily) {
+      return { allowed: false, reason: 'daily', limitMonth, limits, usage };
+    }
+    if (usage.weekly.count >= limits.weekly) {
+      return { allowed: false, reason: 'weekly', limitMonth, limits, usage };
+    }
   }
 
-  return { allowed: true, limitMonth: limits.monthly, limits, usage };
+  if (usage.monthly.count >= limitMonth) {
+    return { allowed: false, reason: 'monthly', limitMonth, limits, usage };
+  }
+
+  return { allowed: true, limitMonth, limits, usage };
 }
 
 export function getRemainingMonthly(profile, family = null, date = new Date()) {

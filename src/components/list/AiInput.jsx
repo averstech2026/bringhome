@@ -9,6 +9,7 @@ import { useUserProfile } from '../../hooks/useUserProfile';
 import {
   checkAiUsageAllowed,
   getRemainingMonthly,
+  isAiMonthlyLimitReached,
   isUnlimitedAiUser,
 } from '../../utils/aiLimits';
 import {
@@ -110,7 +111,7 @@ export default forwardRef(function AiInput({
 
   const usageStatus = useMemo(() => checkAiUsageAllowed(profile, family), [profile, family]);
   const remainingMonthly = useMemo(() => getRemainingMonthly(profile, family), [profile, family]);
-  const limitExhausted = !isAdmin && !usageStatus.allowed;
+  const limitExhausted = !isAdmin && !isUnlimitedAiUser(profile) && isAiMonthlyLimitReached(profile, family);
   const showUsageBadge = !isUnlimitedAiUser(profile);
   const uiTheme = useMemo(() => resolveUiTheme(profile, user?.uid), [profile, user?.uid]);
   const aiTheme = useMemo(() => getAiInputTheme(uiTheme), [uiTheme]);
