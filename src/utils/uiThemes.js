@@ -244,7 +244,7 @@ export const PROFILE_THEME_ACTIVE_CLASSES = {
 };
 
 const PROFILE_THEME_BUTTON_BASE =
-  'shrink-0 snap-start rounded-full border px-4 py-1.5 text-sm font-medium transition-all duration-300 disabled:opacity-50';
+  'relative inline-flex w-full items-center justify-center overflow-hidden rounded-full border px-4 py-3.5 text-sm font-semibold transition-all duration-300 disabled:opacity-50';
 
 export function getProfileThemeButtonClass(themeId, active) {
   if (!active) {

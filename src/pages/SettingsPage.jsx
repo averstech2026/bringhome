@@ -560,7 +560,7 @@ export default function SettingsPage() {
             type="button"
             onClick={() => setThemeModalOpen(true)}
             disabled={profileLoading || !profile || savingTheme}
-            className="flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-slate-50/80 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex w-full cursor-pointer flex-col gap-3 px-4 py-4 text-left transition hover:bg-slate-50/80 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <div className="min-w-0">
               <p id="profile-ui-theme-title" className="text-[15px] text-slate-800">Тема интерфейса</p>
@@ -573,23 +573,21 @@ export default function SettingsPage() {
                 </p>
               )}
             </div>
-            <span className="flex shrink-0 items-center">
-              {profileLoading || !profile ? (
-                <span className="h-[34px] w-28 animate-pulse rounded-full bg-slate-100" aria-hidden />
-              ) : (
-                <span
-                  className={`${getProfileThemeButtonClass(currentUiTheme, true)} inline-flex max-w-[11rem] items-center`}
+            {profileLoading || !profile ? (
+              <span className="h-12 w-full animate-pulse rounded-full bg-slate-100" aria-hidden />
+            ) : (
+              <span
+                className={getProfileThemeButtonClass(currentUiTheme, true)}
+                aria-hidden
+              >
+                <span className="relative z-10 truncate px-8">{currentThemeLabel}</span>
+                <ChevronDown
+                  className="absolute right-4 z-10 h-4 w-4 shrink-0 text-white/80"
+                  strokeWidth={2.5}
                   aria-hidden
-                >
-                  <span className="truncate">{currentThemeLabel}</span>
-                  <ChevronDown
-                    className="ml-2 h-3.5 w-3.5 shrink-0 text-white/80"
-                    strokeWidth={2.5}
-                    aria-hidden
-                  />
-                </span>
-              )}
-            </span>
+                />
+              </span>
+            )}
           </button>
         </section>
         )}

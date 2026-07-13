@@ -73,15 +73,15 @@ function StepVisuals({ step }) {
 
   if (step.showAiInputDemo) {
     return (
-      <div className="mt-2 rounded-2xl border border-violet-200/80 bg-gradient-to-b from-violet-50/80 to-white p-2.5">
+      <div className="mt-1.5 rounded-2xl border border-violet-200/80 bg-gradient-to-b from-violet-50/80 to-white p-2">
         <div className="flex items-center gap-1.5 text-xs font-medium text-violet-700">
           <Sparkles className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
           Умный ввод
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-slate-400">
+        <p className="mt-1.5 text-xs leading-snug text-slate-400">
           {DEFAULT_AI_INPUT_PLACEHOLDER}
         </p>
-        <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-white/80 px-2.5 py-1 text-[11px] font-medium text-violet-700">
+        <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-violet-700">
           <ClipboardPaste className="h-3 w-3" strokeWidth={2} aria-hidden />
           Вставить из чата
         </span>
@@ -142,10 +142,8 @@ function StepCard({ step }) {
           <span className="block h-8 text-3xl leading-none" aria-hidden>
             {step.emoji}
           </span>
-        ) : (
-          <span className="block h-8" aria-hidden />
-        )}
-        <h3 className="text-lg font-bold text-slate-900">{step.title}</h3>
+        ) : null}
+        <h3 className="text-xl font-bold text-slate-900">{step.title}</h3>
         <p className="text-sm leading-relaxed text-slate-600">{step.description}</p>
         <StepVisuals step={step} />
       </div>
