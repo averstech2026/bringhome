@@ -59,11 +59,11 @@ export function resolveEffectiveAiLimitMonth(user, family = null) {
   return DEFAULT_AI_LIMIT_MONTH;
 }
 
-/** Детальные день/неделя/месяц — только для участников с лимитом от владельца платформы. */
+/** Детальные день/неделя/месяц — только для пользователей вне семейного пула (владелец платформы). */
 export function hasGranularAiLimits(user) {
   if (!hasStoredAiLimits(user)) return false;
   if ('aiLimitMonth' in user) return false;
-  if (isFamilyAdmin(user) && isFamilyScoped(user)) return false;
+  if (isFamilyScoped(user)) return false;
   return true;
 }
 
@@ -114,10 +114,8 @@ export function resolveAiLimits(profile, family = null) {
     return deriveAiLimitsFromMonthly(resolveFamilyAiLimitMonth(family));
   }
 
-  if (hasStoredAiLimits(profile)) {
-    if (isSuperAdmin(profile) || !isFamilyAdmin(profile)) {
-      return parseStoredAiLimits(profile.aiLimits);
-    }
+  if (hasStoredAiLimits(profile) && !isFamilyScoped(profile)) {
+    return parseStoredAiLimits(profile.aiLimits);
   }
 
   const monthly = resolveEffectiveAiLimitMonth(profile, family);
