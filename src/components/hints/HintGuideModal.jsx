@@ -214,6 +214,7 @@ export default function HintGuideModal({
   onClose,
   hintId = 'welcome',
   onComplete,
+  onSessionDismiss,
   mode = 'review',
 }) {
   const hint = getHintById(hintId);
@@ -258,6 +259,8 @@ export default function HintGuideModal({
     try {
       if (dontShowAgain) {
         await onComplete?.();
+      } else {
+        await onSessionDismiss?.();
       }
       onClose?.();
     } finally {

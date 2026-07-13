@@ -328,11 +328,20 @@ export default function NotificationsList({ userId }) {
     setDetailNotification(notification);
   };
 
-  const handleHintComplete = async () => {
-    if (!userId || !activeHintId) return;
-    if (activeHintId !== 'welcome') return;
+  const handleHintPermanentDismiss = async () => {
+    if (!userId || activeHintId !== 'welcome') return;
     try {
       await setOnboardingCompleted(userId, true);
+      reloadProfile();
+    } catch {
+      // modal still closes
+    }
+  };
+
+  const handleHintSessionDismiss = async () => {
+    if (!userId || activeHintId !== 'welcome') return;
+    try {
+      await setOnboardingCompleted(userId, false);
       reloadProfile();
     } catch {
       // modal still closes
@@ -431,7 +440,8 @@ export default function NotificationsList({ userId }) {
         open={Boolean(activeHintId)}
         hintId={activeHintId || 'welcome'}
         onClose={() => setActiveHintId(null)}
-        onComplete={handleHintComplete}
+        onComplete={handleHintPermanentDismiss}
+        onSessionDismiss={handleHintSessionDismiss}
         mode="review"
       />
     </div>

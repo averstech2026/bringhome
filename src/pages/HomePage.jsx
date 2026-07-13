@@ -219,16 +219,33 @@ export default function HomePage() {
     };
   }, [profile, profileLoading, location.key, user?.uid, onboardingOpen]);
 
-  const handleOnboardingComplete = async () => {
-    if (user?.uid) {
-      try {
-        await setOnboardingCompleted(user.uid, true);
-        clearOnboardingSkippedThisSession(user.uid);
-        reload();
-      } catch (err) {
-        toast.error(err?.message || 'Не удалось сохранить настройку');
-        return;
-      }
+  const handleOnboardingPermanentDismiss = async () => {
+    if (!user?.uid) return;
+    try {
+      await setOnboardingCompleted(user.uid, true);
+      clearOnboardingSkippedThisSession(user.uid);
+      reload();
+    } catch (err) {
+      toast.error(err?.message || 'Не удалось сохранить настройку');
+      throw err;
+    }
+  };
+
+  const handleOnboardingSessionDismiss = async () => {
+    if (!user?.uid) return;
+    try {
+      await setOnboardingCompleted(user.uid, false);
+      markOnboardingSkippedThisSession(user.uid);
+      reload();
+    } catch (err) {
+      toast.error(err?.message || 'Не удалось сохранить настройку');
+      throw err;
+    }
+  };
+
+  const handleOnboardingClose = () => {
+    if (user?.uid && !isOnboardingCompleted(profile)) {
+      markOnboardingSkippedThisSession(user.uid);
     }
     setOnboardingOpen(false);
   };
@@ -483,8 +500,9 @@ export default function HomePage() {
 
       <OnboardingModal
         open={onboardingOpen}
-        onClose={() => setOnboardingOpen(false)}
-        onComplete={handleOnboardingComplete}
+        onClose={handleOnboardingClose}
+        onComplete={handleOnboardingPermanentDismiss}
+        onSessionDismiss={handleOnboardingSessionDismiss}
         mode="home"
       />
 
