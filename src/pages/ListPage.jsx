@@ -44,7 +44,6 @@ import {
   PAGE_X,
   PRIMARY_BTN,
   EXIT_BTN_NEUTRAL,
-  CREATE_BTN_DISABLED,
   SCREEN_TOP_INNER,
 } from '../components/list/cardStyles';
 import { useToast } from '../components/ui/ToastProvider';
@@ -906,6 +905,15 @@ export default function ListPage() {
     }
   };
 
+  const handleDraftFooterClick = () => {
+    if (saveBusy) return;
+    if (draftItems.length === 0) {
+      handleBack();
+      return;
+    }
+    handleSave();
+  };
+
   const handleRepeatConfirm = async (type) => {
     if (!list) return;
 
@@ -1000,11 +1008,11 @@ export default function ListPage() {
   const showNeutralExitIcon = !isDirty && !hasSessionActivity && !isCloudSyncing;
   const isDraftEmpty = isDraft && draftItems.length === 0;
   const saveBusy = persisting || savingChanges;
-  const draftCreateDisabled = isDraftEmpty || saveBusy;
+  const draftCreateDisabled = saveBusy;
   const saveLabel = isDraft
-    ? (persisting ? 'Создаём…' : isDraftEmpty ? 'Добавьте продукты, чтобы создать список' : 'Создать список 🚀')
+    ? (persisting ? 'Создаём…' : isDraftEmpty ? '← Ничего не добавлено, выйти' : 'Создать список 🚀')
     : exitButtonLabel;
-  const draftCreateBtnClass = isDraftEmpty && !persisting ? CREATE_BTN_DISABLED : PRIMARY_BTN;
+  const draftCreateBtnClass = isDraftEmpty && !persisting ? EXIT_BTN_NEUTRAL : PRIMARY_BTN;
 
   const footerHeight = useElementHeight(footerRef, showFooter, [saveLabel, isDraft]);
   const footerReserveFallback = 148;
@@ -1286,7 +1294,7 @@ export default function ListPage() {
           ) : isDraft ? (
             <button
               type="button"
-              onClick={handleSave}
+              onClick={handleDraftFooterClick}
               className={draftCreateBtnClass}
               disabled={draftCreateDisabled}
             >
