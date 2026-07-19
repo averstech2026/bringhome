@@ -373,7 +373,7 @@ export default function HomePage() {
   const renderDesktopTitle = () => (
     <div className="flex items-center justify-between gap-2 pl-1">
       <h2 id="shopping-desktop-title" className="text-sm font-semibold text-slate-800">
-        Списки покупок и запасов
+        Список покупок
       </h2>
       {showListFilter && (
         <ListFilterSegmentedControl value={listFilter} onChange={setListFilter} />

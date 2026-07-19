@@ -114,7 +114,7 @@ export default function TravelListsDesktop({
     <section className="mt-2 min-h-full" aria-labelledby="travel-desktop-title">
       <div className="flex items-center justify-between gap-2 pl-1">
         <h2 id="travel-desktop-title" className="text-sm font-semibold text-slate-800">
-          Списки сборов и путешествий
+          Список сборов
         </h2>
         <ListFilterSegmentedControl value={listFilter} onChange={setListFilter} />
       </div>

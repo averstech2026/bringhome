@@ -14,7 +14,7 @@ export const HOME_DESKTOP_OPTIONS = [
   },
   {
     id: HOME_DESKTOP.TRAVEL,
-    label: 'Списки сборов',
+    label: 'Список сборов',
     shortLabel: 'Сборы',
     index: 1,
   },

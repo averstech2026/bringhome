@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Briefcase, ChevronDown, ClipboardList, Plus } from 'lucide-react';
+import { Briefcase, ChevronDown, ClipboardList, Plus, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useUserProfile } from '../hooks/useUserProfile';
 import PackingCategoryGroup from '../components/packing/PackingCategoryGroup';
@@ -45,6 +45,7 @@ import {
 import { PACKING_ACCENT, getPackingTypeAccent } from '../utils/contextAccents';
 import { getUserPhotoUrl } from '../utils/userPhoto';
 import {
+  getNeutralExitLabel,
   getPackingAiPlaceholder,
   resolveUiTheme,
 } from '../utils/uiThemes';
@@ -312,11 +313,12 @@ export default function PackingListPage() {
   const footerLabel = isNewEmptyList
     ? '← Ничего не добавлено, выйти'
     : isDirty
-      ? 'Готово, сохранить! 🚀'
-      : 'Ничего не поменялось, выйти';
+      ? 'Сохранить и выйти'
+      : getNeutralExitLabel(uiTheme);
   const footerClassName = isNewEmptyList || !isDirty
     ? EXIT_BTN_NEUTRAL
     : PRIMARY_BTN;
+  const showNeutralExitIcon = !isDirty && !isNewEmptyList && !exiting;
 
   const handleTogglePublic = useCallback((value) => {
     setAccessIsPublic(value);
@@ -972,9 +974,18 @@ export default function PackingListPage() {
             disabled={exiting}
             className={footerClassName}
           >
-            {exiting
-              ? (isDirty && !isNewEmptyList ? 'Сохраняем…' : 'Выходим…')
-              : footerLabel}
+            {exiting ? (
+              <span>{isDirty && !isNewEmptyList ? 'Сохраняем…' : 'Выходим…'}</span>
+            ) : (
+              <>
+                {showNeutralExitIcon && (
+                  <ArrowLeft className="h-4 w-4 shrink-0 opacity-80" strokeWidth={2.25} aria-hidden />
+                )}
+                <span className={showNeutralExitIcon ? 'leading-tight' : undefined}>
+                  {footerLabel}
+                </span>
+              </>
+            )}
           </button>
         </footer>
       )}
