@@ -1,4 +1,5 @@
 import AppModal from '../ui/AppModal';
+import ModalCloseButton from '../ui/ModalCloseButton';
 import { UserAvatar } from '../profile/UserAvatar';
 import { PRIMARY_BTN } from '../list/cardStyles';
 
@@ -10,7 +11,8 @@ export default function ArchiveAccessModal({ open, contacts = [], onClose }) {
       labelledBy="archive-access-title"
       panelClassName="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
     >
-      <h2 id="archive-access-title" className="text-base font-semibold text-slate-900">
+      <ModalCloseButton onClick={onClose} />
+      <h2 id="archive-access-title" className="pr-10 text-base font-semibold text-slate-900">
         Доступ ограничен
       </h2>
       <p className="mt-1.5 text-sm text-slate-500">

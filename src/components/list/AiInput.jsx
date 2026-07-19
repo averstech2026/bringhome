@@ -13,7 +13,7 @@ import {
   isUnlimitedAiUser,
 } from '../../utils/aiLimits';
 import {
-  ADULT_CONTENT_TOAST,
+  getAdultContentToast,
   filterAdultProducts,
   shouldFilterAdultContent,
 } from '../../utils/adultContentFilter';
@@ -285,7 +285,7 @@ export default forwardRef(function AiInput({
         const customDictionary = Object.values(getDictionaryCache());
         products = await parseProductsWithAI(text, { customDictionary });
         products = applyAdultContentFilter(products, profile, () => {
-          toast.themed(ADULT_CONTENT_TOAST);
+          toast.themed(getAdultContentToast(uiTheme));
         });
       }
 
@@ -364,11 +364,12 @@ export default forwardRef(function AiInput({
 
   const handleChangePackingScope = (fromScope, toScope) => {
     if (!isPackingMode || fromScope === toScope) return;
-    setPreviewItems((prev) => prev.map((item) => (
-      item.scope === fromScope
+    setPreviewItems((prev) => prev.map((item) => {
+      const itemScope = item.scope === 'personal' ? 'personal' : 'common';
+      return itemScope === fromScope
         ? { ...item, scope: toScope }
-        : item
-    )));
+        : item;
+    }));
   };
 
   const handleConfirmAdd = async (packingPlacement) => {
@@ -399,9 +400,11 @@ export default forwardRef(function AiInput({
         setPreviewItems([]);
         setSelectedIds(new Set());
         setSuccess(
-          sectionCategory
-            ? `Добавлено ${packingItems.length} в «${sectionCategory}»`
-            : `Добавлено ${packingItems.length} позиций`,
+          aiTheme.formatPackingSuccessMessage
+            ? aiTheme.formatPackingSuccessMessage(packingItems.length, sectionCategory || null)
+            : sectionCategory
+              ? `Добавлено ${packingItems.length} в «${sectionCategory}»`
+              : `Добавлено ${packingItems.length} позиций`,
         );
         return;
       }
@@ -413,7 +416,7 @@ export default forwardRef(function AiInput({
       }));
 
       products = applyAdultContentFilter(products, profile, () => {
-        toast.themed(ADULT_CONTENT_TOAST);
+        toast.themed(getAdultContentToast(uiTheme));
       });
 
       if (products.length === 0) {

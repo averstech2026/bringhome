@@ -17,6 +17,7 @@ import AdminSetupPage from './pages/AdminSetupPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminGroupListsPage from './pages/AdminGroupListsPage';
 import SettingsPage from './pages/SettingsPage';
+import ListUiCopyAuditPage from './pages/ListUiCopyAuditPage';
 import MyFeedbacksPage from './pages/MyFeedbacksPage';
 import NotificationsPage from './pages/NotificationsPage';
 import RegisterPage from './pages/RegisterPage';
@@ -133,6 +134,14 @@ function AppRoutes() {
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/settings/feedbacks" element={<MyFeedbacksPage />} />
       <Route path="/settings/notifications" element={<NotificationsPage />} />
+      <Route
+        path="/settings/ui-copy"
+        element={
+          <SuperAdminRoute>
+            <ListUiCopyAuditPage />
+          </SuperAdminRoute>
+        }
+      />
       <Route path="/list/:listId" element={<ListPage />} />
       <Route path="/packing/:listId" element={<PackingListPage />} />
       <Route

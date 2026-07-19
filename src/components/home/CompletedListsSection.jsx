@@ -10,6 +10,9 @@ import {
   getListTypeLabel,
   isBuiltinListType,
 } from '../../utils/listTypes';
+import {
+  formatPackingTripBadge,
+} from '../../utils/packingLists';
 import { APP_BACKGROUND } from '../list/cardStyles';
 
 function CompletedSectionDivider({ count }) {
@@ -28,11 +31,20 @@ const TYPE_COUNT_BADGE = {
   home: 'bg-emerald-50/40 text-emerald-600/80 border border-emerald-200/40',
   cottage: 'bg-amber-50/40 text-amber-600/80 border border-amber-200/40',
   trip: 'bg-sky-50/40 text-sky-600/80 border border-sky-200/40',
+  car: 'bg-emerald-50/40 text-emerald-600/80 border border-emerald-200/40',
+  plane: 'bg-sky-50/40 text-sky-600/80 border border-sky-200/40',
+  train: 'bg-violet-50/40 text-violet-600/80 border border-violet-200/40',
+  mountains: 'bg-amber-50/40 text-amber-700/80 border border-amber-200/40',
+  sea: 'bg-cyan-50/40 text-cyan-700/80 border border-cyan-200/40',
+  city: 'bg-indigo-50/40 text-indigo-600/80 border border-indigo-200/40',
+  nature: 'bg-teal-50/40 text-teal-700/80 border border-teal-200/40',
 };
 
-function TypeCountBadge({ type, count }) {
-  const label = isBuiltinListType(type) ? BUILTIN_TYPES[type] : getListTypeLabel(type);
-  const builtinClass = TYPE_COUNT_BADGE[type];
+function TypeCountBadge({ type, count, label: labelOverride = null }) {
+  const label = labelOverride
+    || (isBuiltinListType(type) ? BUILTIN_TYPES[type] : getListTypeLabel(type));
+  const purposeKey = type.includes('|') ? type.split('|')[1] : type;
+  const builtinClass = TYPE_COUNT_BADGE[purposeKey] || TYPE_COUNT_BADGE[type];
   const fallbackClass = getListTypeBadgeProps(type).className;
 
   return (
@@ -78,7 +90,15 @@ function CompletedDateGroup({ group, expanded, onToggle, renderListCard }) {
 
         <div className="flex min-w-0 flex-wrap items-center justify-start gap-1.5">
           {group.typeCounts.map(([type, count]) => (
-            <TypeCountBadge key={type} type={type} count={count} />
+            <TypeCountBadge
+              key={type}
+              type={type}
+              count={count}
+              label={type.includes('|') ? formatPackingTripBadge({
+                tripTransport: type.split('|')[0],
+                tripPurpose: type.split('|')[1],
+              }) : null}
+            />
           ))}
         </div>
 

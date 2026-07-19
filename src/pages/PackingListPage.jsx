@@ -40,6 +40,7 @@ import {
   PACKING_SCOPE,
   packingEditableSnapshotsEqual,
   packingMembersToSelectedIds,
+  packingTripAxesToPayload,
   resolvePackingMembers,
 } from '../utils/packingLists';
 import { PACKING_ACCENT, getPackingTypeAccent } from '../utils/contextAccents';
@@ -55,11 +56,14 @@ import {
   deletePackingList,
   getPackingList,
   replacePackingListItems,
+  repeatPackingList,
   savePackingListAsTemplate,
+  togglePackingItemChecked,
   updatePackingList,
 } from '../services/packingListsService';
 import { acceptPackingListShare } from '../services/packingListShareService';
 import { notifyPackingListCreated } from '../services/pushNotification';
+import RepeatPackingListModal from '../components/packing/RepeatPackingListModal';
 
 const TAB_COMMON = 'common';
 const TAB_PERSONAL = 'personal';
@@ -113,6 +117,11 @@ export default function PackingListPage() {
   const draftTypeAccent = getPackingTypeAccent(draftType);
   const [adding, setAdding] = useState(false);
   const [exiting, setExiting] = useState(false);
+  const [syncingCount, setSyncingCount] = useState(0);
+  const [sessionTouched, setSessionTouched] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [repeatOpen, setRepeatOpen] = useState(false);
+  const [repeatBusy, setRepeatBusy] = useState(false);
   const [accessIsPublic, setAccessIsPublic] = useState(true);
   const [accessSelectedIds, setAccessSelectedIds] = useState([]);
   const [baselineSnapshot, setBaselineSnapshot] = useState(null);
@@ -124,6 +133,7 @@ export default function PackingListPage() {
     setList(next);
     setAccessIsPublic(nextIsPublic);
     setAccessSelectedIds(nextSelectedIds);
+    setSessionTouched(false);
     setBaselineSnapshot(createPackingEditableSnapshot(next, {
       isPublic: nextIsPublic,
       selectedIds: nextSelectedIds,
@@ -303,6 +313,7 @@ export default function PackingListPage() {
   );
   const isListEmpty = !list?.items?.length;
   const isNewEmptyList = isListEmpty && (baselineSnapshot?.items?.length ?? 0) === 0;
+  const isArchivedList = Boolean(list?.archived || list?.status === 'archived');
   const showAccessControls = Boolean(
     list
     && !list.isTemplate
@@ -310,15 +321,73 @@ export default function PackingListPage() {
     && familyMembers.length > 1,
   );
 
-  const footerLabel = isNewEmptyList
-    ? '← Ничего не добавлено, выйти'
-    : isDirty
-      ? 'Сохранить и выйти'
-      : getNeutralExitLabel(uiTheme);
-  const footerClassName = isNewEmptyList || !isDirty
-    ? EXIT_BTN_NEUTRAL
-    : PRIMARY_BTN;
-  const showNeutralExitIcon = !isDirty && !isNewEmptyList && !exiting;
+  const isCloudSyncing = syncingCount > 0;
+  const footerLabel = isCloudSyncing
+    ? 'Сохраняю в облако...'
+    : isNewEmptyList
+      ? '← Ничего не добавлено, выйти'
+      : isDirty
+        ? 'Сохранить и выйти'
+        : sessionTouched
+          ? 'Готово, выйти! 👍'
+          : getNeutralExitLabel(uiTheme);
+  const footerClassName = isCloudSyncing
+    ? (isDirty || sessionTouched ? PACKING_ACCENT.primaryBtn : EXIT_BTN_NEUTRAL)
+    : isNewEmptyList || (!isDirty && !sessionTouched)
+      ? EXIT_BTN_NEUTRAL
+      : PACKING_ACCENT.primaryBtn;
+  const showNeutralExitIcon = !isDirty
+    && !sessionTouched
+    && !isNewEmptyList
+    && !exiting
+    && !isCloudSyncing;
+  const canCloudSyncChecks = Boolean(
+    list?.id && !isArchivedList && !list.isTemplate,
+  );
+  const persistedItemIds = useMemo(
+    () => new Set((baselineSnapshot?.items || []).map((entry) => entry.id)),
+    [baselineSnapshot],
+  );
+
+  const handleItemSyncStateChange = useCallback(({ syncing }) => {
+    setSyncingCount((count) => (syncing ? count + 1 : Math.max(0, count - 1)));
+  }, []);
+
+  const handleClearList = async () => {
+    if (!list?.id || clearing || isArchivedList || list.isTemplate) return;
+    setClearing(true);
+    try {
+      await replacePackingListItems(list.id, []);
+      setList((prev) => (prev ? { ...prev, items: [] } : prev));
+      setBaselineSnapshot((prev) => (prev ? { ...prev, items: [] } : prev));
+      setSessionTouched(true);
+      toast.success('Список очищен');
+    } catch (err) {
+      toast.error(err?.message || 'Не удалось очистить список');
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const handleRepeatConfirm = async ({ title, travelDate }) => {
+    if (!list?.id || !user?.uid || !familyId || repeatBusy) return;
+    setRepeatBusy(true);
+    try {
+      const id = await repeatPackingList(list.id, {
+        createdBy: user.uid,
+        familyId,
+        title,
+        travelDate,
+        familyMemberIds: familyMembers.map((member) => member.id),
+      });
+      setRepeatOpen(false);
+      navigate(`/packing/${id}`, { replace: true, state: { fromTravelDesktop: true } });
+    } catch (err) {
+      toast.error(err?.message || 'Не удалось повторить список');
+    } finally {
+      setRepeatBusy(false);
+    }
+  };
 
   const handleTogglePublic = useCallback((value) => {
     setAccessIsPublic(value);
@@ -367,14 +436,15 @@ export default function PackingListPage() {
       setSettingsOpen(false);
       navigate('/', { replace: true, state: { homeDesktop: HOME_DESKTOP.TRAVEL } });
     } catch (err) {
-      toast.error(err?.message || 'Не удалось отправить в архив');
+      toast.error(err?.message || 'Не удалось отправить список в архив');
     } finally {
       setSettingsArchiving(false);
     }
   };
 
   const handleSaveSettings = async ({
-    tripType,
+    tripTransport,
+    tripPurpose,
     travelDate,
     tripStartDate,
     tripEndDate,
@@ -394,7 +464,7 @@ export default function PackingListPage() {
         setBaselineSnapshot(currentSnapshot);
       }
       await updatePackingList(list.id, {
-        tripType: tripType || 'car',
+        ...packingTripAxesToPayload({ tripTransport, tripPurpose }),
         travelDate: nextTravelDate,
         tripStartDate: tripStartDate || nextTravelDate,
         tripEndDate: tripEndDate || nextTravelDate,
@@ -402,7 +472,7 @@ export default function PackingListPage() {
       });
       setList((prev) => (prev ? {
         ...prev,
-        tripType: tripType || 'car',
+        ...packingTripAxesToPayload({ tripTransport, tripPurpose }),
         travelDate: nextTravelDate,
         tripStartDate: tripStartDate || nextTravelDate,
         tripEndDate: tripEndDate || nextTravelDate,
@@ -466,7 +536,7 @@ export default function PackingListPage() {
   };
 
   const handleFooterExit = async () => {
-    if (exiting) return;
+    if (exiting || syncingCount > 0) return;
 
     // Новый пустой список — отмена без сохранения.
     if (isNewEmptyList) {
@@ -491,32 +561,61 @@ export default function PackingListPage() {
     await handleSaveAndExit();
   };
 
-  const handleToggle = (item, nextChecked) => {
-    if (!list?.id || busyItemId) return;
-    setBusyItemId(item.id);
+  const handleToggle = async (item, nextChecked) => {
+    if (!list?.id || !item?.id) return;
 
+    const previous = {
+      checked: Boolean(item.checked),
+      checkedBy: item.checkedBy || null,
+      checkedByUid: item.checkedByUid || null,
+      checkedByPhotoUrl: item.checkedByPhotoUrl || null,
+    };
+    const nextMeta = {
+      checked: nextChecked,
+      checkedBy: nextChecked ? (displayName || 'Участник') : null,
+      checkedByUid: nextChecked ? (user?.uid || null) : null,
+      checkedByPhotoUrl: nextChecked ? (userPhotoUrl || null) : null,
+    };
+
+    setSessionTouched(true);
     setList((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
-        items: prev.items.map((entry) => {
-          if (entry.id !== item.id) return entry;
-          return {
-            ...entry,
-            checked: nextChecked,
-            checkedBy: nextChecked ? (displayName || 'Участник') : null,
-            checkedByUid: nextChecked ? (user?.uid || null) : null,
-            checkedByPhotoUrl: nextChecked ? (userPhotoUrl || null) : null,
-          };
-        }),
+        items: prev.items.map((entry) => (
+          entry.id === item.id ? { ...entry, ...nextMeta } : entry
+        )),
       };
     });
 
-    window.setTimeout(() => setBusyItemId(null), 120);
+    const isPersisted = Boolean(
+      baselineSnapshot?.items?.some((entry) => entry.id === item.id),
+    );
+    if (!canCloudSyncChecks || !isPersisted) return;
+
+    try {
+      await togglePackingItemChecked(list.id, item.id, {
+        ...nextMeta,
+        requireOwnerId: item.scope === PACKING_SCOPE.PERSONAL ? user?.uid : null,
+      });
+    } catch (err) {
+      setList((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: prev.items.map((entry) => (
+            entry.id === item.id ? { ...entry, ...previous } : entry
+          )),
+        };
+      });
+      toast.error(err?.message || 'Не удалось сохранить отметку');
+      throw err;
+    }
   };
 
   const handleAssign = (item, userId) => {
     if (!list?.id || !item?.id) return;
+    setSessionTouched(true);
     setList((prev) => {
       if (!prev) return prev;
       return {
@@ -532,6 +631,7 @@ export default function PackingListPage() {
 
   const handleRemoveItem = (item) => {
     if (!list?.id || !item?.id) return;
+    setSessionTouched(true);
     setList((prev) => {
       if (!prev) return prev;
       return {
@@ -545,6 +645,7 @@ export default function PackingListPage() {
     const nextCategory = String(next?.category || '').trim();
     const nextIcon = String(next?.categoryIcon || '').trim();
 
+    setSessionTouched(true);
     setList((prev) => {
       if (!prev) return prev;
       return {
@@ -567,6 +668,7 @@ export default function PackingListPage() {
     const nextIcon = String(next?.categoryIcon || '').trim();
     if (packingItemMatchesCategory(item, nextCategory)) return;
 
+    setSessionTouched(true);
     setList((prev) => {
       if (!prev) return prev;
       return {
@@ -613,12 +715,37 @@ export default function PackingListPage() {
     });
     if (!copy.name) return;
 
+    setSessionTouched(true);
     setList((prev) => (prev ? { ...prev, items: [...(prev.items || []), copy] } : prev));
     toast.success('Скопировано в мой рюкзак');
   };
 
+  const handleMoveToCommon = (item) => {
+    if (!list?.id || !item?.id || !user?.uid) return;
+    if (item.scope !== PACKING_SCOPE.PERSONAL) return;
+
+    setSessionTouched(true);
+    setList((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        items: (prev.items || []).map((entry) => {
+          if (entry.id !== item.id) return entry;
+          return normalizePackingItem({
+            ...entry,
+            scope: PACKING_SCOPE.COMMON,
+            ownerId: null,
+            assignedTo: user.uid,
+          });
+        }),
+      };
+    });
+    toast.success('Перенесено в общие');
+  };
+
   const handleSaveTodoDetails = ({ bookingUrl, note }) => {
     if (!todoDetailsItem?.id) return;
+    setSessionTouched(true);
     setList((prev) => {
       if (!prev) return prev;
       return {
@@ -651,6 +778,7 @@ export default function PackingListPage() {
     if (!item.name) return;
 
     setAdding(true);
+    setSessionTouched(true);
     setList((prev) => (prev ? { ...prev, items: [...(prev.items || []), item] } : prev));
     setDraftName('');
     setAdding(false);
@@ -679,6 +807,7 @@ export default function PackingListPage() {
       .filter((item) => item.name);
 
     if (additions.length === 0) return;
+    setSessionTouched(true);
     setList((prev) => (prev ? { ...prev, items: [...(prev.items || []), ...additions] } : prev));
   };
 
@@ -715,7 +844,7 @@ export default function PackingListPage() {
             onClick={() => setSettingsOpen(true)}
             disabled={settingsSaving || exiting}
             className="flex min-w-0 max-w-[46%] shrink-0 touch-manipulation items-center gap-0.5 rounded-lg py-1 pr-1 transition hover:bg-slate-50 active:bg-slate-100 disabled:opacity-50 sm:max-w-[52%]"
-            aria-label="Настройки поездки"
+            aria-label="Настройки списка"
           >
             <span className="truncate text-lg font-bold leading-none tracking-tight text-slate-900">
               {list.title || 'Список сборов'}
@@ -734,6 +863,13 @@ export default function PackingListPage() {
             tone="packing"
             items={headerProgressItems}
             ariaLabel={`Собрано ${headerProgress.checked} из ${headerProgress.total}`}
+            onClear={
+              !isArchivedList && !list.isTemplate && canEditSettings
+                ? handleClearList
+                : null
+            }
+            clearing={clearing}
+            clearMessage="Вы уверены? Все пункты будут удалены."
           />
         )}
       </div>
@@ -831,9 +967,11 @@ export default function PackingListPage() {
           <section className={`mt-4 overflow-hidden ${CARD_SURFACE}`}>
             {visibleItems.length === 0 ? (
               <p className={`px-4 py-6 ${HINT_TEXT}`}>
-                {tab === TAB_PERSONAL
-                  ? 'Ваш личный рюкзак пока пуст — эти пункты видите только вы'
-                  : 'Общих пунктов пока нет — добавьте вещи или дела ниже'}
+                {isArchivedList
+                  ? 'В списке нет пунктов'
+                  : tab === TAB_PERSONAL
+                    ? 'Ваш личный рюкзак пока пуст — эти пункты видите только вы'
+                    : 'Общих пунктов пока нет — добавьте вещи или дела ниже'}
               </p>
             ) : (
               <div>
@@ -851,12 +989,16 @@ export default function PackingListPage() {
                     membersById={membersById}
                     members={familyMembers}
                     busyItemId={busyItemId}
+                    cloudSync={canCloudSyncChecks}
+                    persistedItemIds={persistedItemIds}
                     onToggle={handleToggle}
                     onAssign={handleAssign}
                     onOpenBooking={(entry) => setTodoDetailsItem(entry)}
                     onRemove={handleRemoveItem}
                     onCopyToPersonal={tab === TAB_COMMON ? handleCopyToPersonal : null}
+                    onMoveToCommon={tab === TAB_PERSONAL ? handleMoveToCommon : null}
                     onMoveToCategory={handleMoveItemToCategory}
+                    onSyncStateChange={handleItemSyncStateChange}
                     categoryOptions={categoryOptions}
                     onRenameCategory={handleRenameCategory}
                   />
@@ -968,27 +1110,50 @@ export default function PackingListPage() {
           className="fixed bottom-0 left-1/2 z-30 w-full max-w-lg -translate-x-1/2 border-t border-gray-200/60 bg-[#f5f5f7]/95 px-4 pt-4 backdrop-blur-md"
           style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}
         >
-          <button
-            type="button"
-            onClick={handleFooterExit}
-            disabled={exiting}
-            className={footerClassName}
-          >
-            {exiting ? (
-              <span>{isDirty && !isNewEmptyList ? 'Сохраняем…' : 'Выходим…'}</span>
-            ) : (
-              <>
-                {showNeutralExitIcon && (
-                  <ArrowLeft className="h-4 w-4 shrink-0 opacity-80" strokeWidth={2.25} aria-hidden />
-                )}
-                <span className={showNeutralExitIcon ? 'leading-tight' : undefined}>
-                  {footerLabel}
+          {isArchivedList ? (
+            <button
+              type="button"
+              onClick={() => setRepeatOpen(true)}
+              disabled={repeatBusy}
+              className={PACKING_ACCENT.primaryBtn}
+            >
+              Повторить список
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleFooterExit}
+              disabled={exiting || isCloudSyncing}
+              className={footerClassName}
+            >
+              {exiting ? (
+                <span>
+                  {isDirty && !isNewEmptyList
+                    ? 'Сохранение...'
+                    : footerLabel}
                 </span>
-              </>
-            )}
-          </button>
+              ) : (
+                <>
+                  {showNeutralExitIcon && (
+                    <ArrowLeft className="h-4 w-4 shrink-0 opacity-80" strokeWidth={2.25} aria-hidden />
+                  )}
+                  <span className={showNeutralExitIcon ? 'leading-tight' : undefined}>
+                    {footerLabel}
+                  </span>
+                </>
+              )}
+            </button>
+          )}
         </footer>
       )}
+
+      <RepeatPackingListModal
+        list={list}
+        open={repeatOpen}
+        loading={repeatBusy}
+        onClose={() => !repeatBusy && setRepeatOpen(false)}
+        onConfirm={handleRepeatConfirm}
+      />
 
       <PackingListSettingsModal
         open={settingsOpen}
@@ -1011,6 +1176,7 @@ export default function PackingListPage() {
         item={todoDetailsItem}
         onClose={() => setTodoDetailsItem(null)}
         onSave={handleSaveTodoDetails}
+        readOnly={isArchivedList}
       />
     </div>
   );

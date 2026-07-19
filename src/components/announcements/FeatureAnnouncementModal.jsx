@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_WIDE } from '../ui/AppModal';
+import ModalCloseButton from '../ui/ModalCloseButton';
 import { PRIMARY_BTN } from '../list/cardStyles';
 
 const SLIDE_HEIGHT = 'h-[11rem]';
@@ -100,11 +101,12 @@ export default function FeatureAnnouncementModal({
       overlayClassName={MODAL_OVERLAY_SHEET}
       panelClassName={`${MODAL_PANEL_WIDE} p-5 sm:p-6`}
     >
+      <ModalCloseButton onClick={onClose} disabled={submitting} />
       <div className="flex min-h-0 flex-1 flex-col">
         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
           Что нового
         </p>
-        <h2 id="feature-announcement-title" className="mt-1 text-xl font-bold text-slate-900">
+        <h2 id="feature-announcement-title" className="mt-1 pr-10 text-xl font-bold text-slate-900">
           Обновления приложения
         </h2>
 

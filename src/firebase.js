@@ -67,7 +67,9 @@ import { getStorage } from 'firebase/storage';
  * packing_lists: {
  *   id, title, familyId, createdBy, isTemplate, isPublic?,
  *   members?: string[],  // uid с доступом; при isPublic — вся семья
- *   tripType?: "car"|"plane"|"mountains"|"sea",
+ *   tripType?: "car"|"plane"|"train", // deprecated alias for tripTransport
+ *   tripTransport?: "car"|"plane"|"train",
+ *   tripPurpose?: "sea"|"mountains"|"city"|"nature",
  *   travelDate?: Timestamp,  // дата поездки для названия / ИИ
  *   tripStartDate?: Timestamp, tripEndDate?: Timestamp, description?: string,
  *   archived?: boolean, status?: "active"|"archived",

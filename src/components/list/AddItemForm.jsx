@@ -13,7 +13,7 @@ import {
 import { useCustomProductsDictionary } from '../../hooks/useCustomProductsDictionary';
 import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
-import { ADULT_CONTENT_TOAST, isRestrictedItemName } from '../../utils/adultContentFilter';
+import { getAdultContentToast, isRestrictedItemName } from '../../utils/adultContentFilter';
 import { CATEGORIES, CATEGORY_EMOJI, detectCategory } from '../../utils/categories';
 import { getLearnedCategory } from '../../utils/productCategoryMap';
 import { learnProducts } from '../../utils/productLearning';
@@ -21,6 +21,7 @@ import { getRecommendedUnit, hasDictionaryUnitHint } from '../../utils/recommend
 import { mergeAutocompleteSuggestions } from '../../utils/productAutocomplete';
 import { formatQuantity, parseQuantity } from '../../utils/quantity';
 import { normalizeItemName } from '../../utils/mergeItems';
+import { resolveUiTheme } from '../../utils/uiThemes';
 import { CARD_SURFACE, CARD_PAD_V, INPUT_PLACEHOLDER } from './cardStyles';
 import QuantityStepper from './QuantityStepper';
 import { useToast } from '../ui/ToastProvider';
@@ -58,6 +59,7 @@ export default function AddItemForm({
   useCustomProductsDictionary();
   const { user } = useAuth();
   const { profile } = useUserProfile(user);
+  const uiTheme = resolveUiTheme(profile, user?.uid);
 
   useEffect(() => {
     categoryRef.current = category;
@@ -233,7 +235,7 @@ export default function AddItemForm({
     const normalizedName = normalizeItemName(name);
 
     if (isRestrictedItemName(normalizedName, profile)) {
-      toast.themed(ADULT_CONTENT_TOAST);
+      toast.themed(getAdultContentToast(uiTheme));
       return;
     }
 

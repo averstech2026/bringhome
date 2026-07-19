@@ -1,4 +1,5 @@
 import AppModal from '../ui/AppModal';
+import ModalCloseButton from '../ui/ModalCloseButton';
 import { PRIMARY_BTN } from './cardStyles';
 
 const THEME_ACCENT = {
@@ -20,7 +21,8 @@ export default function AiLimitModal({ open, phrase, uiTheme = 'default', onClos
       labelledBy="ai-limit-title"
       panelClassName={`relative w-full max-w-sm rounded-2xl border p-5 shadow-2xl ${accentClass}`}
     >
-      <h2 id="ai-limit-title" className="text-base font-semibold text-slate-900">
+      <ModalCloseButton onClick={onClose} />
+      <h2 id="ai-limit-title" className="pr-10 text-base font-semibold text-slate-900">
         {phrase.title}
       </h2>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">{phrase.text}</p>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_WIDE } from '../ui/AppModal';
 import ScheduleCalendar from '../list/ScheduleCalendar';
 import ListExternalShareSection from '../list/ListExternalShareSection';
@@ -304,17 +305,29 @@ export default function CreateListSheet({
       onClose={onClose}
       labelledBy="create-list-sheet-title"
       overlayClassName={MODAL_OVERLAY_SHEET}
-      panelClassName={`${MODAL_PANEL_WIDE} overflow-y-auto overscroll-contain pb-0 ${
+      panelClassName={`${MODAL_PANEL_WIDE} overflow-hidden pb-0 ${
         calendarOpen ? 'sm:!max-h-none sm:overflow-visible' : ''
       }`}
     >
-      <div className="px-5 pt-5">
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={archiving}
+        className="absolute right-4 top-4 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-400 shadow-sm ring-1 ring-slate-100 backdrop-blur-sm transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
+        aria-label="Закрыть"
+      >
+        <X className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+      </button>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-5">
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-200" aria-hidden />
 
-        <h2 id="create-list-sheet-title" className="text-lg font-bold text-slate-900">
-          {sheetTitle}
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">{sheetSubtitle}</p>
+        <div className="pr-10">
+          <h2 id="create-list-sheet-title" className="text-lg font-bold text-slate-900">
+            {sheetTitle}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">{sheetSubtitle}</p>
+        </div>
 
         <p className="mt-5 text-sm font-medium text-slate-700">Тип списка</p>
         <div className="mt-2.5 flex flex-row flex-nowrap items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
@@ -394,6 +407,9 @@ export default function CreateListSheet({
         </div>
 
         <p className="mt-5 text-sm font-medium text-slate-700">Дата покупок</p>
+        <p className="mt-1 text-xs text-slate-400">
+          Используется в названии списка и для напоминаний
+        </p>
         <div className="mt-2.5 flex flex-row flex-nowrap items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
           {SCHEDULE_PRESETS.map(({ id, label }) => (
             <SelectionChip
@@ -453,7 +469,7 @@ export default function CreateListSheet({
           <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-3">
             <p className="text-sm font-medium text-amber-900">Архив</p>
             <p className="mt-1 text-xs text-amber-800/80">
-              Список исчезнет с главного экрана у всей семьи.
+              Список исчезнет с рабочего стола покупок у всей семьи.
             </p>
             <button
               type="button"
@@ -471,7 +487,7 @@ export default function CreateListSheet({
         )}
       </div>
 
-      <div className="sticky bottom-0 z-10 mt-6 border-t border-gray-100 bg-white px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
+      <div className="shrink-0 border-t border-gray-100 bg-white px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
         <button
           type="button"
           onClick={handleSubmit}

@@ -39,13 +39,13 @@ function ProgressPill({ checked, total, percent, done = false, accent }) {
   );
 }
 
-function ClearConfirmDialog({ open, clearing, onConfirm, onCancel }) {
+function ClearConfirmDialog({ open, clearing, onConfirm, onCancel, message }) {
   return (
     <ConfirmModal
       open={open}
       title="Очистить весь список?"
       titleId="clear-list-title"
-      message="Вы уверены? Все товары будут удалены."
+      message={message}
       confirmLabel="Да, очистить"
       confirming={clearing}
       confirmingLabel="Очищаем…"
@@ -81,6 +81,7 @@ export default function ListHeaderProgress({
   className = '',
   ariaLabel = null,
   tone = 'shopping',
+  clearMessage = 'Вы уверены? Все товары будут удалены.',
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const accent = getContextAccent(tone);
@@ -100,6 +101,7 @@ export default function ListHeaderProgress({
       <ClearConfirmDialog
         open={confirmOpen}
         clearing={clearing}
+        message={clearMessage}
         onConfirm={handleConfirmClear}
         onCancel={() => setConfirmOpen(false)}
       />
@@ -129,7 +131,7 @@ export default function ListHeaderProgress({
           done={done}
           accent={accent}
         />
-        {showClear && !inline && (
+        {showClear && (
           <ClearButton clearing={clearing} onClick={() => setConfirmOpen(true)} />
         )}
       </div>

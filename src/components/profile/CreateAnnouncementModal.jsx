@@ -4,6 +4,7 @@ import { getAllFamilies, getFamily } from '../../services/familiesService';
 import { createAdminAnnouncement } from '../../services/notificationsService';
 import { createFeatureAnnouncement } from '../../services/announcementsService';
 import { useToast } from '../ui/ToastProvider';
+import ModalCloseButton from '../ui/ModalCloseButton';
 
 const GLOBAL_TARGET = 'global';
 const GLOBAL_OPTION_LABEL = '📢 Всем пользователям';
@@ -352,13 +353,14 @@ export default function CreateAnnouncementModal({
       role="presentation"
     >
       <div
-        className="flex max-h-[90vh] w-full max-w-md flex-col rounded-3xl bg-white shadow-xl"
+        className="relative flex max-h-[90vh] w-full max-w-md flex-col rounded-3xl bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-labelledby="create-announcement-title"
       >
+        <ModalCloseButton onClick={handleClose} disabled={sending} />
         <div className="border-b border-slate-100 px-5 py-4">
-          <h2 id="create-announcement-title" className="text-lg font-bold text-slate-900">
+          <h2 id="create-announcement-title" className="pr-10 text-lg font-bold text-slate-900">
             {isFeatureAnnouncement ? 'Новый глобальный анонс' : 'Новое уведомление'}
           </h2>
           <p className="mt-1 text-sm text-slate-500">

@@ -34,8 +34,20 @@ export const RESTRICTED_KEYWORDS = [
 
 const ADULT_CATEGORIES = ['алкоголь', 'табак', 'сигарет'];
 
-export const ADULT_CONTENT_TOAST =
-  'Muggle stuff detected! Магия Хогвартса не работает на товары 18+ 🙅‍♂️';
+const ADULT_CONTENT_TOASTS = {
+  default: 'Этот товар нельзя добавить в детский аккаунт (18+). Попробуй что-нибудь другое!',
+  hogwarts: 'Muggle stuff detected! Магия Хогвартса не работает на товары 18+ 🙅‍♂️',
+  star_wars: 'Тёмная сторона Силы! ⚔️ Товары 18+ в этот список не проходят. Выбери светлую сторону меню!',
+  paddington: 'Ой! В чемоданчике Паддингтона нет места для товаров 18+ 🧸 Попробуй добавить что-нибудь другое.',
+};
+
+/** @deprecated используйте getAdultContentToast(themeId) */
+export const ADULT_CONTENT_TOAST = ADULT_CONTENT_TOASTS.hogwarts;
+
+/** Тематический тост фильтра 18+ (детский аккаунт). */
+export function getAdultContentToast(themeId = 'default') {
+  return ADULT_CONTENT_TOASTS[themeId] || ADULT_CONTENT_TOASTS.default;
+}
 
 /** Фильтр 18+ привязан к роли аккаунта, а не к визуальной теме. */
 export function isChildAccount(profile) {

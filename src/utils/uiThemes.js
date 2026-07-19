@@ -195,18 +195,50 @@ const THEME_CHROME = {
     placeholder: DEFAULT_AI_INPUT_PLACEHOLDER,
     label: 'Распознать ИИ',
     loadingLabel: 'Распознаём…',
+    limitExhaustedLabel: 'Лимит исчерпан',
+    limitExhaustedDisabled: true,
+    limitExhaustedMessage:
+      'Дневной лимит распознавания списков израсходован. Новые запросы станут доступны после полуночи. Пока добавляйте товары вручную.',
+    formatSuccessMessage: (count) => `Добавлено ${count} позиций`,
+    formatPackingSuccessMessage: (count, sectionCategory) => (
+      sectionCategory
+        ? `Добавлено ${count} в «${sectionCategory}»`
+        : `Добавлено ${count} позиций`
+    ),
     icon: 'sparkles',
   }),
   hogwarts: buildThemeChrome(THEME_ACCENTS.hogwarts, {
     placeholder: 'Например: сливочное пиво 4 шт, тыквенный сок, лакричные палочки, сахарные перья',
     label: '✨ Акцио, списочек!',
     loadingLabel: 'Колдуем…',
+    limitExhaustedLabel: 'Палочка перегрелась! 🪄',
+    limitExhaustedDisabled: true,
+    limitExhaustedMessage:
+      'Твоя магическая энергия на сегодня исчерпана. Чтобы снова творить заклинания «Акцио, продукты», нужно дождаться полуночи и накопить ману. Отдыхай, юный волшебник! А пока — добавляй вручную.',
+    formatSuccessMessage: (count) =>
+      `✨ Акцио сработало! Продукты аккуратно легли в список. (Добавлено позиций: ${count})`,
+    formatPackingSuccessMessage: (count, sectionCategory) => (
+      sectionCategory
+        ? `✨ Акцио сработало! Вещи аккуратно легли в «${sectionCategory}». (Добавлено позиций: ${count})`
+        : `✨ Акцио сработало! Вещи аккуратно легли в сборы. (Добавлено позиций: ${count})`
+    ),
     icon: 'wand',
   }),
   star_wars: buildThemeChrome(THEME_ACCENTS.star_wars, {
     placeholder: 'Например: синие наггетсы 1 уп, сухой паёк 3 шт, кореллианский эль, космо-чечевица',
     label: 'Да прибудет с нами Сила! ⚔️',
     loadingLabel: 'Сканируем галактику…',
+    limitExhaustedLabel: 'Исчерпана Сила твоя! ⚔️',
+    limitExhaustedDisabled: true,
+    limitExhaustedMessage:
+      'Слишком много запросов во Вселенную отправил ты. Медитировать должен ты теперь и восстановления лимита ждать. Да пребудет с тобой Сила завтра! А пока — добавляй товары вручную.',
+    formatSuccessMessage: (count) =>
+      `Сила распознала список! ⚔️ (Добавлено позиций: ${count})`,
+    formatPackingSuccessMessage: (count, sectionCategory) => (
+      sectionCategory
+        ? `Сила собрала рюкзак в «${sectionCategory}»! ⚔️ (Добавлено позиций: ${count})`
+        : `Сила собрала рюкзак! ⚔️ (Добавлено позиций: ${count})`
+    ),
     icon: 'sword',
   }),
   paddington: buildThemeChrome(THEME_ACCENTS.paddington, {
@@ -219,6 +251,11 @@ const THEME_CHROME = {
       'Ой, кажется, у Паддингтона закончился весь апельсиновый мармелад на сегодня, и ему нужно немного отдохнуть... 🧸🍊 Попробуй добавить продукты вручную или подожди до завтра!',
     formatSuccessMessage: (count) =>
       `Медвежонок Паддингтон аккуратно разложил продукты по карманам! (Добавлено позиций: ${count})`,
+    formatPackingSuccessMessage: (count, sectionCategory) => (
+      sectionCategory
+        ? `Паддингтон аккуратно сложил вещи в «${sectionCategory}»! (Добавлено позиций: ${count})`
+        : `Паддингтон аккуратно сложил вещи в чемоданчик! (Добавлено позиций: ${count})`
+    ),
     icon: 'briefcase',
   }),
 };

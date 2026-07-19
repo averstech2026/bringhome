@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { X } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_WIDE } from '../ui/AppModal';
 import ScheduleCalendar from '../list/ScheduleCalendar';
@@ -17,7 +18,8 @@ import {
   isToday,
   startOfDay,
 } from '../../utils/listSchedule';
-import { PACKING_TRIP_TYPES } from '../../utils/packingLists';
+import { resolvePackingTripAxes } from '../../utils/packingLists';
+import PackingTripAxesChips from './PackingTripAxesChips';
 
 const CHIP_ACTIVE_SHADOW = 'shadow-sm shadow-black/10';
 const CHIP_BASE =
@@ -93,7 +95,8 @@ export default function PackingListSettingsModal({
   readOnly = false,
 }) {
   const today = useMemo(() => getToday(), []);
-  const [tripType, setTripType] = useState('car');
+  const [tripTransport, setTripTransport] = useState('car');
+  const [tripPurpose, setTripPurpose] = useState('city');
   const [datePreset, setDatePreset] = useState('today');
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
@@ -114,7 +117,9 @@ export default function PackingListSettingsModal({
 
   useEffect(() => {
     if (!open || !list) return;
-    setTripType(list.tripType || 'car');
+    const axes = resolvePackingTripAxes(list);
+    setTripTransport(axes.transport);
+    setTripPurpose(axes.purpose);
     setDescription(list.description || '');
     setSaveAsTemplate(false);
     setArchiveConfirmOpen(false);
@@ -186,7 +191,8 @@ export default function PackingListSettingsModal({
     const travelDate = toTimestamp(resolvedStart || today);
 
     onSave?.({
-      tripType,
+      tripTransport,
+      tripPurpose,
       travelDate,
       tripStartDate: travelDate,
       tripEndDate: toTimestamp(resolvedEnd || resolvedStart || today),
@@ -203,35 +209,37 @@ export default function PackingListSettingsModal({
       onClose={onClose}
       labelledBy="packing-settings-title"
       overlayClassName={MODAL_OVERLAY_SHEET}
-      panelClassName={`${MODAL_PANEL_WIDE} overflow-y-auto overscroll-contain pb-0`}
+      panelClassName={`${MODAL_PANEL_WIDE} overflow-hidden pb-0`}
       disableClose={saving}
     >
-      <div className="px-5 pt-5">
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={saving || archiving}
+        className="absolute right-4 top-4 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-400 shadow-sm ring-1 ring-slate-100 backdrop-blur-sm transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
+        aria-label="Закрыть"
+      >
+        <X className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+      </button>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-5">
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-200" aria-hidden />
 
-        <h2 id="packing-settings-title" className="text-lg font-bold text-slate-900">
-          Настройки поездки
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">Тип, даты и заметка к сборам</p>
+        <div className="pr-10">
+          <h2 id="packing-settings-title" className="text-lg font-bold text-slate-900">
+            Настройки списка
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">Способ, назначение, даты и заметка</p>
+        </div>
 
-        <p className="mt-5 text-sm font-medium text-slate-700">Тип поездки</p>
-        <div className="mt-2.5 flex flex-row flex-nowrap items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
-          {PACKING_TRIP_TYPES.map(({ id, label, idleClassName, activeClassName }) => {
-            const active = tripType === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                disabled={readOnly || saving}
-                onClick={() => setTripType(id)}
-                className={`${CHIP_BASE} shrink-0 ${
-                  active ? activeClassName : `${CHIP_IDLE} ${idleClassName}`
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
+        <div className="mt-5">
+          <PackingTripAxesChips
+            transport={tripTransport}
+            purpose={tripPurpose}
+            onTransportChange={setTripTransport}
+            onPurposeChange={setTripPurpose}
+            disabled={readOnly || saving}
+          />
         </div>
 
         <p className="mt-5 text-sm font-medium text-slate-700">Дата поездки</p>
@@ -334,14 +342,14 @@ export default function PackingListSettingsModal({
         )}
       </div>
 
-      <div className="sticky bottom-0 z-10 mt-6 border-t border-gray-100 bg-white px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
+      <div className="shrink-0 border-t border-gray-100 bg-white px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
         <button
           type="button"
           onClick={handleSave}
           disabled={saving || archiving}
           className={`${PACKING_ACCENT.primaryBtn} disabled:cursor-not-allowed`}
         >
-          {readOnly ? 'Закрыть' : saving ? 'Сохраняем…' : 'Сохранить'}
+          {readOnly ? 'Закрыть' : saving ? 'Сохранение...' : 'Сохранить'}
         </button>
         {!readOnly && (
           <button

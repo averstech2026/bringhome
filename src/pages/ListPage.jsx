@@ -34,9 +34,8 @@ import { getFamilyMembers } from '../services/usersService';
 import ListHeaderOwnerAvatar from '../components/list/ListHeaderOwnerAvatar';
 import CreateListSheet from '../components/home/CreateListSheet';
 import RepeatListModal from '../components/home/RepeatListModal';
-import ArchiveAccessModal from '../components/home/ArchiveAccessModal';
 import { saveRepeatDraft } from '../utils/repeatDraftStorage';
-import { canArchiveList, getListArchiveAdmins } from '../utils/listPermissions';
+import { canArchiveList } from '../utils/listPermissions';
 import {
   CARD_SURFACE,
   CARD_PAD_V,
@@ -220,7 +219,6 @@ export default function ListPage() {
   const [clearing, setClearing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsArchiving, setSettingsArchiving] = useState(false);
-  const [archiveAccessList, setArchiveAccessList] = useState(null);
   const [currentFamily, setCurrentFamily] = useState(null);
   const [ownerFamily, setOwnerFamily] = useState(null);
   const [isHighlighting, setIsHighlighting] = useState(false);
@@ -950,6 +948,7 @@ export default function ListPage() {
       if (nextPath !== currentPath) {
         navigate(nextPath, { replace: true });
       }
+      toast.success('Настройки сохранены');
       return;
     }
 
@@ -985,6 +984,7 @@ export default function ListPage() {
       } else {
         cancelListReminder(listId).catch(() => {});
       }
+      toast.success('Настройки сохранены');
     } catch (err) {
       toast.error(err?.message || 'Не удалось сохранить настройки списка');
     }
@@ -998,15 +998,14 @@ export default function ListPage() {
   );
 
   const handleArchiveDenied = () => {
-    if (!list) return;
-    setArchiveAccessList(list);
+    toast.error('Архивировать список может только автор');
   };
 
   const handleArchiveList = async () => {
     if (!list?.id || !user?.uid || settingsArchiving || isDraft || isReadOnlyView) return;
 
     if (!canArchiveList(list, user.uid, isSuperAdmin)) {
-      setArchiveAccessList(list);
+      toast.error('Архивировать список может только автор');
       return;
     }
 
@@ -1396,12 +1395,6 @@ export default function ListPage() {
         currentUserId={user?.uid}
         ownerFamilyName={currentFamily?.name || ''}
         ownerFamilyAvatarUrl={currentFamily?.avatarUrl || null}
-      />
-
-      <ArchiveAccessModal
-        open={Boolean(archiveAccessList)}
-        contacts={archiveAccessList ? getListArchiveAdmins(archiveAccessList, membersById) : []}
-        onClose={() => setArchiveAccessList(null)}
       />
     </div>
   );

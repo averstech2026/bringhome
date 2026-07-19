@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getAdminUsers } from '../../services/usersService';
 import { UserAvatar } from '../profile/UserAvatar';
 import AppModal from '../ui/AppModal';
+import ModalCloseButton from '../ui/ModalCloseButton';
 
 export default function RequestCustomTypeModal({ open, onClose }) {
   const [admins, setAdmins] = useState([]);
@@ -24,7 +25,8 @@ export default function RequestCustomTypeModal({ open, onClose }) {
       labelledBy="request-custom-type-title"
       panelClassName="relative w-full max-w-sm rounded-3xl bg-white p-5 shadow-xl"
     >
-      <h2 id="request-custom-type-title" className="text-lg font-bold text-slate-900">
+      <ModalCloseButton onClick={onClose} />
+      <h2 id="request-custom-type-title" className="pr-10 text-lg font-bold text-slate-900">
         Новый тип списка
       </h2>
       <p className="mt-2 text-sm leading-relaxed text-slate-500">

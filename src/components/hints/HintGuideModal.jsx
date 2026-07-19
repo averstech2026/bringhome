@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BookOpen, ClipboardPaste, Lock, Plus, Share2, Smartphone, Sparkles } from 'lucide-react';
 import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_WIDE } from '../ui/AppModal';
+import ModalCloseButton from '../ui/ModalCloseButton';
 import { FamilyToggle } from '../list/accessControls';
 import { PRIMARY_BTN } from '../list/cardStyles';
 import { getHintById } from '../../utils/hintsContent';
@@ -344,11 +345,12 @@ export default function HintGuideModal({
       overlayClassName={MODAL_OVERLAY_SHEET}
       panelClassName={`${MODAL_PANEL_WIDE} p-5 sm:p-6`}
     >
+      <ModalCloseButton onClick={onClose} disabled={submitting} />
       <div className="flex min-h-0 flex-1 flex-col">
         <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
           Подсказка
         </p>
-        <h2 id="hint-guide-title" className="mt-1 text-xl font-bold text-slate-900">
+        <h2 id="hint-guide-title" className="mt-1 pr-10 text-xl font-bold text-slate-900">
           {hint.title}
         </h2>
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AppModal from '../ui/AppModal';
+import ModalCloseButton from '../ui/ModalCloseButton';
 import { PRIMARY_BTN } from '../list/cardStyles';
 
 export default function AddMemberModal({
@@ -47,7 +48,8 @@ export default function AddMemberModal({
       disableClose={saving}
       panelClassName="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
     >
-      <h2 id="add-member-title" className="text-lg font-bold text-slate-900">
+      <ModalCloseButton onClick={onClose} disabled={saving} />
+      <h2 id="add-member-title" className="pr-10 text-lg font-bold text-slate-900">
         Добавить участника
       </h2>
 

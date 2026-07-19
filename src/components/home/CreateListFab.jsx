@@ -3,7 +3,7 @@ import { PACKING_ACCENT, SHOPPING_ACCENT } from '../../utils/contextAccents';
 export default function CreateListFab({
   onClick,
   disabled = false,
-  label = 'Создать список',
+  label = 'Создать список покупок',
   tone = 'shopping',
 }) {
   const accent = tone === 'packing' ? PACKING_ACCENT : SHOPPING_ACCENT;

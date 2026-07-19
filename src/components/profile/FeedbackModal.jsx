@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createFeedback, FEEDBACK_CATEGORIES } from '../../services/feedbacksService';
 import { getFamily } from '../../services/familiesService';
 import { useToast } from '../ui/ToastProvider';
+import ModalCloseButton from '../ui/ModalCloseButton';
 
 const CATEGORY_OPTIONS = Object.values(FEEDBACK_CATEGORIES);
 
@@ -80,13 +81,14 @@ export default function FeedbackModal({
       role="presentation"
     >
       <div
-        className="flex max-h-[90vh] w-full max-w-md flex-col rounded-3xl bg-white shadow-xl"
+        className="relative flex max-h-[90vh] w-full max-w-md flex-col rounded-3xl bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-labelledby="feedback-modal-title"
       >
+        <ModalCloseButton onClick={handleClose} disabled={sending} />
         <div className="border-b border-slate-100 px-5 py-4">
-          <h2 id="feedback-modal-title" className="text-lg font-bold text-slate-900">
+          <h2 id="feedback-modal-title" className="pr-10 text-lg font-bold text-slate-900">
             Сообщить об ошибке / улучшении
           </h2>
           <p className="mt-1 text-sm text-slate-500">

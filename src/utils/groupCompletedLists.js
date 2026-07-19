@@ -1,3 +1,5 @@
+import { getPackingTripGroupKey } from './packingLists';
+
 function startOfDay(date) {
   const day = new Date(date);
   day.setHours(0, 0, 0, 0);
@@ -66,7 +68,13 @@ export function countListsByType(lists) {
   const counts = new Map();
 
   for (const list of lists) {
-    const type = list.type || 'home';
+    const type = list.type
+      || (
+        list.tripTransport || list.tripPurpose || list.tripType
+          ? getPackingTripGroupKey(list)
+          : null
+      )
+      || 'home';
     counts.set(type, (counts.get(type) || 0) + 1);
   }
 

@@ -99,7 +99,7 @@ function PackingScopeHeader({
 }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded-md bg-slate-100 px-3 py-2 text-slate-700">
-      <label className="relative inline-flex min-w-0 items-center gap-1">
+      <label className="relative inline-flex min-w-0 cursor-pointer items-center gap-1">
         <select
           value={scope}
           onChange={(event) => {
@@ -107,7 +107,7 @@ function PackingScopeHeader({
             if (next !== scope) onChangeScope?.(scope, next);
           }}
           aria-label="Тип группы: общие или личные"
-          className="appearance-none rounded-md bg-transparent py-0.5 pl-0 pr-5 text-xs font-bold uppercase tracking-wider text-slate-700 outline-none"
+          className="min-h-8 min-w-[6.5rem] cursor-pointer appearance-none rounded-md bg-transparent py-1 pl-0 pr-6 text-xs font-bold uppercase tracking-wider text-slate-700 outline-none"
         >
           <option value={PACKING_SCOPE.COMMON}>{PACKING_SCOPE_LABELS[PACKING_SCOPE.COMMON]}</option>
           <option value={PACKING_SCOPE.PERSONAL}>{PACKING_SCOPE_LABELS[PACKING_SCOPE.PERSONAL]}</option>
@@ -335,10 +335,12 @@ export default function AiPreviewModal({
       onClose={onClose}
       labelledBy="ai-preview-title"
       overlayClassName={MODAL_OVERLAY_SHEET}
-      panelClassName={`${MODAL_PANEL_WIDE_BASE} ${previewTheme.panelClassName}`}
+      panelClassName={`${MODAL_PANEL_WIDE_BASE} overflow-hidden ${previewTheme.panelClassName}`}
     >
-      <div className={`flex items-start justify-between gap-3 border-b px-5 pb-4 pt-5 sm:px-6 sm:pt-6 ${previewTheme.dividerClassName}`}>
-        <div>
+      <div
+        className={`flex items-start justify-between gap-3 border-b px-5 pb-4 pt-[max(1.25rem,calc(env(safe-area-inset-top,0px)+0.75rem))] sm:px-6 sm:pt-6 ${previewTheme.dividerClassName}`}
+      >
+        <div className="min-w-0 flex-1 pr-2">
           <p className={`text-xs font-semibold uppercase tracking-wide ${previewTheme.labelClassName}`}>
             Распознано ИИ
           </p>
@@ -352,10 +354,10 @@ export default function AiPreviewModal({
         <button
           type="button"
           onClick={onClose}
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors ${previewTheme.closeHoverClassName}`}
+          className={`relative z-20 -mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow-sm ring-1 ring-slate-200/90 transition-colors ${previewTheme.closeHoverClassName}`}
           aria-label="Закрыть"
         >
-          <X className="h-5 w-5" />
+          <X className="h-5 w-5" strokeWidth={2.25} />
         </button>
       </div>
 

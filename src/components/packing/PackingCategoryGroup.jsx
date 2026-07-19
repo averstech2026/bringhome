@@ -28,9 +28,13 @@ export default function PackingCategoryGroup({
   onOpenBooking,
   onRemove,
   onCopyToPersonal = null,
+  onMoveToCommon = null,
   onMoveToCategory = null,
   categoryOptions = [],
   onRenameCategory = null,
+  onSyncStateChange = null,
+  cloudSync = false,
+  persistedItemIds = null,
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [editing, setEditing] = useState(false);
@@ -176,12 +180,15 @@ export default function PackingCategoryGroup({
               membersById={membersById}
               members={members}
               busy={busyItemId === item.id}
+              cloudSync={cloudSync && (persistedItemIds ? persistedItemIds.has(item.id) : true)}
               onToggle={(next) => onToggle?.(item, next)}
               onAssign={(userId) => onAssign?.(item, userId)}
               onOpenBooking={onOpenBooking}
               onRemove={onRemove}
               onCopyToPersonal={onCopyToPersonal}
+              onMoveToCommon={onMoveToCommon}
               onMoveToCategory={onMoveToCategory}
+              onSyncStateChange={onSyncStateChange}
               categoryOptions={categoryOptions}
             />
           ))}

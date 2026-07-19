@@ -46,6 +46,7 @@ export default function ItemDetailsModal({
   const [bookedBy, setBookedBy] = useState(null);
   const [category, setCategory] = useState('Прочее');
   const [checked, setChecked] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const ctx = bookingContext || { displayName, userPhotoUrl };
 
@@ -55,6 +56,7 @@ export default function ItemDetailsModal({
     setBookedBy(item.bookedBy || null);
     setCategory(item.category || 'Прочее');
     setChecked(Boolean(item.checked));
+    setSaving(false);
   }, [open, item]);
 
   if (!open || !item) return null;
@@ -92,16 +94,22 @@ export default function ItemDetailsModal({
     };
   };
 
-  const persistAndClose = (payload) => {
-    onSave?.(payload);
-    onClose?.();
+  const persistAndClose = async (payload) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onSave?.(payload);
+      onClose?.();
+    } catch {
+      setSaving(false);
+    }
   };
 
   const handleSave = () => {
     persistAndClose(buildPayload());
   };
 
-  const canEdit = !disabled && !readOnly;
+  const canEdit = !disabled && !readOnly && !saving;
   const canEditMeta = canEdit && !checked;
 
   const handleToggleChecked = () => {
@@ -136,6 +144,7 @@ export default function ItemDetailsModal({
       labelledBy="item-details-title"
       overlayClassName={MODAL_OVERLAY_SHEET}
       panelClassName={MODAL_PANEL_SHEET}
+      disableClose={saving}
     >
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 pb-4 pt-5">
           <div className="min-w-0">
@@ -147,7 +156,8 @@ export default function ItemDetailsModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100"
+            disabled={saving}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 disabled:opacity-40"
             aria-label="Закрыть"
           >
             <X className="h-4 w-4" />
@@ -246,15 +256,16 @@ export default function ItemDetailsModal({
           <button
             type="button"
             onClick={readOnly ? onClose : handleSave}
-            disabled={!canEdit}
+            disabled={readOnly ? saving : !canEdit}
             className={PRIMARY_BTN}
           >
-            {readOnly ? 'Закрыть' : 'Готово'}
+            {saving ? 'Сохранение...' : readOnly ? 'Закрыть' : 'Готово'}
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="w-full rounded-full border border-gray-200 py-3 text-sm font-medium text-slate-600 transition hover:bg-gray-50"
+            disabled={saving}
+            className="w-full rounded-full border border-gray-200 py-3 text-sm font-medium text-slate-600 transition hover:bg-gray-50 disabled:opacity-50"
           >
             Отмена
           </button>

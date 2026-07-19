@@ -149,7 +149,7 @@ npm run test   # Vitest + Firestore Emulator (нужна Java 11+)
 
 Внешний шеринг (как у `lists`): владелец создаёт `shareInviteToken` → ссылка `#/packing/{id}?share=…` → гость через `acceptPackingListShare` попадает в `sharedWithFamilyIds` и видит поездку на столе сборов в «Общие».
 
-Метаданные поездки: `tripType`, `travelDate`, `tripStartDate`, `tripEndDate`, `description` — правятся в `PackingListSettingsModal` / задаются при создании в `CreatePackingListSheet`. Чекбокс «Сохранить как шаблон» создаёт копию в `packing_lists` с `isTemplate: true` (блок «Мои шаблоны»).
+Метаданные поездки: `tripTransport`, `tripPurpose` (legacy `tripType`), `travelDate`, `tripStartDate`, `tripEndDate`, `description` — правятся в `PackingListSettingsModal` / задаются при создании в `CreatePackingListSheet`. Чекбокс «Сохранить как шаблон» создаёт копию в `packing_lists` с `isTemplate: true` (блок «Мои шаблоны»).
 
 Архив: автор поездки в настройках может «Отправить в архив» (`archived: true`, `status: 'archived'`). Архивные списки не показываются на рабочем столе сборов (`getTravelDesktopPackingLists`).
 

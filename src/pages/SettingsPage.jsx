@@ -699,6 +699,16 @@ export default function SettingsPage() {
           </span>
           Сборка от {buildDate}
         </p>
+        {isSuperAdmin ? (
+          <p className="mt-2">
+            <Link
+              to="/settings/ui-copy"
+              className="text-xs text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+            >
+              Ревизия надписей: покупки ↔ сборы
+            </Link>
+          </p>
+        ) : null}
         <p className="mt-1 text-xs text-slate-400/80">
           © {new Date().getFullYear()} КупиДомой
         </p>

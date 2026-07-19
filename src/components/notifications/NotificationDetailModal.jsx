@@ -1,4 +1,5 @@
 import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_WIDE } from '../ui/AppModal';
+import ModalCloseButton from '../ui/ModalCloseButton';
 import { formatNotificationBody } from '../../utils/onboardingContent';
 
 function formatFullDate(createdAt) {
@@ -30,11 +31,12 @@ export default function NotificationDetailModal({
       overlayClassName={MODAL_OVERLAY_SHEET}
       panelClassName={`${MODAL_PANEL_WIDE} p-5 sm:p-6`}
     >
+      <ModalCloseButton onClick={onClose} />
       <div className="flex min-h-0 flex-1 flex-col">
         <p className="text-xs text-slate-400">
           {formatFullDate(notification.createdAt)}
         </p>
-        <h2 id="notification-detail-title" className="mt-2 text-xl font-bold leading-snug text-slate-900">
+        <h2 id="notification-detail-title" className="mt-2 pr-10 text-xl font-bold leading-snug text-slate-900">
           {notification.title || 'Уведомление'}
         </h2>
         <div

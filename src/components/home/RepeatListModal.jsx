@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import DraftTypeSwitcher from '../list/DraftTypeSwitcher';
 import { PRIMARY_BTN } from '../list/cardStyles';
 import AppModal from '../ui/AppModal';
+import ModalCloseButton from '../ui/ModalCloseButton';
 
 export default function RepeatListModal({ list, open, loading, onClose, onConfirm }) {
   const [selectedType, setSelectedType] = useState('home');
@@ -18,8 +19,10 @@ export default function RepeatListModal({ list, open, loading, onClose, onConfir
       onClose={onClose}
       labelledBy="repeat-modal-title"
       panelClassName="relative w-full max-w-sm rounded-3xl bg-white p-5 shadow-xl"
+      disableClose={loading}
     >
-      <h2 id="repeat-modal-title" className="text-lg font-bold text-slate-900">
+      <ModalCloseButton onClick={onClose} disabled={loading} />
+      <h2 id="repeat-modal-title" className="pr-10 text-lg font-bold text-slate-900">
         Повторить список
       </h2>
       <p className="mt-1 text-sm text-slate-500">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Backpack,
   Briefcase,
@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FolderInput,
   Trash2,
+  Users,
 } from 'lucide-react';
 import ItemCheckbox from '../list/ItemCheckbox';
 import { UserAvatar } from '../profile/UserAvatar';
@@ -183,7 +184,9 @@ function ItemActionsModal({
   categoryOptions = [],
   currentCategory = '',
   canCopyToPersonal = false,
+  canMoveToCommon = false,
   onCopyToPersonal,
+  onMoveToCommon,
   onMoveToCategory,
   onClose,
 }) {
@@ -220,6 +223,25 @@ function ItemActionsModal({
         </button>
       )}
 
+      {canMoveToCommon && (
+        <button
+          type="button"
+          onClick={() => {
+            onMoveToCommon?.();
+            onClose?.();
+          }}
+          className="mt-4 flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-slate-700 transition hover:bg-slate-50"
+        >
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+            <Users className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-medium">Перенести в общие</span>
+            <span className="block text-[11px] text-slate-400">Пункт увидит вся семья</span>
+          </span>
+        </button>
+      )}
+
       <p className="mt-4 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
         Перенести в раздел
       </p>
@@ -244,7 +266,7 @@ function ItemActionsModal({
                   isCurrent
                     ? `${PACKING_ACCENT.solid} text-white`
                     : 'text-slate-700 hover:bg-slate-50'
-                } disabled:opacity-100`}
+                } disabled:cursor-default disabled:opacity-100`}
               >
                 <span className={`flex h-9 w-9 items-center justify-center rounded-full text-sm ${
                   isCurrent ? 'bg-white/20' : 'bg-slate-100 text-slate-500'
@@ -288,14 +310,22 @@ export default function PackingItemRow({
   onOpenBooking,
   onRemove = null,
   onCopyToPersonal = null,
+  onMoveToCommon = null,
   onMoveToCategory = null,
+  onSyncStateChange = null,
+  cloudSync = false,
   busy = false,
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [localChecked, setLocalChecked] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncFailed, setSyncFailed] = useState(false);
+  const [syncSuccessPulse, setSyncSuccessPulse] = useState(false);
+  const syncTimerRef = useRef(null);
   const assignee = item.assignedTo ? membersById[item.assignedTo] : null;
-  const checked = Boolean(item.checked);
+  const checked = localChecked !== null ? localChecked : Boolean(item.checked);
 
   const assigneeName = assignee?.displayName
     || assignee?.email?.split('@')[0]
@@ -324,11 +354,62 @@ export default function PackingItemRow({
   const canAssign = mode === 'common' && typeof onAssign === 'function';
   const canRemove = typeof onRemove === 'function';
   const canCopyToPersonal = mode === 'common' && typeof onCopyToPersonal === 'function';
+  const canMoveToCommon = mode === 'personal' && typeof onMoveToCommon === 'function';
   const canMove = typeof onMoveToCategory === 'function';
-  const canOpenActions = canMove || canCopyToPersonal;
+  const canOpenActions = canMove || canCopyToPersonal || canMoveToCommon;
   const pickerMembers = members.length > 0
     ? members
     : Object.values(membersById || {});
+
+  useEffect(() => () => {
+    if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    setLocalChecked(null);
+  }, [item.id, item.checked]);
+
+  const scheduleSyncTimer = (fn, ms) => {
+    if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = window.setTimeout(fn, ms);
+  };
+
+  const handleToggle = async () => {
+    if (busy || isSyncing) return;
+    const nextChecked = !checked;
+
+    if (!cloudSync) {
+      onToggle?.(nextChecked);
+      return;
+    }
+
+    setLocalChecked(nextChecked);
+    setIsSyncing(true);
+    setSyncFailed(false);
+    setSyncSuccessPulse(false);
+    onSyncStateChange?.({ itemId: item.id, syncing: true });
+
+    try {
+      await onToggle?.(nextChecked);
+      setIsSyncing(false);
+      onSyncStateChange?.({
+        itemId: item.id,
+        syncing: false,
+        confirmed: true,
+        checked: nextChecked,
+      });
+      if (nextChecked) {
+        setSyncSuccessPulse(true);
+        scheduleSyncTimer(() => setSyncSuccessPulse(false), 220);
+      }
+    } catch {
+      setIsSyncing(false);
+      onSyncStateChange?.({ itemId: item.id, syncing: false, confirmed: false });
+      setLocalChecked(null);
+      setSyncFailed(true);
+      scheduleSyncTimer(() => setSyncFailed(false), 1200);
+    }
+  };
 
   const handleRemoveClick = () => {
     if (busy || !canRemove) return;
@@ -422,14 +503,16 @@ export default function PackingItemRow({
         )}
 
         <ItemCheckbox
-          className="ml-1 mt-0.5 shrink-0"
+          className={`ml-1 mt-0.5 shrink-0 ${syncFailed ? 'ring-2 ring-red-300' : ''}`}
           tone="packing"
           checked={checked}
           disabled={busy}
+          isSyncing={isSyncing}
+          syncSuccessPulse={syncSuccessPulse}
           checkedByName={checkedByName}
           checkedByPhotoUrl={checkedByPhotoUrl}
           ariaLabel={checked && checkedByName ? `Собрано: ${checkedByName}` : 'Отметить'}
-          onChange={() => onToggle?.(!checked)}
+          onChange={handleToggle}
         />
       </li>
 
@@ -454,7 +537,9 @@ export default function PackingItemRow({
           categoryOptions={categoryOptions}
           currentCategory={item.category || ''}
           canCopyToPersonal={canCopyToPersonal}
+          canMoveToCommon={canMoveToCommon}
           onCopyToPersonal={() => onCopyToPersonal?.(item)}
+          onMoveToCommon={() => onMoveToCommon?.(item)}
           onMoveToCategory={(option) => onMoveToCategory?.(item, option)}
           onClose={() => setActionsOpen(false)}
         />

@@ -382,16 +382,27 @@ export default function AdminGroupListsPage() {
     );
   };
 
-  const renderPackingCard = (list, { archived = false } = {}) => (
-    <PackingListCard
-      list={list}
-      currentUserId={user?.uid}
-      authorsById={authorsById}
-      viewerFamilyId={resolvedFamilyId}
-      accentBarClassName={PACKING_ACCENT.barDone}
-      archived={archived}
-    />
-  );
+  const renderPackingCard = (list, { archived = false } = {}) => {
+    const isArchived = archived || list.archived || list.status === 'archived';
+    const isOwner = list.createdBy === user?.uid;
+
+    return (
+      <PackingListCard
+        list={list}
+        currentUserId={user?.uid}
+        authorsById={authorsById}
+        viewerFamilyId={resolvedFamilyId}
+        accentBarClassName={PACKING_ACCENT.barDone}
+        archived={archived}
+        busy={busyId === list.id}
+        onDelete={
+          (isArchived || list.isTemplate) && isOwner
+            ? (id, title) => handleDeleteRequest(id, title, 'packing')
+            : undefined
+        }
+      />
+    );
+  };
 
   const subtitle =
     filter === 'mine'

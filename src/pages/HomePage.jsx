@@ -297,7 +297,14 @@ export default function HomePage() {
     }
   };
 
-  const handleCreatePackingConfirm = async ({ title, templateId, travelDate }) => {
+  const handleCreatePackingConfirm = async ({
+    title,
+    templateId,
+    travelDate,
+    description = '',
+    tripTransport,
+    tripPurpose,
+  }) => {
     if (!user?.uid || !familyId || packingBusy) return;
     setPackingBusy(true);
     try {
@@ -318,6 +325,9 @@ export default function HomePage() {
         isPublic: true,
         familyMemberIds,
         travelDate,
+        description,
+        tripTransport,
+        tripPurpose,
       });
       setCreatePackingOpen(false);
       setPackingRefreshKey((key) => key + 1);
@@ -443,7 +453,7 @@ export default function HomePage() {
             </div>
           ) : lists.length === 0 && !loadError ? (
             <p className={`mt-4 pl-1 ${HINT_TEXT}`}>
-              Пока нет списков — создайте первый
+              Пока нет списков — нажмите «+», чтобы создать
             </p>
           ) : lists.length > 0 ? (
             <>
@@ -485,11 +495,17 @@ export default function HomePage() {
           familiesById={familiesById}
           uiTheme={uiTheme}
           refreshKey={packingRefreshKey}
+          groupByDate={settings.groupByDate}
+          onListsChanged={() => setPackingRefreshKey((key) => key + 1)}
         />
       </HomeDesktopPager>
 
       {desktopIndex === 0 && (
-        <CreateListFab onClick={handleOpenCreateSheet} disabled={loading || profileLoading} />
+        <CreateListFab
+          onClick={handleOpenCreateSheet}
+          disabled={loading || profileLoading}
+          label="Создать список покупок"
+        />
       )}
       {desktopIndex === 1 && (
         <CreateListFab

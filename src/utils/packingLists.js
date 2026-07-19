@@ -12,7 +12,8 @@ export const PACKING_ITEM_TYPE = {
 
 const CHIP_ACTIVE_SHADOW = 'shadow-sm shadow-black/10';
 
-export const PACKING_TRIP_TYPES = [
+/** Способ поездки (транспорт). */
+export const PACKING_TRANSPORTS = [
   {
     id: 'car',
     label: '+ На авто',
@@ -26,18 +27,123 @@ export const PACKING_TRIP_TYPES = [
     activeClassName: `border-transparent bg-sky-500 font-semibold text-white ${CHIP_ACTIVE_SHADOW}`,
   },
   {
-    id: 'mountains',
-    label: '+ Горы',
-    idleClassName: 'text-amber-700/80',
-    activeClassName: `border-transparent bg-amber-500 font-semibold text-white ${CHIP_ACTIVE_SHADOW}`,
+    id: 'train',
+    label: '+ Поезд',
+    idleClassName: 'text-violet-600/80',
+    activeClassName: `border-transparent bg-violet-500 font-semibold text-white ${CHIP_ACTIVE_SHADOW}`,
   },
+];
+
+/** Назначение поездки (куда / зачем). */
+export const PACKING_PURPOSES = [
   {
     id: 'sea',
     label: '+ Море',
     idleClassName: 'text-cyan-600/80',
     activeClassName: `border-transparent bg-cyan-500 font-semibold text-white ${CHIP_ACTIVE_SHADOW}`,
   },
+  {
+    id: 'mountains',
+    label: '+ Горы',
+    idleClassName: 'text-amber-700/80',
+    activeClassName: `border-transparent bg-amber-500 font-semibold text-white ${CHIP_ACTIVE_SHADOW}`,
+  },
+  {
+    id: 'city',
+    label: '+ Город',
+    idleClassName: 'text-indigo-600/80',
+    activeClassName: `border-transparent bg-indigo-500 font-semibold text-white ${CHIP_ACTIVE_SHADOW}`,
+  },
+  {
+    id: 'nature',
+    label: '+ Туризм',
+    idleClassName: 'text-teal-700/80',
+    activeClassName: `border-transparent bg-teal-500 font-semibold text-white ${CHIP_ACTIVE_SHADOW}`,
+  },
 ];
+
+/** @deprecated используйте PACKING_TRANSPORTS + PACKING_PURPOSES */
+export const PACKING_TRIP_TYPES = [
+  ...PACKING_TRANSPORTS,
+  ...PACKING_PURPOSES.filter((entry) => entry.id === 'mountains' || entry.id === 'sea'),
+];
+
+const TRANSPORT_IDS = new Set(PACKING_TRANSPORTS.map((entry) => entry.id));
+const PURPOSE_IDS = new Set(PACKING_PURPOSES.map((entry) => entry.id));
+
+export function getPackingTransportLabel(id) {
+  const found = PACKING_TRANSPORTS.find((entry) => entry.id === id);
+  return found ? found.label.replace(/^\+\s*/, '') : '';
+}
+
+export function getPackingPurposeLabel(id) {
+  const found = PACKING_PURPOSES.find((entry) => entry.id === id);
+  return found ? found.label.replace(/^\+\s*/, '') : '';
+}
+
+/**
+ * Нормализует оси поездки. Старый tripType (car/plane/mountains/sea)
+ * раскладывается в transport + purpose.
+ */
+export function resolvePackingTripAxes(listOrAxes = {}) {
+  const transportRaw = listOrAxes.tripTransport || listOrAxes.transport || null;
+  const purposeRaw = listOrAxes.tripPurpose || listOrAxes.purpose || null;
+
+  if (TRANSPORT_IDS.has(transportRaw) || PURPOSE_IDS.has(purposeRaw)) {
+    return {
+      transport: TRANSPORT_IDS.has(transportRaw) ? transportRaw : 'car',
+      purpose: PURPOSE_IDS.has(purposeRaw) ? purposeRaw : 'city',
+    };
+  }
+
+  const legacy = listOrAxes.tripType;
+  if (legacy === 'plane' || legacy === 'car' || legacy === 'train') {
+    return { transport: legacy, purpose: 'city' };
+  }
+  if (legacy === 'mountains' || legacy === 'sea') {
+    return { transport: 'car', purpose: legacy };
+  }
+  if (legacy === 'city' || legacy === 'nature') {
+    return { transport: 'car', purpose: legacy };
+  }
+
+  return { transport: 'car', purpose: 'city' };
+}
+
+/** Короткая подпись для бейджа: «Авто · Море». */
+export function formatPackingTripBadge(listOrAxes) {
+  const { transport, purpose } = resolvePackingTripAxes(listOrAxes);
+  const left = getPackingTransportLabel(transport);
+  const right = getPackingPurposeLabel(purpose);
+  if (left && right) return `${left} · ${right}`;
+  return left || right || 'Поездка';
+}
+
+/** Ключ для группировки готовых списков. */
+export function getPackingTripGroupKey(listOrAxes) {
+  const { transport, purpose } = resolvePackingTripAxes(listOrAxes);
+  return `${transport}|${purpose}`;
+}
+
+export function packingTripAxesToPayload({
+  transport,
+  purpose,
+  tripTransport,
+  tripPurpose,
+  tripType,
+} = {}) {
+  const axes = resolvePackingTripAxes({
+    tripTransport: tripTransport || transport,
+    tripPurpose: tripPurpose || purpose,
+    tripType,
+  });
+  return {
+    tripTransport: axes.transport,
+    tripPurpose: axes.purpose,
+    // deprecated: для старых читателей / группировок
+    tripType: axes.transport,
+  };
+}
 
 /** Формат даты для названия поездки: «20.07». */
 export function formatPackingDateLabel(date = new Date()) {
@@ -296,10 +402,8 @@ export function createPackingEditableSnapshot(list, {
       categoryIcon: item.categoryIcon || '',
       assignedTo: item.assignedTo || null,
       ownerId: item.ownerId || null,
-      checked: Boolean(item.checked),
+      // checked* не входят в dirty: отметки пишутся в облако сразу (как у покупок)
       statusMap: { ...(item.statusMap || {}) },
-      checkedBy: item.checkedBy || null,
-      checkedByUid: item.checkedByUid || null,
       bookingUrl: item.bookingUrl || '',
       note: item.note || '',
     })),

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AppModal from '../ui/AppModal';
+import ModalCloseButton from '../ui/ModalCloseButton';
 import { PRIMARY_BTN } from '../list/cardStyles';
 import { ROLES } from '../../utils/roles';
 import { getPersonalAiLimitMonth, normalizeAiUsage } from '../../utils/aiLimits';
@@ -84,8 +85,9 @@ export default function FamilyMemberFormModal({
       disableClose={saving}
       panelClassName="relative flex w-full max-w-md max-h-[90vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
     >
+      <ModalCloseButton onClick={onClose} disabled={saving} />
       <header className="flex-shrink-0 border-b border-slate-100 bg-white p-5">
-        <h2 id="family-member-form-title" className="text-base font-semibold text-slate-900">
+        <h2 id="family-member-form-title" className="pr-10 text-base font-semibold text-slate-900">
           Настройки участника {displayName}
         </h2>
         <p className="mt-1 text-sm text-slate-500">{member.email}</p>

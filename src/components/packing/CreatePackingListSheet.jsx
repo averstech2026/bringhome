@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { LayoutTemplate, Sparkles, X } from 'lucide-react';
 import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_WIDE } from '../ui/AppModal';
 import ScheduleCalendar from '../list/ScheduleCalendar';
-import { EXIT_BTN_NEUTRAL } from '../list/cardStyles';
+import { CREATE_BTN_DISABLED } from '../list/cardStyles';
 import {
   appendDateToPackingTitle,
   formatPackingDateLabel,
 } from '../../utils/packingLists';
 import { PACKING_ACCENT } from '../../utils/contextAccents';
+import PackingTripAxesChips from './PackingTripAxesChips';
 import {
   addDays,
   getNextWeekend,
@@ -49,8 +50,11 @@ export default function CreatePackingListSheet({
 }) {
   const today = useMemo(() => getToday(), []);
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [mode, setMode] = useState(MODE_BLANK);
   const [templateId, setTemplateId] = useState(null);
+  const [tripTransport, setTripTransport] = useState('car');
+  const [tripPurpose, setTripPurpose] = useState('city');
   const [datePreset, setDatePreset] = useState('today');
   const [customDate, setCustomDate] = useState(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -58,8 +62,11 @@ export default function CreatePackingListSheet({
   useEffect(() => {
     if (!open) return;
     setTitle('');
+    setDescription('');
     setMode(MODE_BLANK);
     setTemplateId(null);
+    setTripTransport('car');
+    setTripPurpose('city');
     setDatePreset('today');
     setCustomDate(null);
     setCalendarOpen(false);
@@ -81,15 +88,10 @@ export default function CreatePackingListSheet({
       title: resolvedTitle,
       templateId: mode === MODE_TEMPLATE ? templateId : null,
       travelDate,
+      description: description.trim(),
+      tripTransport,
+      tripPurpose,
     });
-  };
-
-  const handlePrimaryClick = () => {
-    if (!hasTitle) {
-      if (!busy) onClose?.();
-      return;
-    }
-    handleSubmit();
   };
 
   const selectPreset = (presetId) => {
@@ -106,8 +108,9 @@ export default function CreatePackingListSheet({
   const primaryLabel = busy
     ? 'Создаём…'
     : hasTitle
-      ? 'Создать список'
-      : 'Введите название или Отмена';
+      ? 'Создать список 🚀'
+      : 'Чтобы создать список, введите название';
+  const primaryClassName = hasTitle ? PACKING_ACCENT.primaryBtn : CREATE_BTN_DISABLED;
 
   return (
     <AppModal
@@ -115,27 +118,37 @@ export default function CreatePackingListSheet({
       onClose={onClose}
       labelledBy="create-packing-title"
       overlayClassName={MODAL_OVERLAY_SHEET}
-      panelClassName={`${MODAL_PANEL_WIDE} overflow-y-auto overscroll-contain p-5 sm:p-6`}
+      panelClassName={`${MODAL_PANEL_WIDE} overflow-hidden pb-0`}
       disableClose={busy}
     >
-      <div>
-        <div className="relative pr-10">
-          <p className="text-xs font-semibold uppercase tracking-wide text-sky-600">
-            Новая поездка
-          </p>
-          <h2 id="create-packing-title" className="mt-1 text-xl font-bold text-slate-900">
-            Список сборов
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={busy}
+        className="absolute right-4 top-4 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-400 shadow-sm ring-1 ring-slate-100 backdrop-blur-sm transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
+        aria-label="Закрыть"
+      >
+        <X className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+      </button>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-5">
+        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-200" aria-hidden />
+
+        <div className="pr-10">
+          <h2 id="create-packing-title" className="text-lg font-bold text-slate-900">
+            Новый список
           </h2>
-          <button
-            type="button"
-            name="скрыть"
-            onClick={onClose}
+          <p className="mt-1 text-sm text-slate-500">Способ, назначение и дата</p>
+        </div>
+
+        <div className="mt-5">
+          <PackingTripAxesChips
+            transport={tripTransport}
+            purpose={tripPurpose}
+            onTransportChange={setTripTransport}
+            onPurposeChange={setTripPurpose}
             disabled={busy}
-            className="absolute right-0 top-0 flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
-            aria-label="Скрыть"
-          >
-            <X className="h-4 w-4" strokeWidth={2.25} aria-hidden />
-          </button>
+          />
         </div>
 
         <label className="mt-5 block">
@@ -187,6 +200,17 @@ export default function CreatePackingListSheet({
             />
           </div>
         )}
+
+        <p className="mt-5 text-sm font-medium text-slate-700">Заметка к списку</p>
+        <textarea
+          rows={3}
+          value={description}
+          disabled={busy}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Добавить важные детали, номер парковки, список магазинов..."
+          maxLength={120}
+          className="mt-2.5 w-full resize-none rounded-xl bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
+        />
 
         <p className="mt-5 text-xs font-medium text-slate-500">С чего начать</p>
         <div className="mt-2 grid shrink-0 grid-cols-2 gap-2">
@@ -255,14 +279,14 @@ export default function CreatePackingListSheet({
             </div>
           </div>
         )}
+      </div>
 
+      <div className="shrink-0 border-t border-gray-100 bg-white px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
         <button
           type="button"
-          disabled={busy || (hasTitle && needsTemplate)}
-          onClick={handlePrimaryClick}
-          className={`mt-6 shrink-0 transition-all duration-150 ${
-            hasTitle ? PACKING_ACCENT.primaryBtn : EXIT_BTN_NEUTRAL
-          }`}
+          disabled={!canSubmit}
+          onClick={handleSubmit}
+          className={`transition-all duration-150 ${primaryClassName}`}
         >
           {primaryLabel}
         </button>
