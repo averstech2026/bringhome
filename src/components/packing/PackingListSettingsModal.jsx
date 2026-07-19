@@ -102,6 +102,7 @@ export default function PackingListSettingsModal({
   const [endDate, setEndDate] = useState(null);
   const [pickingEnd, setPickingEnd] = useState(false);
   const [description, setDescription] = useState('');
+  const [groupByCategory, setGroupByCategory] = useState(false);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
 
@@ -121,6 +122,7 @@ export default function PackingListSettingsModal({
     setTripTransport(axes.transport);
     setTripPurpose(axes.purpose);
     setDescription(list.description || '');
+    setGroupByCategory(Boolean(list.groupByCategory));
     setSaveAsTemplate(false);
     setArchiveConfirmOpen(false);
     const travel = toDate(list.travelDate);
@@ -197,6 +199,7 @@ export default function PackingListSettingsModal({
       tripStartDate: travelDate,
       tripEndDate: toTimestamp(resolvedEnd || resolvedStart || today),
       description: description.trim(),
+      groupByCategory,
       saveAsTemplate: canSaveAsTemplate && saveAsTemplate,
     });
   };
@@ -229,7 +232,7 @@ export default function PackingListSettingsModal({
           <h2 id="packing-settings-title" className="text-lg font-bold text-slate-900">
             Настройки списка
           </h2>
-          <p className="mt-1 text-sm text-slate-500">Способ, назначение, даты и заметка</p>
+          <p className="mt-1 text-sm text-slate-500">Способ, назначение, даты и отображение</p>
         </div>
 
         <div className="mt-5">
@@ -286,6 +289,32 @@ export default function PackingListSettingsModal({
           maxLength={200}
           className="mt-2.5 w-full resize-none rounded-xl bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
         />
+
+        <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-slate-800">Разделить по подгруппам</p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Внутри разделов группировать вещи по категориям (одежда, техника…)
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={groupByCategory}
+            aria-label="Разделить по подгруппам"
+            disabled={readOnly || saving}
+            onClick={() => setGroupByCategory((prev) => !prev)}
+            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 disabled:opacity-40 ${
+              groupByCategory ? PACKING_ACCENT.solid : 'bg-slate-200'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                groupByCategory ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
 
         {canSaveAsTemplate && (
           <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 transition hover:bg-slate-50">

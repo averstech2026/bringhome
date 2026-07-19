@@ -1,5 +1,7 @@
 /** Константы и хелперы для списков сборов / путешествий. */
 
+import { formatQuantity, parseQuantity } from './quantity';
+
 export const PACKING_SCOPE = {
   COMMON: 'common',
   PERSONAL: 'personal',
@@ -174,6 +176,48 @@ export function createPackingItemId() {
   return `pk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function normalizePackingQuantity(raw) {
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
+    if (raw === 1) return '';
+    return formatQuantity(raw, 'шт');
+  }
+  const text = String(raw).trim();
+  if (!text) return '';
+  // Только число без единицы — нормализуем как «N шт».
+  if (/^[\d]+(?:[.,]\d+)?$/.test(text)) {
+    const n = Number.parseFloat(text.replace(',', '.'));
+    if (!Number.isFinite(n) || n <= 0) return '';
+    if (n === 1) return '';
+    return formatQuantity(n, 'шт');
+  }
+  const { count, unit } = parseQuantity(text);
+  if (!Number.isFinite(count) || count <= 0) return text;
+  const resolvedUnit = unit || 'шт';
+  // Дефолт «1 шт» не храним — в UI это просто отсутствие количества.
+  if (count === 1 && resolvedUnit === 'шт') return '';
+  return formatQuantity(count, resolvedUnit);
+}
+
+/** Есть ли недефолтное количество для отображения в строке пункта. */
+export function packingQuantityLabel(raw) {
+  const normalized = normalizePackingQuantity(raw);
+  if (!normalized) return '';
+  return normalized;
+}
+
+function normalizePackingDueDate(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return '';
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export function normalizePackingItem(raw = {}) {
   const scope = raw.scope === PACKING_SCOPE.PERSONAL
     ? PACKING_SCOPE.PERSONAL
@@ -181,14 +225,51 @@ export function normalizePackingItem(raw = {}) {
   const type = raw.type === PACKING_ITEM_TYPE.TODO
     ? PACKING_ITEM_TYPE.TODO
     : PACKING_ITEM_TYPE.ITEM;
-  const category = String(raw.category || '').trim();
-  const categoryIcon = String(raw.categoryIcon || '').trim();
+
+  const hasExplicitActivity = Object.prototype.hasOwnProperty.call(raw, 'activity');
+  const legacyCategory = String(raw.category || '').trim();
+  const legacyCategoryIcon = String(raw.categoryIcon || '').trim();
+
+  let activity;
+  let activityIcon = String(raw.activityIcon || '').trim();
+  let category;
+  let categoryIcon;
+
+  if (hasExplicitActivity) {
+    activity = normalizePackingActivity(raw.activity);
+    activityIcon = isPackingMainActivity(activity)
+      ? ''
+      : (activityIcon || legacyCategoryIcon);
+    category = String(raw.category || '').trim();
+    if (category === PACKING_UNCATEGORIZED_LABEL) category = '';
+    categoryIcon = getPackingCategoryIcon(category, String(raw.categoryIcon || '').trim());
+  } else if (!legacyCategory || legacyCategory === PACKING_UNCATEGORIZED_LABEL) {
+    // Legacy: пустой category → основной список без тега вещи
+    activity = PACKING_ACTIVITY_MAIN;
+    activityIcon = '';
+    category = '';
+    categoryIcon = '';
+  } else if (isKnownPackingCategory(legacyCategory)) {
+    // Legacy: канонический тег вещи → category, раздел main
+    activity = PACKING_ACTIVITY_MAIN;
+    activityIcon = '';
+    category = legacyCategory;
+    categoryIcon = getPackingCategoryIcon(legacyCategory, legacyCategoryIcon);
+  } else {
+    // Legacy: кастомная тема ИИ («Морская прогулка») → activity
+    activity = legacyCategory;
+    activityIcon = legacyCategoryIcon;
+    category = '';
+    categoryIcon = '';
+  }
 
   return {
     id: raw.id || createPackingItemId(),
     name: String(raw.name || '').trim(),
     scope,
     type,
+    activity,
+    activityIcon,
     category,
     categoryIcon,
     assignedTo: scope === PACKING_SCOPE.COMMON ? (raw.assignedTo || null) : null,
@@ -200,6 +281,8 @@ export function normalizePackingItem(raw = {}) {
     checkedByPhotoUrl: raw.checkedByPhotoUrl || null,
     bookingUrl: typeof raw.bookingUrl === 'string' ? raw.bookingUrl.trim() : '',
     note: typeof raw.note === 'string' ? raw.note.trim() : '',
+    quantity: type === PACKING_ITEM_TYPE.ITEM ? normalizePackingQuantity(raw.quantity) : '',
+    dueDate: type === PACKING_ITEM_TYPE.TODO ? normalizePackingDueDate(raw.dueDate) : '',
   };
 }
 
@@ -239,13 +322,66 @@ export function filterCommonPackingItems(items) {
   return filterPackingItemsByScope(items, PACKING_SCOPE.COMMON);
 }
 
+export const PACKING_ACTIVITY_MAIN = 'main';
+export const PACKING_MAIN_LIST_LABEL = 'Основной список';
 export const PACKING_UNCATEGORIZED_LABEL = 'Без категории';
 
-/** Нормализует название раздела: пусто / «Без категории» → без category. */
-export function resolvePackingCategoryRename(rawTitle, { keepIcon = '' } = {}) {
+/**
+ * Канонические категории вещи/дела (теги в модалке).
+ * Разделы списка (activity) — отдельно: main или кастомные ИИ-активности.
+ */
+export const PACKING_SUGGESTED_CATEGORIES = [
+  { category: 'Документы', categoryIcon: '🪪' },
+  { category: 'Одежда', categoryIcon: '👗' },
+  { category: 'Аптечка', categoryIcon: '💊' },
+  { category: 'Техника', categoryIcon: '🔌' },
+  { category: 'Снаряжение', categoryIcon: '🏕' },
+  { category: 'Перекус', categoryIcon: '🍔' },
+  { category: 'Прочее', categoryIcon: '📦' },
+];
+
+export const PACKING_CATEGORY_ORDER = PACKING_SUGGESTED_CATEGORIES.map(
+  (entry) => entry.category,
+);
+
+const PACKING_CATEGORY_ICON_BY_NAME = Object.fromEntries(
+  PACKING_SUGGESTED_CATEGORIES.map((entry) => [entry.category, entry.categoryIcon]),
+);
+
+export function isKnownPackingCategory(category) {
+  const key = String(category || '').trim();
+  return Boolean(key) && PACKING_CATEGORY_ORDER.includes(key);
+}
+
+export function isPackingMainActivity(activity) {
+  const key = String(activity || '').trim();
+  return !key
+    || key === PACKING_ACTIVITY_MAIN
+    || key === PACKING_MAIN_LIST_LABEL
+    || key === PACKING_UNCATEGORIZED_LABEL;
+}
+
+export function normalizePackingActivity(raw) {
+  return isPackingMainActivity(raw) ? PACKING_ACTIVITY_MAIN : String(raw || '').trim();
+}
+
+/** Иконка канонической категории вещи; для неизвестных — fallback. */
+export function getPackingCategoryIcon(category, fallbackIcon = '') {
+  const key = String(category || '').trim();
+  if (!key || key === PACKING_UNCATEGORIZED_LABEL) return '';
+  return PACKING_CATEGORY_ICON_BY_NAME[key] || String(fallbackIcon || '').trim();
+}
+
+/** Нормализует название раздела (activity): пусто / «Основной список» → main. */
+export function resolvePackingActivityRename(rawTitle, { keepIcon = '' } = {}) {
   const title = String(rawTitle || '').trim();
-  if (!title || title === PACKING_UNCATEGORIZED_LABEL) {
-    return { category: '', categoryIcon: '' };
+  if (
+    !title
+    || title === PACKING_MAIN_LIST_LABEL
+    || title === PACKING_UNCATEGORIZED_LABEL
+    || title === PACKING_ACTIVITY_MAIN
+  ) {
+    return { activity: PACKING_ACTIVITY_MAIN, activityIcon: '' };
   }
 
   const emojiMatch = title.match(
@@ -253,15 +389,27 @@ export function resolvePackingCategoryRename(rawTitle, { keepIcon = '' } = {}) {
   );
   if (emojiMatch) {
     return {
-      category: emojiMatch[2].trim(),
-      categoryIcon: emojiMatch[1],
+      activity: emojiMatch[2].trim(),
+      activityIcon: emojiMatch[1],
     };
   }
 
   return {
-    category: title,
-    categoryIcon: String(keepIcon || '').trim(),
+    activity: title,
+    activityIcon: String(keepIcon || '').trim(),
   };
+}
+
+/** @deprecated используйте resolvePackingActivityRename */
+export function resolvePackingCategoryRename(rawTitle, options) {
+  const next = resolvePackingActivityRename(rawTitle, options);
+  return { category: next.activity === PACKING_ACTIVITY_MAIN ? '' : next.activity, categoryIcon: next.activityIcon };
+}
+
+export function packingItemMatchesActivity(item, activityKey) {
+  const activity = normalizePackingActivity(item?.activity);
+  const key = normalizePackingActivity(activityKey);
+  return activity === key;
 }
 
 export function packingItemMatchesCategory(item, categoryKey) {
@@ -273,40 +421,108 @@ export function packingItemMatchesCategory(item, categoryKey) {
   return cat === key;
 }
 
-/** Группирует пункты сборов по category; без категории — блок «Без категории» в конце. */
-export function groupPackingItemsByCategory(items = []) {
+/**
+ * Группирует пункты сборов по activity.
+ * Основной список (main) — первым; кастомные активности — ниже по алфавиту.
+ */
+export function groupPackingItemsByActivity(items = []) {
   const buckets = new Map();
-  const uncategorized = [];
+  const mainItems = [];
 
   for (const item of Array.isArray(items) ? items : []) {
-    const category = String(item?.category || '').trim();
-    if (!category || category === PACKING_UNCATEGORIZED_LABEL) {
-      uncategorized.push(item);
+    const activity = normalizePackingActivity(item?.activity);
+    if (activity === PACKING_ACTIVITY_MAIN) {
+      mainItems.push(item);
       continue;
     }
-    if (!buckets.has(category)) {
-      buckets.set(category, {
-        category,
-        categoryIcon: String(item?.categoryIcon || '').trim(),
+    if (!buckets.has(activity)) {
+      buckets.set(activity, {
+        activity,
+        activityIcon: String(item?.activityIcon || '').trim(),
         items: [],
       });
     }
-    const bucket = buckets.get(category);
-    if (!bucket.categoryIcon && item?.categoryIcon) {
-      bucket.categoryIcon = String(item.categoryIcon).trim();
+    const bucket = buckets.get(activity);
+    if (!bucket.activityIcon && item?.activityIcon) {
+      bucket.activityIcon = String(item.activityIcon).trim();
     }
     bucket.items.push(item);
   }
 
-  const groups = [...buckets.values()];
-  if (uncategorized.length > 0) {
-    groups.push({
-      category: '',
-      categoryIcon: '',
-      items: uncategorized,
+  const groups = [...buckets.values()].sort((a, b) => (
+    String(a.activity).localeCompare(String(b.activity), 'ru')
+  ));
+
+  if (mainItems.length > 0 || groups.length === 0) {
+    groups.unshift({
+      activity: PACKING_ACTIVITY_MAIN,
+      activityIcon: '',
+      items: mainItems,
     });
   }
+
   return groups;
+}
+
+/**
+ * Группирует пункты по category (тег вещи) внутри одного раздела.
+ * Порядок: канонические → прочие по алфавиту → «Без категории».
+ */
+export function groupPackingItemsByItemCategory(items = []) {
+  const buckets = new Map();
+
+  for (const item of Array.isArray(items) ? items : []) {
+    let category = String(item?.category || '').trim();
+    if (category === PACKING_UNCATEGORIZED_LABEL) category = '';
+    const key = category;
+    if (!buckets.has(key)) {
+      buckets.set(key, {
+        category: key,
+        categoryIcon: getPackingCategoryIcon(key, item?.categoryIcon),
+        items: [],
+      });
+    }
+    const bucket = buckets.get(key);
+    if (!bucket.categoryIcon && item?.categoryIcon) {
+      bucket.categoryIcon = getPackingCategoryIcon(key, item.categoryIcon);
+    }
+    bucket.items.push(item);
+  }
+
+  const ordered = [];
+  for (const name of PACKING_CATEGORY_ORDER) {
+    if (!buckets.has(name)) continue;
+    ordered.push(buckets.get(name));
+    buckets.delete(name);
+  }
+
+  const uncategorized = buckets.get('');
+  if (buckets.has('')) buckets.delete('');
+
+  const custom = [...buckets.values()].sort((a, b) => (
+    String(a.category).localeCompare(String(b.category), 'ru')
+  ));
+
+  if (uncategorized) {
+    return [...ordered, ...custom, uncategorized];
+  }
+  return [...ordered, ...custom];
+}
+
+/** @deprecated используйте groupPackingItemsByActivity */
+export function groupPackingItemsByCategory(items = []) {
+  return groupPackingItemsByActivity(items).map((group) => ({
+    category: group.activity === PACKING_ACTIVITY_MAIN ? '' : group.activity,
+    categoryIcon: group.activityIcon,
+    items: group.items,
+  }));
+}
+
+export function formatPackingActivityLabel(activity, activityIcon = '') {
+  if (isPackingMainActivity(activity)) return PACKING_MAIN_LIST_LABEL;
+  const title = String(activity || '').trim();
+  const icon = String(activityIcon || '').trim();
+  return icon ? `${icon} ${title}` : title;
 }
 
 export function formatPackingCategoryLabel(category, categoryIcon = '') {
@@ -314,28 +530,53 @@ export function formatPackingCategoryLabel(category, categoryIcon = '') {
   if (!title || title === PACKING_UNCATEGORIZED_LABEL) {
     return PACKING_UNCATEGORIZED_LABEL;
   }
-  const icon = String(categoryIcon || '').trim();
+  const icon = getPackingCategoryIcon(category, categoryIcon);
   return icon ? `${icon} ${title}` : title;
 }
 
-/** Варианты разделов для переноса пункта (всегда включает «Без категории»). */
-export function listPackingCategoryOptions(items = []) {
-  const groups = groupPackingItemsByCategory(items);
+/** Варианты разделов (activity) для переноса пункта. */
+export function listPackingActivityOptions(items = []) {
+  const groups = groupPackingItemsByActivity(items);
   const options = groups.map((group) => ({
-    category: group.category,
-    categoryIcon: group.categoryIcon,
-    label: formatPackingCategoryLabel(group.category, group.categoryIcon),
+    activity: group.activity,
+    activityIcon: group.activityIcon,
+    label: formatPackingActivityLabel(group.activity, group.activityIcon),
   }));
 
-  if (!options.some((option) => !option.category)) {
-    options.push({
-      category: '',
-      categoryIcon: '',
-      label: PACKING_UNCATEGORIZED_LABEL,
+  if (!options.some((option) => option.activity === PACKING_ACTIVITY_MAIN)) {
+    options.unshift({
+      activity: PACKING_ACTIVITY_MAIN,
+      activityIcon: '',
+      label: PACKING_MAIN_LIST_LABEL,
     });
   }
 
   return options;
+}
+
+/** @deprecated используйте listPackingActivityOptions */
+export function listPackingCategoryOptions(items = []) {
+  return listPackingActivityOptions(items).map((option) => ({
+    category: option.activity === PACKING_ACTIVITY_MAIN ? '' : option.activity,
+    categoryIcon: option.activityIcon,
+    label: option.label,
+  }));
+}
+
+/** Чипы категорий вещи для модалки: только канонические + «Без категории». */
+export function mergePackingCategoryChips() {
+  return [
+    ...PACKING_SUGGESTED_CATEGORIES.map((opt) => ({
+      category: opt.category,
+      categoryIcon: opt.categoryIcon,
+      label: formatPackingCategoryLabel(opt.category, opt.categoryIcon),
+    })),
+    {
+      category: '',
+      categoryIcon: '',
+      label: PACKING_UNCATEGORIZED_LABEL,
+    },
+  ];
 }
 
 /** Прогресс вкладки «Мой рюкзак» — только вещи текущего пользователя. */
@@ -398,6 +639,8 @@ export function createPackingEditableSnapshot(list, {
       name: item.name,
       scope: item.scope,
       type: item.type,
+      activity: item.activity || PACKING_ACTIVITY_MAIN,
+      activityIcon: item.activityIcon || '',
       category: item.category || '',
       categoryIcon: item.categoryIcon || '',
       assignedTo: item.assignedTo || null,
@@ -406,6 +649,8 @@ export function createPackingEditableSnapshot(list, {
       statusMap: { ...(item.statusMap || {}) },
       bookingUrl: item.bookingUrl || '',
       note: item.note || '',
+      quantity: item.quantity || '',
+      dueDate: item.dueDate || '',
     })),
     isPublic: resolvedPublic,
     selectedIds: [...(Array.isArray(resolvedSelected) ? resolvedSelected : [])]

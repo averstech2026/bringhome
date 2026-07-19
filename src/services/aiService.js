@@ -1,7 +1,15 @@
 import { formatQuantity } from '../utils/quantity';
 import { resolveCategory } from '../utils/productCategoryMap';
 import { resolveYandexParseUrl } from '../utils/yandexParseUrl';
-import { PACKING_ITEM_TYPE, PACKING_SCOPE } from '../utils/packingLists';
+import {
+  getPackingCategoryIcon,
+  isKnownPackingCategory,
+  normalizePackingActivity,
+  PACKING_ACTIVITY_MAIN,
+  PACKING_ITEM_TYPE,
+  PACKING_SCOPE,
+} from '../utils/packingLists';
+import { lookupPopularPackingItem } from '../utils/packingAutocomplete';
 
 export const AI_PARSE_MODE = {
   SHOPPING: 'shopping',
@@ -45,10 +53,36 @@ function normalizeYandexPackingItem(item) {
   const scope = item.scope === PACKING_SCOPE.PERSONAL
     ? PACKING_SCOPE.PERSONAL
     : PACKING_SCOPE.COMMON;
-  const category = String(item.category || '').trim();
-  const categoryIcon = String(item.categoryIcon || item.icon || '').trim();
 
-  return { name, type, scope, category, categoryIcon };
+  // GPT historically returns activity theme as `category`
+  const themeRaw = String(item.activity || item.category || '').trim();
+  const themeIcon = String(item.activityIcon || item.categoryIcon || item.icon || '').trim();
+  const dictHit = lookupPopularPackingItem(name);
+
+  let activity = PACKING_ACTIVITY_MAIN;
+  let activityIcon = '';
+  let category = '';
+
+  if (themeRaw && isKnownPackingCategory(themeRaw)) {
+    // Model returned a physical tag — keep as category, stay in main list
+    category = themeRaw;
+  } else if (themeRaw) {
+    activity = normalizePackingActivity(themeRaw);
+    activityIcon = themeIcon;
+    category = dictHit?.category || '';
+  } else {
+    category = dictHit?.category || '';
+  }
+
+  return {
+    name,
+    type,
+    scope,
+    activity,
+    activityIcon,
+    category,
+    categoryIcon: getPackingCategoryIcon(category, dictHit?.categoryIcon),
+  };
 }
 
 async function postYandexParse(payload) {

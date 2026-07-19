@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useUserProfile } from '../hooks/useUserProfile';
 import PackingCategoryGroup from '../components/packing/PackingCategoryGroup';
 import PackingListSettingsModal from '../components/packing/PackingListSettingsModal';
-import PackingTodoDetailsModal from '../components/packing/PackingTodoDetailsModal';
+import PackingItemDetailsModal from '../components/packing/PackingItemDetailsModal';
 import AiInput from '../components/list/AiInput';
 import CreateListAccess from '../components/list/CreateListAccess';
 import ListHeaderProgress from '../components/list/ListHeaderProgress';
@@ -30,12 +30,14 @@ import {
   createPackingItemId,
   filterCommonPackingItems,
   filterPersonalPackingItems,
+  getPackingCategoryIcon,
   getPersonalPackingProgress,
   getPackingListProgress,
-  groupPackingItemsByCategory,
-  listPackingCategoryOptions,
+  groupPackingItemsByActivity,
+  listPackingActivityOptions,
   normalizePackingItem,
-  packingItemMatchesCategory,
+  packingItemMatchesActivity,
+  PACKING_ACTIVITY_MAIN,
   PACKING_ITEM_TYPE,
   PACKING_SCOPE,
   packingEditableSnapshotsEqual,
@@ -43,6 +45,11 @@ import {
   packingTripAxesToPayload,
   resolvePackingMembers,
 } from '../utils/packingLists';
+import {
+  lookupPopularPackingItem,
+  mergePackingAutocompleteSuggestions,
+} from '../utils/packingAutocomplete';
+import { mergePackingItemsBatch } from '../utils/mergePackingItems';
 import { PACKING_ACCENT, getPackingTypeAccent } from '../utils/contextAccents';
 import { getUserPhotoUrl } from '../utils/userPhoto';
 import {
@@ -110,10 +117,14 @@ export default function PackingListPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsArchiving, setSettingsArchiving] = useState(false);
-  const [todoDetailsItem, setTodoDetailsItem] = useState(null);
+  const [detailsItem, setDetailsItem] = useState(null);
   const [busyItemId, setBusyItemId] = useState(null);
   const [draftName, setDraftName] = useState('');
   const [draftType, setDraftType] = useState(PACKING_ITEM_TYPE.ITEM);
+  const [draftCategory, setDraftCategory] = useState('');
+  const [draftCategoryIcon, setDraftCategoryIcon] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const draftTypeAccent = getPackingTypeAccent(draftType);
   const [adding, setAdding] = useState(false);
   const [exiting, setExiting] = useState(false);
@@ -268,12 +279,12 @@ export default function PackingListPage() {
     [list?.items, user?.uid],
   );
   const visibleItems = tab === TAB_PERSONAL ? personalItems : commonItems;
-  const visibleCategoryGroups = useMemo(
-    () => groupPackingItemsByCategory(visibleItems),
+  const visibleActivityGroups = useMemo(
+    () => groupPackingItemsByActivity(visibleItems),
     [visibleItems],
   );
-  const categoryOptions = useMemo(
-    () => listPackingCategoryOptions(visibleItems),
+  const activityOptions = useMemo(
+    () => listPackingActivityOptions(visibleItems),
     [visibleItems],
   );
   const backpackProgress = useMemo(
@@ -449,6 +460,7 @@ export default function PackingListPage() {
     tripStartDate,
     tripEndDate,
     description,
+    groupByCategory = false,
     saveAsTemplate = false,
   }) => {
     if (!list?.id || settingsSaving) return;
@@ -469,6 +481,7 @@ export default function PackingListPage() {
         tripStartDate: tripStartDate || nextTravelDate,
         tripEndDate: tripEndDate || nextTravelDate,
         description: description || '',
+        groupByCategory: Boolean(groupByCategory),
       });
       setList((prev) => (prev ? {
         ...prev,
@@ -477,6 +490,7 @@ export default function PackingListPage() {
         tripStartDate: tripStartDate || nextTravelDate,
         tripEndDate: tripEndDate || nextTravelDate,
         description: description || '',
+        groupByCategory: Boolean(groupByCategory),
       } : prev));
 
       if (saveAsTemplate && !list.isTemplate) {
@@ -641,9 +655,9 @@ export default function PackingListPage() {
     });
   };
 
-  const handleRenameCategory = (fromCategory, next) => {
-    const nextCategory = String(next?.category || '').trim();
-    const nextIcon = String(next?.categoryIcon || '').trim();
+  const handleRenameActivity = (fromActivity, next) => {
+    const nextActivity = next?.activity || PACKING_ACTIVITY_MAIN;
+    const nextIcon = String(next?.activityIcon || '').trim();
 
     setSessionTouched(true);
     setList((prev) => {
@@ -651,34 +665,11 @@ export default function PackingListPage() {
       return {
         ...prev,
         items: (prev.items || []).map((entry) => {
-          if (!packingItemMatchesCategory(entry, fromCategory)) return entry;
+          if (!packingItemMatchesActivity(entry, fromActivity)) return entry;
           return normalizePackingItem({
             ...entry,
-            category: nextCategory,
-            categoryIcon: nextCategory ? nextIcon : '',
-          });
-        }),
-      };
-    });
-  };
-
-  const handleMoveItemToCategory = (item, next) => {
-    if (!item?.id) return;
-    const nextCategory = String(next?.category || '').trim();
-    const nextIcon = String(next?.categoryIcon || '').trim();
-    if (packingItemMatchesCategory(item, nextCategory)) return;
-
-    setSessionTouched(true);
-    setList((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        items: (prev.items || []).map((entry) => {
-          if (entry.id !== item.id) return entry;
-          return normalizePackingItem({
-            ...entry,
-            category: nextCategory,
-            categoryIcon: nextCategory ? nextIcon : '',
+            activity: nextActivity,
+            activityIcon: nextActivity === PACKING_ACTIVITY_MAIN ? '' : nextIcon,
           });
         }),
       };
@@ -704,6 +695,8 @@ export default function PackingListPage() {
       name: item.name,
       scope: PACKING_SCOPE.PERSONAL,
       type: item.type || PACKING_ITEM_TYPE.ITEM,
+      activity: item.activity || PACKING_ACTIVITY_MAIN,
+      activityIcon: item.activityIcon || '',
       category: item.category || '',
       categoryIcon: item.categoryIcon || '',
       ownerId: user.uid,
@@ -712,6 +705,8 @@ export default function PackingListPage() {
       statusMap: {},
       bookingUrl: item.bookingUrl || '',
       note: item.note || '',
+      quantity: item.quantity || '',
+      dueDate: item.dueDate || '',
     });
     if (!copy.name) return;
 
@@ -743,21 +738,96 @@ export default function PackingListPage() {
     toast.success('Перенесено в общие');
   };
 
-  const handleSaveTodoDetails = ({ bookingUrl, note }) => {
-    if (!todoDetailsItem?.id) return;
+  const handleSaveItemDetails = ({
+    category,
+    categoryIcon,
+    activity,
+    activityIcon,
+    assignedTo,
+    quantity,
+    note,
+    bookingUrl,
+    dueDate,
+  }) => {
+    if (!detailsItem?.id) return;
     setSessionTouched(true);
     setList((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
         items: prev.items.map((entry) => (
-          entry.id === todoDetailsItem.id
-            ? { ...entry, bookingUrl: bookingUrl || '', note: note || '' }
+          entry.id === detailsItem.id
+            ? normalizePackingItem({
+              ...entry,
+              category: category || '',
+              categoryIcon: categoryIcon || '',
+              activity: activity || PACKING_ACTIVITY_MAIN,
+              activityIcon: activity === PACKING_ACTIVITY_MAIN ? '' : (activityIcon || ''),
+              assignedTo: entry.scope === PACKING_SCOPE.PERSONAL
+                ? entry.assignedTo
+                : (assignedTo || null),
+              quantity: quantity || '',
+              note: note || '',
+              bookingUrl: bookingUrl || '',
+              dueDate: dueDate || '',
+            })
             : entry
         )),
       };
     });
-    setTodoDetailsItem(null);
+    setDetailsItem(null);
+  };
+
+  const resetDraftForm = () => {
+    setDraftName('');
+    setDraftCategory('');
+    setDraftCategoryIcon('');
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
+
+  const applyDraftSuggestionMeta = (entry) => {
+    if (!entry) return;
+    if (entry.type === PACKING_ITEM_TYPE.ITEM || entry.type === PACKING_ITEM_TYPE.TODO) {
+      setDraftType(entry.type);
+    }
+    const category = String(entry.category || '').trim();
+    setDraftCategory(category);
+    setDraftCategoryIcon(getPackingCategoryIcon(category, entry.categoryIcon));
+  };
+
+  const handleDraftNameChange = (value) => {
+    setDraftName(value);
+
+    if (value.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const history = (list?.items || []).map((item) => ({
+      name: item.name,
+      type: item.type,
+      category: item.category,
+      categoryIcon: item.categoryIcon,
+    }));
+    const merged = mergePackingAutocompleteSuggestions(value, history);
+    setSuggestions(merged);
+    setShowSuggestions(merged.length > 0);
+
+    const exact = lookupPopularPackingItem(value);
+    if (exact) {
+      applyDraftSuggestionMeta(exact);
+    } else {
+      setDraftCategory('');
+      setDraftCategoryIcon('');
+    }
+  };
+
+  const selectDraftSuggestion = (suggestion) => {
+    setDraftName(suggestion.name);
+    applyDraftSuggestionMeta(suggestion);
+    setShowSuggestions(false);
   };
 
   const handleAddItem = (event) => {
@@ -765,11 +835,25 @@ export default function PackingListPage() {
     if (!list?.id || adding || !draftName.trim()) return;
 
     const scope = tab === TAB_PERSONAL ? PACKING_SCOPE.PERSONAL : PACKING_SCOPE.COMMON;
+    const dictHit = lookupPopularPackingItem(draftName);
+    const category = draftCategory || dictHit?.category || '';
+    const categoryIcon = getPackingCategoryIcon(
+      category,
+      draftCategoryIcon || dictHit?.categoryIcon || '',
+    );
+    const type = draftType
+      || dictHit?.type
+      || PACKING_ITEM_TYPE.ITEM;
+
     const item = normalizePackingItem({
       id: createPackingItemId(),
       name: draftName.trim(),
       scope,
-      type: draftType,
+      type,
+      activity: PACKING_ACTIVITY_MAIN,
+      activityIcon: '',
+      category,
+      categoryIcon,
       assignedTo: scope === PACKING_SCOPE.COMMON ? user?.uid || null : null,
       ownerId: scope === PACKING_SCOPE.PERSONAL ? user?.uid || null : null,
       checked: false,
@@ -779,8 +863,10 @@ export default function PackingListPage() {
 
     setAdding(true);
     setSessionTouched(true);
-    setList((prev) => (prev ? { ...prev, items: [...(prev.items || []), item] } : prev));
-    setDraftName('');
+    setList((prev) => (prev
+      ? { ...prev, items: mergePackingItemsBatch(prev.items || [], [item]) }
+      : prev));
+    resetDraftForm();
     setAdding(false);
   };
 
@@ -791,13 +877,17 @@ export default function PackingListPage() {
     const additions = entries
       .map((entry) => {
         const scope = entry?.scope || scopeFallback;
+        const dictHit = lookupPopularPackingItem(entry?.name);
+        const category = String(entry?.category || dictHit?.category || '').trim();
         return normalizePackingItem({
           id: createPackingItemId(),
           name: entry?.name,
           scope,
-          type: entry?.type || PACKING_ITEM_TYPE.ITEM,
-          category: entry?.category || '',
-          categoryIcon: entry?.categoryIcon || '',
+          type: entry?.type || dictHit?.type || PACKING_ITEM_TYPE.ITEM,
+          activity: entry?.activity ?? PACKING_ACTIVITY_MAIN,
+          activityIcon: entry?.activityIcon || '',
+          category,
+          categoryIcon: getPackingCategoryIcon(category, entry?.categoryIcon || dictHit?.categoryIcon),
           assignedTo: scope === PACKING_SCOPE.COMMON ? user?.uid || null : null,
           ownerId: scope === PACKING_SCOPE.PERSONAL ? user?.uid || null : null,
           checked: false,
@@ -808,7 +898,9 @@ export default function PackingListPage() {
 
     if (additions.length === 0) return;
     setSessionTouched(true);
-    setList((prev) => (prev ? { ...prev, items: [...(prev.items || []), ...additions] } : prev));
+    setList((prev) => (prev
+      ? { ...prev, items: mergePackingItemsBatch(prev.items || [], additions) }
+      : prev));
   };
 
   const renderBackButton = () => (
@@ -975,13 +1067,15 @@ export default function PackingListPage() {
               </p>
             ) : (
               <div>
-                {visibleCategoryGroups.map((group) => (
+                {visibleActivityGroups.map((group, index) => (
                   <PackingCategoryGroup
-                    key={group.category || '__uncategorized'}
-                    category={group.category}
-                    categoryIcon={group.categoryIcon}
+                    key={group.activity || '__main'}
+                    activity={group.activity}
+                    activityIcon={group.activityIcon}
                     items={group.items}
+                    groupByCategory={Boolean(list?.groupByCategory)}
                     defaultOpen
+                    isFirst={index === 0}
                     mode={tab === TAB_PERSONAL ? 'personal' : 'common'}
                     currentUserId={user?.uid}
                     currentUserName={displayName}
@@ -993,14 +1087,10 @@ export default function PackingListPage() {
                     persistedItemIds={persistedItemIds}
                     onToggle={handleToggle}
                     onAssign={handleAssign}
-                    onOpenBooking={(entry) => setTodoDetailsItem(entry)}
+                    onOpenDetails={(entry) => setDetailsItem(entry)}
                     onRemove={handleRemoveItem}
-                    onCopyToPersonal={tab === TAB_COMMON ? handleCopyToPersonal : null}
-                    onMoveToCommon={tab === TAB_PERSONAL ? handleMoveToCommon : null}
-                    onMoveToCategory={handleMoveItemToCategory}
                     onSyncStateChange={handleItemSyncStateChange}
-                    categoryOptions={categoryOptions}
-                    onRenameCategory={handleRenameCategory}
+                    onRenameActivity={handleRenameActivity}
                   />
                 ))}
               </div>
@@ -1046,19 +1136,54 @@ export default function PackingListPage() {
                 />
                 Дело
               </button>
+              {draftCategory ? (
+                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                  {draftCategoryIcon ? `${draftCategoryIcon} ` : ''}{draftCategory}
+                </span>
+              ) : null}
             </div>
-            <div className="mt-2 flex gap-2">
-              <input
-                type="text"
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
-                placeholder={draftType === PACKING_ITEM_TYPE.TODO ? 'Например: купить билеты' : 'Например: паспорт'}
-                className={`min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:bg-white ${
-                  draftType === PACKING_ITEM_TYPE.TODO
-                    ? 'focus:border-teal-300'
-                    : 'focus:border-indigo-300'
-                }`}
-              />
+            <div className="relative mt-2 flex gap-2">
+              <div className="relative min-w-0 flex-1">
+                <input
+                  type="text"
+                  value={draftName}
+                  onChange={(e) => handleDraftNameChange(e.target.value)}
+                  onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                  onBlur={() => {
+                    // Даём клику по подсказке сработать до скрытия
+                    window.setTimeout(() => setShowSuggestions(false), 120);
+                  }}
+                  placeholder={draftType === PACKING_ITEM_TYPE.TODO ? 'Например: купить билеты' : 'Например: паспорт'}
+                  autoComplete="off"
+                  className={`w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:bg-white ${
+                    draftType === PACKING_ITEM_TYPE.TODO
+                      ? 'focus:border-teal-300'
+                      : 'focus:border-indigo-300'
+                  }`}
+                />
+                {showSuggestions && suggestions.length > 0 && (
+                  <ul className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-auto rounded-2xl bg-white py-1 shadow-lg ring-1 ring-black/[0.04]">
+                    {suggestions.map((suggestion) => (
+                      <li key={suggestion.name}>
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.preventDefault()}
+                          onClick={() => selectDraftSuggestion(suggestion)}
+                          className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50"
+                        >
+                          <span className="min-w-0 truncate">{suggestion.name}</span>
+                          <span className="shrink-0 text-xs text-slate-400">
+                            {suggestion.type === PACKING_ITEM_TYPE.TODO ? 'Дело' : 'Вещь'}
+                            {suggestion.category
+                              ? ` · ${suggestion.categoryIcon || ''} ${suggestion.category}`.replace(/\s+/g, ' ').trim()
+                              : ''}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               <button
                 type="submit"
                 disabled={adding || !draftName.trim()}
@@ -1079,7 +1204,7 @@ export default function PackingListPage() {
               listId={null}
               isDraft
               mode={AI_PARSE_MODE.PACKING}
-              listItems={[]}
+              listItems={list?.items || []}
               userId={user?.uid}
               footerReservePx={88}
               placeholder={packingAiPlaceholder}
@@ -1171,11 +1296,20 @@ export default function PackingListPage() {
         readOnly={!canEditSettings || isExternalGuest}
       />
 
-      <PackingTodoDetailsModal
-        open={Boolean(todoDetailsItem)}
-        item={todoDetailsItem}
-        onClose={() => setTodoDetailsItem(null)}
-        onSave={handleSaveTodoDetails}
+      <PackingItemDetailsModal
+        open={Boolean(detailsItem)}
+        item={detailsItem}
+        members={familyMembers}
+        currentUserId={user?.uid}
+        activityOptions={activityOptions}
+        tripStartDate={list?.tripStartDate || list?.travelDate || null}
+        canAssign={tab === TAB_COMMON}
+        canCopyToPersonal={tab === TAB_COMMON && !isArchivedList}
+        canMoveToCommon={tab === TAB_PERSONAL && !isArchivedList}
+        onCopyToPersonal={handleCopyToPersonal}
+        onMoveToCommon={handleMoveToCommon}
+        onClose={() => setDetailsItem(null)}
+        onSave={handleSaveItemDetails}
         readOnly={isArchivedList}
       />
     </div>

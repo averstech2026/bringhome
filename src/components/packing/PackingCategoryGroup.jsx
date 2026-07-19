@@ -1,20 +1,67 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Pencil, X } from 'lucide-react';
 import PackingItemRow from './PackingItemRow';
 import {
+  formatPackingActivityLabel,
   formatPackingCategoryLabel,
-  PACKING_UNCATEGORIZED_LABEL,
-  resolvePackingCategoryRename,
+  groupPackingItemsByItemCategory,
+  isPackingMainActivity,
+  PACKING_ACTIVITY_MAIN,
+  PACKING_MAIN_LIST_LABEL,
+  resolvePackingActivityRename,
 } from '../../utils/packingLists';
 
+function PackingItemList({
+  items,
+  mode,
+  currentUserId,
+  currentUserName,
+  currentUserPhotoUrl,
+  membersById,
+  members,
+  busyItemId,
+  cloudSync,
+  persistedItemIds,
+  onToggle,
+  onAssign,
+  onOpenDetails,
+  onRemove,
+  onSyncStateChange,
+}) {
+  return (
+    <ul className="divide-y divide-slate-100">
+      {items.map((item) => (
+        <PackingItemRow
+          key={item.id}
+          item={item}
+          mode={mode}
+          currentUserId={currentUserId}
+          currentUserName={currentUserName}
+          currentUserPhotoUrl={currentUserPhotoUrl}
+          membersById={membersById}
+          members={members}
+          busy={busyItemId === item.id}
+          cloudSync={cloudSync && (persistedItemIds ? persistedItemIds.has(item.id) : true)}
+          onToggle={(next) => onToggle?.(item, next)}
+          onAssign={(userId) => onAssign?.(item, userId)}
+          onOpenDetails={onOpenDetails}
+          onRemove={onRemove}
+          onSyncStateChange={onSyncStateChange}
+        />
+      ))}
+    </ul>
+  );
+}
+
 /**
- * Аккордеон-блок пунктов сборов по теме активности (category из ИИ)
- * или «Без категории» для обычных пунктов.
+ * Аккордеон-блок пунктов сборов по разделу (activity),
+ * внутри — подгруппы по category (тег вещи).
  */
 export default function PackingCategoryGroup({
-  category = '',
-  categoryIcon = '',
+  activity = PACKING_ACTIVITY_MAIN,
+  activityIcon = '',
   items = [],
+  groupByCategory = false,
   defaultOpen = true,
   mode = 'common',
   currentUserId,
@@ -25,25 +72,31 @@ export default function PackingCategoryGroup({
   busyItemId = null,
   onToggle,
   onAssign,
-  onOpenBooking,
+  onOpenDetails,
   onRemove,
-  onCopyToPersonal = null,
-  onMoveToCommon = null,
-  onMoveToCategory = null,
-  categoryOptions = [],
-  onRenameCategory = null,
+  onRenameActivity = null,
   onSyncStateChange = null,
   cloudSync = false,
   persistedItemIds = null,
+  isFirst = false,
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const inputRef = useRef(null);
 
-  const label = formatPackingCategoryLabel(category, categoryIcon);
+  const label = formatPackingActivityLabel(activity, activityIcon);
   const checkedCount = items.filter((item) => item.checked).length;
-  const canRename = typeof onRenameCategory === 'function';
+  const canRename = typeof onRenameActivity === 'function';
+  const isMain = isPackingMainActivity(activity);
+
+  const categoryGroups = useMemo(
+    () => groupPackingItemsByItemCategory(items),
+    [items],
+  );
+  // Подзаголовки категорий — только если тумблер включён и есть хотя бы одна категория.
+  const showCategoryHeaders = groupByCategory
+    && categoryGroups.some((group) => Boolean(group.category));
 
   useEffect(() => {
     if (!editing) return undefined;
@@ -57,97 +110,126 @@ export default function PackingCategoryGroup({
   const startEditing = (event) => {
     event.stopPropagation();
     if (!canRename) return;
-    setDraft(String(category || '').trim());
+    setDraft(
+      isMain ? '' : String(activity || '').trim(),
+    );
     setEditing(true);
-    setOpen(true);
   };
 
-  const cancelEditing = (event) => {
-    event?.stopPropagation();
+  const cancelEditing = () => {
     setEditing(false);
     setDraft('');
   };
 
-  const commitEditing = (event) => {
-    event?.stopPropagation();
-    if (!canRename) return;
-
-    const next = resolvePackingCategoryRename(draft, { keepIcon: categoryIcon });
-    const prevKey = String(category || '').trim();
-    const nextKey = next.category;
-    const prevIcon = String(categoryIcon || '').trim();
-
-    const unchanged = nextKey === prevKey
-      && (nextKey ? next.categoryIcon === prevIcon : true);
-    if (!unchanged) {
-      onRenameCategory?.(prevKey, next);
+  const commitEditing = () => {
+    if (!canRename) {
+      cancelEditing();
+      return;
     }
+    const next = resolvePackingActivityRename(draft, { keepIcon: activityIcon });
+    const prevKey = isMain ? PACKING_ACTIVITY_MAIN : String(activity || '').trim();
+    const nextKey = next.activity;
+    const prevIcon = String(activityIcon || '').trim();
+    const unchanged = nextKey === prevKey
+      && (nextKey === PACKING_ACTIVITY_MAIN ? true : next.activityIcon === prevIcon);
+    if (!unchanged) {
+      onRenameActivity?.(prevKey, next);
+    }
+    cancelEditing();
+  };
 
-    setEditing(false);
-    setDraft('');
+  const headerBg = isMain ? 'bg-slate-50' : 'bg-indigo-50/70';
+  const titleClass = isMain ? 'text-slate-700' : 'text-indigo-900/80';
+  const metaClass = isMain ? 'text-slate-400' : 'text-indigo-500/80';
+  const iconBtnClass = isMain
+    ? 'text-slate-400 hover:bg-slate-100'
+    : 'text-indigo-500/80 hover:bg-white/60';
+
+  const rowProps = {
+    mode,
+    currentUserId,
+    currentUserName,
+    currentUserPhotoUrl,
+    membersById,
+    members,
+    busyItemId,
+    cloudSync,
+    persistedItemIds,
+    onToggle,
+    onAssign,
+    onOpenDetails,
+    onRemove,
+    onSyncStateChange,
   };
 
   return (
-    <section className="border-b border-slate-100 last:border-b-0">
-      <div className="flex items-center gap-1 bg-slate-50/90 px-2 py-1.5">
+    <section className={isFirst ? '' : 'mt-3'}>
+      <div
+        className={`flex w-full items-center gap-1 px-4 py-2.5 ${headerBg} ${
+          isFirst ? 'rounded-t-2xl' : ''
+        }`}
+      >
         {editing ? (
-          <form
-            className="flex min-w-0 flex-1 items-center gap-1"
-            onSubmit={(event) => {
-              event.preventDefault();
-              commitEditing();
-            }}
-          >
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
             <input
               ref={inputRef}
               type="text"
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  event.preventDefault();
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitEditing();
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
                   cancelEditing();
                 }
               }}
-              placeholder={PACKING_UNCATEGORIZED_LABEL}
-              maxLength={48}
-              className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 outline-none focus:border-slate-300"
+              placeholder={PACKING_MAIN_LIST_LABEL}
+              className="min-w-0 flex-1 rounded-lg border border-indigo-200 bg-white px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20"
               aria-label="Название раздела"
             />
             <button
-              type="submit"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-emerald-600 transition hover:bg-emerald-50"
+              type="button"
+              onClick={commitEditing}
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"
               aria-label="Сохранить название"
             >
-              <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+              <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />
             </button>
             <button
               type="button"
               onClick={cancelEditing}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100"
+              className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100"
               aria-label="Отменить"
             >
-              <X className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+              <X className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden />
             </button>
-          </form>
+          </div>
         ) : (
           <>
             <button
               type="button"
-              onClick={() => setOpen((value) => !value)}
-              className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:bg-slate-100/80"
-              aria-expanded={open}
+              onClick={() => setOpen((prev) => !prev)}
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
             >
-              <span className="min-w-0 flex-1 truncate text-xs font-bold uppercase tracking-wider text-slate-700">
+              <span className={`truncate text-xs font-bold uppercase tracking-wide ${titleClass}`}>
                 {label}
               </span>
-              <span className="shrink-0 text-[11px] font-semibold text-slate-400">
-                {checkedCount}/{items.length}
-              </span>
+            </button>
+            <span className={`shrink-0 text-[11px] font-medium tabular-nums ${metaClass}`}>
+              {checkedCount}/{items.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => setOpen((prev) => !prev)}
+              className={`flex h-7 w-7 items-center justify-center rounded-full transition ${iconBtnClass}`}
+              aria-expanded={open}
+              aria-label={open ? 'Свернуть раздел' : 'Развернуть раздел'}
+            >
               <ChevronDown
-                className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${
-                  open ? 'rotate-180' : ''
-                }`}
+                className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`}
                 strokeWidth={2.25}
                 aria-hidden
               />
@@ -156,7 +238,9 @@ export default function PackingCategoryGroup({
               <button
                 type="button"
                 onClick={startEditing}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                className={`flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-indigo-50 hover:text-indigo-600 ${
+                  isMain ? 'text-slate-300' : 'text-indigo-400'
+                }`}
                 aria-label={`Переименовать раздел «${label}»`}
                 title="Переименовать раздел"
               >
@@ -168,31 +252,28 @@ export default function PackingCategoryGroup({
       </div>
 
       {open ? (
-        <ul className="divide-y divide-slate-100">
-          {items.map((item) => (
-            <PackingItemRow
-              key={item.id}
-              item={item}
-              mode={mode}
-              currentUserId={currentUserId}
-              currentUserName={currentUserName}
-              currentUserPhotoUrl={currentUserPhotoUrl}
-              membersById={membersById}
-              members={members}
-              busy={busyItemId === item.id}
-              cloudSync={cloudSync && (persistedItemIds ? persistedItemIds.has(item.id) : true)}
-              onToggle={(next) => onToggle?.(item, next)}
-              onAssign={(userId) => onAssign?.(item, userId)}
-              onOpenBooking={onOpenBooking}
-              onRemove={onRemove}
-              onCopyToPersonal={onCopyToPersonal}
-              onMoveToCommon={onMoveToCommon}
-              onMoveToCategory={onMoveToCategory}
-              onSyncStateChange={onSyncStateChange}
-              categoryOptions={categoryOptions}
-            />
-          ))}
-        </ul>
+        showCategoryHeaders ? (
+          <div>
+            {categoryGroups.map((group) => {
+              const groupChecked = group.items.filter((item) => item.checked).length;
+              return (
+                <div key={group.category || '__uncategorized'}>
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-100/80 bg-white px-4 py-1.5">
+                    <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      {formatPackingCategoryLabel(group.category, group.categoryIcon)}
+                    </span>
+                    <span className="shrink-0 text-[10px] font-medium tabular-nums text-slate-400">
+                      {groupChecked}/{group.items.length}
+                    </span>
+                  </div>
+                  <PackingItemList items={group.items} {...rowProps} />
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <PackingItemList items={items} {...rowProps} />
+        )
       ) : null}
     </section>
   );

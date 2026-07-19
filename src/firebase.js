@@ -79,7 +79,8 @@ import { getStorage } from 'firebase/storage';
  *   sharedWithFamilyIds?: string[], externalFamilies?: { ... },
  *   items: [{
  *     id, name, scope ("common" | "personal"), type ("item" | "todo"),
- *     category?: string, categoryIcon?: string,  // тема активности из ИИ
+ *     activity?: string, activityIcon?: string,  // раздел списка (main | кастомная ИИ-активность)
+ *     category?: string, categoryIcon?: string,  // тег вещи (Одежда, Техника, …)
  *     assignedTo?: string|null,  // ответственный (только common)
  *     ownerId?: string|null,     // владелец личного рюкзака (только personal)
  *     checked?: boolean, statusMap?: { [uid]: boolean },  // statusMap — legacy

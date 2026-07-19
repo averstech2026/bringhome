@@ -305,9 +305,7 @@ export default function CreateListSheet({
       onClose={onClose}
       labelledBy="create-list-sheet-title"
       overlayClassName={MODAL_OVERLAY_SHEET}
-      panelClassName={`${MODAL_PANEL_WIDE} overflow-hidden pb-0 ${
-        calendarOpen ? 'sm:!max-h-none sm:overflow-visible' : ''
-      }`}
+      panelClassName={`${MODAL_PANEL_WIDE} overflow-hidden pb-0`}
     >
       <button
         type="button"

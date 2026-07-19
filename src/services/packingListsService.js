@@ -169,6 +169,7 @@ export async function createPackingList({
   familyMemberIds = [],
   travelDate = null,
   description = '',
+  groupByCategory = false,
   tripType = null,
   tripTransport = null,
   tripPurpose = null,
@@ -215,6 +216,7 @@ export async function createPackingList({
     members: nextMembers,
     items: nextItems,
     description: trimmedDescription,
+    groupByCategory: Boolean(groupByCategory),
     ...tripAxes,
     travelDate: resolvedTravelDate,
     tripStartDate: resolvedTravelDate,
@@ -288,6 +290,11 @@ export async function savePackingListAsTemplate(listId, { titleSuffix = ' (ша�
     members: Array.isArray(source.members) ? source.members : [source.createdBy],
     familyMemberIds: Array.isArray(source.members) ? source.members : [source.createdBy],
     travelDate: source.travelDate || source.tripStartDate || null,
+    description: source.description || '',
+    groupByCategory: Boolean(source.groupByCategory),
+    tripTransport: source.tripTransport,
+    tripPurpose: source.tripPurpose,
+    tripType: source.tripType || source.tripTransport || 'car',
   });
 }
 
@@ -326,6 +333,7 @@ export async function repeatPackingList(sourceId, {
     familyMemberIds: memberIds,
     travelDate: travelDate || source.travelDate || source.tripStartDate || null,
     description: source.description || '',
+    groupByCategory: Boolean(source.groupByCategory),
     tripTransport: source.tripTransport,
     tripPurpose: source.tripPurpose,
     tripType: source.tripType || source.tripTransport || 'car',
@@ -377,6 +385,8 @@ export async function addPackingItemsBatch(listId, entries, {
         name: entry?.name,
         scope: nextScope,
         type: entry?.type || type,
+        activity: entry?.activity ?? 'main',
+        activityIcon: entry?.activityIcon || '',
         category: entry?.category || '',
         categoryIcon: entry?.categoryIcon || '',
         assignedTo: nextScope === PACKING_SCOPE.COMMON

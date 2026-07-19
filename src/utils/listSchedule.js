@@ -204,6 +204,14 @@ export function formatDateParam(date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/** Компактная подпись даты: «21 июля, вт». */
+export function formatCompactDateLabel(date) {
+  if (!date) return '';
+  const day = startOfDay(date);
+  const weekdayShort = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][day.getDay()];
+  return `${day.getDate()} ${MONTHS_GENITIVE[day.getMonth()]}, ${weekdayShort}`;
+}
+
 export function parseDateParam(raw) {
   if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
   const parsed = startOfDay(new Date(`${raw}T12:00:00`));

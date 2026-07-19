@@ -30,21 +30,33 @@ export default function ScheduleCalendar({
   disabled = false,
   className = '',
   selectedClassName = 'bg-emerald-500',
+  /** Для расписания покупок: клик по «сегодня» сбрасывает в null (= сегодня по умолчанию). */
+  nullOnToday = true,
+  /** Подсвечивать сегодня, когда value пустой. */
+  highlightWhenEmpty = true,
+  /** Запретить даты раньше сегодня. */
+  disablePast = true,
 }) {
   const today = useMemo(() => getToday(), []);
-  const selectedDate = value ? startOfDay(value) : today;
+  const hasValue = Boolean(value);
+  const selectedDate = hasValue ? startOfDay(value) : today;
   const [viewMonth, setViewMonth] = useState(() => startOfDay(selectedDate));
 
   useEffect(() => {
+    if (!hasValue) return;
     setViewMonth(startOfDay(selectedDate));
-  }, [selectedDate]);
+  }, [hasValue, selectedDate]);
 
   const monthCells = useMemo(() => buildMonthGrid(viewMonth), [viewMonth]);
   const monthLabel = viewMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 
   const selectDate = (date) => {
     const normalized = startOfDay(date);
-    onChange?.(isToday(normalized, today) ? null : normalized);
+    if (nullOnToday && isToday(normalized, today)) {
+      onChange?.(null);
+      return;
+    }
+    onChange?.(normalized);
   };
 
   return (
@@ -83,8 +95,10 @@ export default function ScheduleCalendar({
             return <span key={`empty-${index}`} />;
           }
 
-          const isSelected = isSameDay(cell, selectedDate);
-          const isPast = cell < today;
+          const isSelected = hasValue
+            ? isSameDay(cell, selectedDate)
+            : highlightWhenEmpty && isToday(cell, today);
+          const isPast = disablePast && cell < today;
 
           return (
             <button

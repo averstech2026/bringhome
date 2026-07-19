@@ -32,6 +32,7 @@ import { useToast } from '../ui/ToastProvider';
 import { HINT_TEXT, INPUT_PLACEHOLDER } from './cardStyles';
 import { enrichProductsForAi } from '../../utils/enrichProductDefaults';
 import { CATEGORY_ORDER } from '../../utils/categories';
+import { PACKING_ACTIVITY_MAIN } from '../../utils/packingLists';
 
 function AiThemeIcon({ icon, className }) {
   if (icon === 'wand') {
@@ -382,15 +383,29 @@ export default forwardRef(function AiInput({
     try {
       if (isPackingMode) {
         const useSection = packingPlacement?.placement === 'section';
-        const sectionCategory = useSection ? String(packingPlacement?.category || '').trim() : '';
-        const sectionIcon = useSection ? String(packingPlacement?.categoryIcon || '').trim() : '';
+        const sectionActivity = useSection
+          ? String(packingPlacement?.activity || '').trim()
+          : '';
+        const sectionIcon = useSection
+          ? String(packingPlacement?.activityIcon || '').trim()
+          : '';
 
-        const packingItems = selected.map(({ name, type, scope }) => ({
+        const packingItems = selected.map(({
           name,
           type,
           scope,
-          category: sectionCategory,
-          categoryIcon: sectionCategory ? sectionIcon : '',
+          category,
+          categoryIcon,
+        }) => ({
+          name,
+          type,
+          scope,
+          activity: useSection && sectionActivity
+            ? sectionActivity
+            : PACKING_ACTIVITY_MAIN,
+          activityIcon: useSection && sectionActivity ? sectionIcon : '',
+          category: String(category || '').trim(),
+          categoryIcon: String(categoryIcon || '').trim(),
         }));
 
         if (isDraft) {
@@ -401,9 +416,12 @@ export default forwardRef(function AiInput({
         setSelectedIds(new Set());
         setSuccess(
           aiTheme.formatPackingSuccessMessage
-            ? aiTheme.formatPackingSuccessMessage(packingItems.length, sectionCategory || null)
-            : sectionCategory
-              ? `Добавлено ${packingItems.length} в «${sectionCategory}»`
+            ? aiTheme.formatPackingSuccessMessage(
+              packingItems.length,
+              useSection ? sectionActivity : null,
+            )
+            : sectionActivity
+              ? `Добавлено ${packingItems.length} в «${sectionActivity}»`
               : `Добавлено ${packingItems.length} позиций`,
         );
         return;

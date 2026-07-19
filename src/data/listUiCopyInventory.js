@@ -590,9 +590,9 @@ export const LIST_UI_COPY_ROWS = [
     kind: 'modal',
     role: 'Заголовок',
     shopping: '{название товара}',
-    packing: 'Детали дела (только для «Дело»)',
-    match: 'diff',
-    note: 'У покупок — ItemDetailsModal; у сборов вещи без отдельной модалки деталей.',
+    packing: 'Детали вещи / Детали дела',
+    match: 'analog',
+    note: 'У покупок — ItemDetailsModal; у сборов — PackingItemDetailsModal по клику на любой пункт.',
   },
   {
     id: 'item-details-save',

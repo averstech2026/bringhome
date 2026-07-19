@@ -12,11 +12,13 @@ import { groupItemsByCategory } from '../../utils/groupByCategory';
 import { getAiPreviewTheme } from '../../utils/uiThemes';
 import { AI_PARSE_MODE } from '../../services/aiService';
 import {
-  formatPackingCategoryLabel,
+  formatPackingActivityLabel,
+  isPackingMainActivity,
+  PACKING_ACTIVITY_MAIN,
   PACKING_ITEM_TYPE,
+  PACKING_MAIN_LIST_LABEL,
   PACKING_SCOPE,
-  PACKING_UNCATEGORIZED_LABEL,
-  resolvePackingCategoryRename,
+  resolvePackingActivityRename,
 } from '../../utils/packingLists';
 
 const MODAL_PANEL_WIDE_BASE =
@@ -226,23 +228,23 @@ function groupPackingByScope(items) {
     .map((scope) => [scope, buckets[scope]]);
 }
 
-/** Самая частая тема активности из ответа ИИ. */
+/** Самая частая кастомная activity из ответа ИИ. */
 function pickSuggestedPackingSection(items = []) {
   const counts = new Map();
 
   for (const item of items) {
-    const category = String(item?.category || '').trim();
-    if (!category || category === PACKING_UNCATEGORIZED_LABEL) continue;
-    const prev = counts.get(category) || {
+    const activity = String(item?.activity || '').trim();
+    if (!activity || isPackingMainActivity(activity)) continue;
+    const prev = counts.get(activity) || {
       count: 0,
-      category,
-      categoryIcon: '',
+      activity,
+      activityIcon: '',
     };
     prev.count += 1;
-    if (!prev.categoryIcon && item?.categoryIcon) {
-      prev.categoryIcon = String(item.categoryIcon).trim();
+    if (!prev.activityIcon && item?.activityIcon) {
+      prev.activityIcon = String(item.activityIcon).trim();
     }
-    counts.set(category, prev);
+    counts.set(activity, prev);
   }
 
   let best = null;
@@ -250,7 +252,7 @@ function pickSuggestedPackingSection(items = []) {
     if (!best || entry.count > best.count) best = entry;
   }
   return best
-    ? { category: best.category, categoryIcon: best.categoryIcon || '' }
+    ? { activity: best.activity, activityIcon: best.activityIcon || '' }
     : null;
 }
 
@@ -280,10 +282,10 @@ export default function AiPreviewModal({
 
   useEffect(() => {
     if (!open || !isPacking) return;
-    if (suggestedSection?.category) {
+    if (suggestedSection?.activity) {
       setPlacement('section');
       setSectionDraft(
-        formatPackingCategoryLabel(suggestedSection.category, suggestedSection.categoryIcon),
+        formatPackingActivityLabel(suggestedSection.activity, suggestedSection.activityIcon),
       );
     } else {
       setPlacement('default');
@@ -308,10 +310,12 @@ export default function AiPreviewModal({
   const selectedCount = items.filter((p) => selectedIds.has(p._previewId)).length;
   const allSelected = selectedCount === items.length;
   const plural = isPacking ? pluralPacking : pluralShopping;
-  const resolvedSection = resolvePackingCategoryRename(sectionDraft, {
-    keepIcon: suggestedSection?.categoryIcon || '',
+  const resolvedSection = resolvePackingActivityRename(sectionDraft, {
+    keepIcon: suggestedSection?.activityIcon || '',
   });
-  const sectionReady = Boolean(resolvedSection.category);
+  const sectionReady = Boolean(
+    resolvedSection.activity && resolvedSection.activity !== PACKING_ACTIVITY_MAIN,
+  );
   const confirmDisabled = adding
     || selectedCount === 0
     || (isPacking && placement === 'section' && !sectionReady);
@@ -324,8 +328,8 @@ export default function AiPreviewModal({
     }
     onConfirm?.({
       placement,
-      category: placement === 'section' ? resolvedSection.category : '',
-      categoryIcon: placement === 'section' ? resolvedSection.categoryIcon : '',
+      activity: placement === 'section' ? resolvedSection.activity : PACKING_ACTIVITY_MAIN,
+      activityIcon: placement === 'section' ? resolvedSection.activityIcon : '',
     });
   };
 
@@ -445,7 +449,7 @@ export default function AiPreviewModal({
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5 text-sm font-medium text-slate-800">
                   <ListPlus className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
-                  В «{PACKING_UNCATEGORIZED_LABEL}»
+                  В «{PACKING_MAIN_LIST_LABEL}»
                 </span>
                 <span className="mt-0.5 block text-[11px] text-slate-400">
                   Обычный список без отдельного раздела
@@ -465,7 +469,7 @@ export default function AiPreviewModal({
             {adding
               ? 'Добавляем…'
               : isPacking && placement === 'section' && sectionReady
-                ? `В раздел «${resolvedSection.category}» (+${selectedCount})`
+                ? `В раздел «${resolvedSection.activity}» (+${selectedCount})`
                 : `Добавить в список (+${selectedCount} ${plural(selectedCount)})`}
           </span>
         </button>
