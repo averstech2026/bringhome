@@ -349,14 +349,6 @@ function ListProgressRow({ list, progress }) {
   );
 }
 
-function ArchiveIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-    </svg>
-  );
-}
-
 function TrashIcon() {
   return (
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -460,9 +452,6 @@ export default function ListCard({
   currentUserId,
   archived = false,
   dimmed = false,
-  onArchive,
-  canArchive = true,
-  onArchiveDenied,
   onDelete,
   onRestore,
   onRepeat,
@@ -473,8 +462,7 @@ export default function ListCard({
   linkState,
 }) {
   const customBadge = !isBuiltinListType(list.type) ? getListTypeBadgeProps(list.type) : null;
-  const showArchive = onArchive || onArchiveDenied;
-  const hasActions = onRepeat || showArchive || onRestore || onDelete;
+  const hasActions = onRepeat || onRestore || onDelete;
   const isArchivedList = archived || list.archived || list.status === 'archived';
   const listHref = to ?? (isArchivedList ? `/list/${list.id}?archived=1` : `/list/${list.id}`);
   const showUnread = !isArchivedList && isListUnviewedByUser(list, currentUserId);
@@ -549,25 +537,6 @@ export default function ListCard({
               className="text-slate-500 hover:bg-blue-50 hover:text-blue-600"
             >
               <RepeatIcon />
-            </ActionButton>
-          )}
-          {showArchive && (
-            <ActionButton
-              title={canArchive ? 'В архив' : 'Нет прав на архивацию'}
-              disabled={busy}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (canArchive) onArchive?.(list);
-                else onArchiveDenied?.(list);
-              }}
-              className={
-                canArchive
-                  ? 'text-slate-400 hover:bg-amber-50 hover:text-amber-600'
-                  : 'text-slate-400 opacity-40 hover:opacity-50'
-              }
-            >
-              <ArchiveIcon />
             </ActionButton>
           )}
           {onRestore && (

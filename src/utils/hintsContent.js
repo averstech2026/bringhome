@@ -4,7 +4,7 @@ export const LEGACY_ONBOARDING_GUIDE_TYPE = 'onboarding_guide';
 
 export const VIRTUAL_WELCOME_HINT_ID = '__welcome_hint__';
 
-/** @typedef {{ id: string, title: string, description: string, emoji?: string, tip?: string, showCreateListDemo?: boolean, showAiInputDemo?: boolean, showShareDemo?: boolean, showPwaDemo?: boolean, showBookingDemo?: boolean, showThemesDemo?: boolean }} HintGuideStep */
+/** @typedef {{ id: string, title: string, description: string, emoji?: string, tip?: string, showCreateListDemo?: boolean, showAiInputDemo?: boolean, showShareDemo?: boolean, showPwaDemo?: boolean, showBookingDemo?: boolean, showThemesDemo?: boolean, showHomeDesktopDemo?: boolean, showPackingAiDemo?: boolean, showPackingBackpackDemo?: boolean }} HintGuideStep */
 
 /** @typedef {{ hintId: string, title: string, body: string, steps: HintGuideStep[] }} SystemHint */
 
@@ -192,6 +192,44 @@ export const SYSTEM_HINTS = [
         description:
           'В настройках включите push — будете получать оповещения о новых списках, изменениях и объявлениях от администратора.',
         emoji: '🔔',
+      },
+    ],
+  },
+  {
+    hintId: 'packing_lists',
+    title: 'Списки сборов',
+    body: 'Как листать столы, пользоваться сборами, ИИ-вводом и рюкзаками.',
+    steps: [
+      {
+        id: 'desktops',
+        title: 'Два рабочих стола',
+        description:
+          'На главном экране смахните влево или вправо: слева — «Список покупок», справа — «Списки сборов». Точки внизу показывают, на каком столе вы сейчас.',
+        showHomeDesktopDemo: true,
+        tip: '💡 Совет: край соседнего стола слегка «выглядывает» — так проще понять, куда смахнуть.',
+      },
+      {
+        id: 'packing_list',
+        title: 'Как пользоваться сборами',
+        description:
+          'На столе «Сборы» нажмите «+», выберите тип поездки и название. Внутри списка добавляйте вещи и дела, группируйте их по разделам и отмечайте собранное галочкой.',
+        emoji: '🧳',
+        tip: '💡 Совет: из общих вещей можно скопировать пункт в «Мой рюкзак» — он появится только у вас.',
+      },
+      {
+        id: 'packing_ai',
+        title: 'ИИ-ввод в сборах',
+        description:
+          'Внизу списка — поле ИИ: напишите или вставьте текст вроде «едем на море / купальник, зарядка, купить билеты». ИИ разложит позиции на вещи и дела, а перед добавлением спросит — в новый раздел или «Без категории».',
+        showPackingAiDemo: true,
+        tip: '💡 Совет: для каждой позиции можно выбрать «Общие» или «Личные» — куда именно положить.',
+      },
+      {
+        id: 'backpacks',
+        title: 'Общий и личный рюкзак',
+        description:
+          '«Общие вещи и дела» видны всей семье: кто что берёт и что уже собрано. «Мой рюкзак» — только ваши личные вещи; чужие рюкзаки вам не видны.',
+        showPackingBackpackDemo: true,
       },
     ],
   },

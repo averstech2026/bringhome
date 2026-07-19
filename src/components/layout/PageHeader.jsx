@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import ScreenTopPanel, { ScreenTopBar } from './ScreenTopPanel';
 
 function ChevronLeftIcon() {
@@ -16,10 +17,21 @@ function ChevronLeftIcon() {
   );
 }
 
-export default function PageHeader({ title, backTo, rightAction = null }) {
+export default function PageHeader({
+  title,
+  backTo,
+  onBack = null,
+  rightAction = null,
+  onTitleClick = null,
+  titleAriaLabel = 'Настройки',
+}) {
   const navigate = useNavigate();
 
   const handleBack = () => {
+    if (onBack) {
+      onBack();
+      return;
+    }
     if (backTo) {
       navigate(backTo);
     } else {
@@ -39,7 +51,19 @@ export default function PageHeader({ title, backTo, rightAction = null }) {
           <ChevronLeftIcon />
         </button>
 
-        <h1 className="min-w-0 flex-1 truncate text-lg font-bold text-slate-900">{title}</h1>
+        {onTitleClick ? (
+          <button
+            type="button"
+            onClick={onTitleClick}
+            className="flex min-w-0 flex-1 items-center gap-0.5 rounded-lg py-1 pr-1 text-left transition hover:bg-slate-50 active:bg-slate-100"
+            aria-label={titleAriaLabel}
+          >
+            <h1 className="min-w-0 truncate text-lg font-bold text-slate-900">{title}</h1>
+            <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+          </button>
+        ) : (
+          <h1 className="min-w-0 flex-1 truncate text-lg font-bold text-slate-900">{title}</h1>
+        )}
 
         <div className="flex h-10 w-10 shrink-0 items-center justify-end">
           {rightAction ?? <span className="block h-10 w-10 shrink-0" aria-hidden />}

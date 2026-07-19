@@ -21,7 +21,7 @@ import {
 } from '../services/pushNotification';
 import { UserAvatar } from '../components/profile/UserAvatar';
 import PageHeader from '../components/layout/PageHeader';
-import { CARD_SURFACE, PRIMARY_BTN } from '../components/list/cardStyles';
+import { CARD_SURFACE, CHIP_BUTTON_SURFACE, PRIMARY_BTN } from '../components/list/cardStyles';
 import { useToast } from '../components/ui/ToastProvider';
 import { AVATAR_FILE_TOO_LARGE_MESSAGE, validateAvatarFile } from '../utils/avatarUpload';
 import {
@@ -31,6 +31,8 @@ import {
   resolveUiTheme,
   setCachedUiTheme,
 } from '../utils/uiThemes';
+import { HOME_DESKTOP, HOME_DESKTOP_OPTIONS } from '../utils/homeDesktops';
+import { PACKING_ACCENT, SHOPPING_ACCENT } from '../utils/contextAccents';
 import UiThemeModal from '../components/profile/UiThemeModal';
 import packageJson from '../../package.json';
 
@@ -497,6 +499,54 @@ export default function SettingsPage() {
         )}
 
         <section className={`mt-6 overflow-hidden ${CARD_SURFACE}`}>
+          <div className="px-4 py-4">
+            <div className="min-w-0">
+              <p className="text-[15px] text-slate-800">Стартовый экран</p>
+              <p className="mt-0.5 text-xs text-slate-400">
+                Какой рабочий стол открывать на главной при запуске
+              </p>
+            </div>
+            <div
+              className="mt-3 flex gap-2"
+              role="radiogroup"
+              aria-label="Стартовый экран"
+            >
+              {HOME_DESKTOP_OPTIONS.map((option) => {
+                const selected = settings.defaultHomeDesktop === option.id;
+                const isTravel = option.id === HOME_DESKTOP.TRAVEL;
+                const accent = isTravel ? PACKING_ACCENT : SHOPPING_ACCENT;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => updateSetting('defaultHomeDesktop', option.id)}
+                    className={`${CHIP_BUTTON_SURFACE} flex-1 ${
+                      selected
+                        ? isTravel
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                          : 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : `border-gray-200 text-slate-600 hover:border-gray-300 hover:bg-slate-50 ${
+                            isTravel ? 'hover:border-indigo-200' : 'hover:border-emerald-200'
+                          }`
+                    }`}
+                  >
+                    <span className="inline-flex items-center justify-center gap-1.5">
+                      <span
+                        className={`h-2 w-2 shrink-0 rounded-full ${selected ? accent.solid : 'bg-slate-300'}`}
+                        aria-hidden
+                      />
+                      {option.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mx-4 border-t border-gray-100" />
+
           <div className="flex items-center justify-between gap-4 px-4 py-4">
             <div className="min-w-0">
               <p className="text-[15px] text-slate-800">Группировать завершенные списки по датам</p>

@@ -23,7 +23,7 @@ import { acceptListShare } from '../services/listShareService';
 import { isCrossFamilySharedList } from '../utils/listShare';
 import { getFamily } from '../services/familiesService';
 import ListHeaderProgress from '../components/list/ListHeaderProgress';
-import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, clearAllListItems, updateList, markListViewed, updateItemsBookingBatch, addItemsBatch, toggleItem, updateItemQuantity, updateItemCategory, updateItemComment, updateItemBooking, deleteItem } from '../services/listsService';
+import { ensureListAccess, ensureArchivedListAccess, saveToProductHistory, getListItemsForRepeat, clearAllListItems, updateList, markListViewed, updateItemsBookingBatch, addItemsBatch, toggleItem, updateItemQuantity, updateItemCategory, updateItemComment, updateItemBooking, deleteItem, archiveList } from '../services/listsService';
 import { groupItemsByCategory, getListProgress } from '../utils/groupByCategory';
 import CategoryGroup from '../components/list/CategoryGroup';
 import AddItemForm from '../components/list/AddItemForm';
@@ -34,7 +34,9 @@ import { getFamilyMembers } from '../services/usersService';
 import ListHeaderOwnerAvatar from '../components/list/ListHeaderOwnerAvatar';
 import CreateListSheet from '../components/home/CreateListSheet';
 import RepeatListModal from '../components/home/RepeatListModal';
+import ArchiveAccessModal from '../components/home/ArchiveAccessModal';
 import { saveRepeatDraft } from '../utils/repeatDraftStorage';
+import { canArchiveList, getListArchiveAdmins } from '../utils/listPermissions';
 import {
   CARD_SURFACE,
   CARD_PAD_V,
@@ -217,6 +219,8 @@ export default function ListPage() {
   const [repeatBusy, setRepeatBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsArchiving, setSettingsArchiving] = useState(false);
+  const [archiveAccessList, setArchiveAccessList] = useState(null);
   const [currentFamily, setCurrentFamily] = useState(null);
   const [ownerFamily, setOwnerFamily] = useState(null);
   const [isHighlighting, setIsHighlighting] = useState(false);
@@ -986,9 +990,48 @@ export default function ListPage() {
     }
   };
 
+  const canArchiveCurrentList = Boolean(
+    !isDraft
+    && list
+    && user?.uid
+    && canArchiveList(list, user.uid, isSuperAdmin),
+  );
+
+  const handleArchiveDenied = () => {
+    if (!list) return;
+    setArchiveAccessList(list);
+  };
+
+  const handleArchiveList = async () => {
+    if (!list?.id || !user?.uid || settingsArchiving || isDraft || isReadOnlyView) return;
+
+    if (!canArchiveList(list, user.uid, isSuperAdmin)) {
+      setArchiveAccessList(list);
+      return;
+    }
+
+    setSettingsArchiving(true);
+    try {
+      await archiveList(list.id, user.uid);
+      await cancelListReminder(list.id).catch(() => {});
+      toast.success('Список отправлен в архив');
+      setSettingsOpen(false);
+      navigate('/', { replace: true });
+    } catch (err) {
+      toast.error(err?.message || 'Не удалось отправить список в архив');
+    } finally {
+      setSettingsArchiving(false);
+    }
+  };
+
   const listDescription = isDraft ? draftDescription : list?.description || '';
   const listScheduledFor = isDraft ? draftScheduledFor : parseListScheduledFor(list);
   const settingsListType = isDraft ? listType : list?.type || 'home';
+  const archiveCreatorName = list?.createdBy
+    ? membersById[list.createdBy]?.displayName
+      || membersById[list.createdBy]?.email?.split('@')[0]
+      || null
+    : null;
 
   const showFooter = !isAdminView && (isDraft || isArchivedView || isEditMode);
   const isCloudSyncing = syncingCount > 0;
@@ -1331,8 +1374,18 @@ export default function ListPage() {
       <CreateListSheet
         open={settingsOpen}
         mode="settings"
-        onClose={() => setSettingsOpen(false)}
+        onClose={() => !settingsArchiving && setSettingsOpen(false)}
         onConfirm={handleSaveSettings}
+        onArchive={!isDraft ? handleArchiveList : null}
+        onArchiveDenied={!isDraft ? handleArchiveDenied : null}
+        canArchive={canArchiveCurrentList}
+        archiving={settingsArchiving}
+        archiveCreatorName={archiveCreatorName}
+        adminArchivingOthers={Boolean(
+          isSuperAdmin
+          && list?.createdBy
+          && list.createdBy !== user?.uid,
+        )}
         canCreateCustom={isSuperAdmin}
         initialType={settingsListType}
         initialScheduledFor={listScheduledFor}
@@ -1343,6 +1396,12 @@ export default function ListPage() {
         currentUserId={user?.uid}
         ownerFamilyName={currentFamily?.name || ''}
         ownerFamilyAvatarUrl={currentFamily?.avatarUrl || null}
+      />
+
+      <ArchiveAccessModal
+        open={Boolean(archiveAccessList)}
+        contacts={archiveAccessList ? getListArchiveAdmins(archiveAccessList, membersById) : []}
+        onClose={() => setArchiveAccessList(null)}
       />
     </div>
   );

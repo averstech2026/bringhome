@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { getListProgress } from '../../utils/groupByCategory';
 import ConfirmModal from '../ui/ConfirmModal';
+import { getContextAccent } from '../../utils/contextAccents';
 
 const PILL_CLASS =
   'flex h-5 min-w-[2.75rem] shrink-0 items-center justify-center gap-0.5 rounded-full text-center text-[11px] font-semibold tabular-nums';
@@ -13,10 +14,10 @@ function CheckIcon() {
   );
 }
 
-function ProgressPill({ checked, total, percent, done = false }) {
+function ProgressPill({ checked, total, percent, done = false, accent }) {
   if (done) {
     return (
-      <div className={`${PILL_CLASS} bg-emerald-500 text-white`}>
+      <div className={`${PILL_CLASS} ${accent.barDone} text-white`}>
         <CheckIcon />
         <span>
           {checked}/{total}
@@ -26,9 +27,9 @@ function ProgressPill({ checked, total, percent, done = false }) {
   }
 
   return (
-    <div className={`${PILL_CLASS} relative overflow-hidden bg-emerald-50 text-emerald-700`}>
+    <div className={`${PILL_CLASS} relative overflow-hidden ${accent.pillBg} ${accent.pillText}`}>
       <div
-        className="absolute inset-y-0 left-0 bg-emerald-100 transition-all duration-500 ease-out"
+        className={`absolute inset-y-0 left-0 ${accent.pillFill} transition-all duration-500 ease-out`}
         style={{ width: `${percent}%` }}
       />
       <span className="relative whitespace-nowrap">
@@ -78,12 +79,16 @@ export default function ListHeaderProgress({
   clearing = false,
   inline = false,
   className = '',
+  ariaLabel = null,
+  tone = 'shopping',
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const accent = getContextAccent(tone);
   const { total, checked, allDone, percent } = getListProgress(items);
   const done = allDone && total > 0;
   const barPercent = done ? 100 : percent;
   const showClear = Boolean(onClear) && total > 0;
+  const progressAriaLabel = ariaLabel || `Куплено ${checked} из ${total}`;
 
   const handleConfirmClear = () => {
     onClear?.();
@@ -110,14 +115,20 @@ export default function ListHeaderProgress({
           aria-valuenow={checked}
           aria-valuemin={0}
           aria-valuemax={total}
-          aria-label={`Куплено ${checked} из ${total}`}
+          aria-label={progressAriaLabel}
         >
           <div
-            className={`h-full rounded-full ${done ? 'bg-emerald-500' : 'bg-emerald-400 transition-all duration-500 ease-out'}`}
+            className={`h-full rounded-full ${done ? accent.barDone : `${accent.bar} transition-all duration-500 ease-out`}`}
             style={{ width: total > 0 ? `${barPercent}%` : '0%' }}
           />
         </div>
-        <ProgressPill checked={checked} total={total} percent={percent} done={done} />
+        <ProgressPill
+          checked={checked}
+          total={total}
+          percent={percent}
+          done={done}
+          accent={accent}
+        />
         {showClear && !inline && (
           <ClearButton clearing={clearing} onClick={() => setConfirmOpen(true)} />
         )}

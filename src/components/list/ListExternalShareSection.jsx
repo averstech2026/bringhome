@@ -32,12 +32,12 @@ function FamilyAvatarBadge({ family, className = FAMILY_AVATAR_CLASS }) {
   );
 }
 
-async function shareOrCopyUrl(url, toast) {
+async function shareOrCopyUrl(url, toast, { title, text } = {}) {
   if (navigator.share) {
     try {
       await navigator.share({
-        title: 'Совместный список покупок',
-        text: 'Присоединяйтесь к нашему списку в КупиДомой',
+        title: title || 'Совместный список покупок',
+        text: text || 'Присоединяйтесь к нашему списку в КупиДомой',
         url,
       });
       return;
@@ -58,6 +58,11 @@ export default function ListExternalShareSection({
   ownerFamilyAvatarUrl,
   disabled = false,
   onAccessChanged,
+  ensureInvite = ensureListShareInvite,
+  revokeAccess = revokeExternalFamilyAccess,
+  shareTitle = 'Совместный список покупок',
+  shareText = 'Присоединяйтесь к нашему списку в КупиДомой',
+  hintText = 'Подключите родственников или друзей — они увидят список у себя и смогут бронировать позиции',
 }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -78,8 +83,8 @@ export default function ListExternalShareSection({
     if (disabled || busy) return;
     setBusy(true);
     try {
-      const { url } = await ensureListShareInvite(listId, currentUserId, shareMeta);
-      await shareOrCopyUrl(url, toast);
+      const { url } = await ensureInvite(listId, currentUserId, shareMeta);
+      await shareOrCopyUrl(url, toast, { title: shareTitle, text: shareText });
       onAccessChanged?.();
     } catch (err) {
       toast.error(err?.message || 'Не удалось создать ссылку');
@@ -92,7 +97,7 @@ export default function ListExternalShareSection({
     if (disabled || busy) return;
     setBusy(true);
     try {
-      const { url } = await ensureListShareInvite(listId, currentUserId, shareMeta);
+      const { url } = await ensureInvite(listId, currentUserId, shareMeta);
       await navigator.clipboard.writeText(url);
       toast.success('Ссылка скопирована!', { durationMs: 2500 });
     } catch (err) {
@@ -106,7 +111,7 @@ export default function ListExternalShareSection({
     if (disabled || revokingId) return;
     setRevokingId(familyId);
     try {
-      await revokeExternalFamilyAccess(listId, familyId);
+      await revokeAccess(listId, familyId);
       toast.success(`Доступ закрыт: ${familyName}`);
       onAccessChanged?.();
     } catch (err) {
@@ -119,9 +124,7 @@ export default function ListExternalShareSection({
   return (
     <div className="mt-5">
       <p className="text-sm font-medium text-slate-700">Совместно с другой семьёй</p>
-      <p className="mt-1 text-xs text-slate-400">
-        Подключите родственников или друзей — они увидят список у себя и смогут бронировать позиции
-      </p>
+      <p className="mt-1 text-xs text-slate-400">{hintText}</p>
 
       <button
         type="button"

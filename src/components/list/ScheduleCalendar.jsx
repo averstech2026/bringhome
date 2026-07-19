@@ -29,6 +29,7 @@ export default function ScheduleCalendar({
   onChange,
   disabled = false,
   className = '',
+  selectedClassName = 'bg-emerald-500',
 }) {
   const today = useMemo(() => getToday(), []);
   const selectedDate = value ? startOfDay(value) : today;
@@ -93,7 +94,7 @@ export default function ScheduleCalendar({
               onClick={() => selectDate(cell)}
               className={`flex h-8 w-full items-center justify-center rounded-lg text-xs font-medium transition ${
                 isSelected
-                  ? 'bg-emerald-500 text-white'
+                  ? `${selectedClassName} text-white`
                   : isPast
                     ? 'cursor-not-allowed text-slate-300'
                     : 'text-slate-700 hover:bg-white'

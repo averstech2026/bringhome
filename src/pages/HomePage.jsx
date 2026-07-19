@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -6,7 +6,6 @@ import { useUserProfile } from '../hooks/useUserProfile';
 import {
   getHomePageLists,
   getItemsProgressByListIds,
-  archiveList,
   updateList,
 } from '../services/listsService';
 import { getFamilyMembers, setOnboardingCompleted, markAnnouncementsAsRead } from '../services/usersService';
@@ -17,14 +16,15 @@ import {
 import CreateListFab from '../components/home/CreateListFab';
 import CreateListSheet from '../components/home/CreateListSheet';
 import RequestCustomTypeModal from '../components/home/RequestCustomTypeModal';
+import HomeDesktopPager from '../components/home/HomeDesktopPager';
+import TravelListsDesktop from '../components/home/TravelListsDesktop';
+import CreatePackingListSheet from '../components/packing/CreatePackingListSheet';
 import AppHeader from '../components/layout/AppHeader';
 import ScreenTopPanel from '../components/layout/ScreenTopPanel';
 import ListFilterSegmentedControl from '../components/home/ListFilterSegmentedControl';
 import ListFilterEmptyState from '../components/home/ListFilterEmptyState';
 import ListCard from '../components/home/ListCard';
 import CompletedListsSection from '../components/home/CompletedListsSection';
-import ArchiveListConfirmModal from '../components/home/ArchiveListConfirmModal';
-import ArchiveAccessModal from '../components/home/ArchiveAccessModal';
 import OnboardingModal from '../components/onboarding/OnboardingModal';
 import FeatureAnnouncementModal from '../components/announcements/FeatureAnnouncementModal';
 import { useToast } from '../components/ui/ToastProvider';
@@ -35,13 +35,13 @@ import {
   syncRemindersForLists,
   syncStoredRemindersWithServiceWorker,
   pruneExpiredStoredReminders,
-  cancelListReminder,
 } from '../services/scheduledNotifications';
-import { canArchiveList, getListArchiveAdmins, isListOwner, isListSharedWithUser } from '../utils/listPermissions';
+import { isListOwner, isListSharedWithUser } from '../utils/listPermissions';
 import { isCrossFamilySharedList, isExternalGuestList, isListOwnerFamily } from '../utils/listShare';
 import { getListFamilyId } from '../utils/familyGroup';
 import { getFamily } from '../services/familiesService';
 import { syncGuestFamilySnapshotOnLists } from '../services/listShareService';
+import { syncGuestFamilySnapshotOnPackingLists } from '../services/packingListShareService';
 import { clearRepeatDraft } from '../utils/repeatDraftStorage';
 import {
   clearOnboardingSkippedThisSession,
@@ -51,6 +51,13 @@ import {
 } from '../utils/onboardingContent';
 import { formatDateParam } from '../utils/listSchedule';
 import { filterHomeLists, HOME_LIST_FILTER } from '../utils/homeListFilter';
+import { HOME_DESKTOP, homeDesktopToIndex } from '../utils/homeDesktops';
+import { resolveUiTheme } from '../utils/uiThemes';
+import {
+  createPackingList,
+  getFamilyPackingLists,
+  isPackingListArchived,
+} from '../services/packingListsService';
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -63,22 +70,29 @@ export default function HomePage() {
   const [listProgress, setListProgress] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [busyId, setBusyId] = useState(null);
-  const [archiveConfirmTarget, setArchiveConfirmTarget] = useState(null);
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [requestCustomOpen, setRequestCustomOpen] = useState(false);
-  const [archiveAccessList, setArchiveAccessList] = useState(null);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState([]);
   const [listFilter, setListFilter] = useState(HOME_LIST_FILTER.ALL);
+  const [desktopIndex, setDesktopIndex] = useState(() =>
+    homeDesktopToIndex(settings.defaultHomeDesktop),
+  );
+  const [createPackingOpen, setCreatePackingOpen] = useState(false);
+  const [packingBusy, setPackingBusy] = useState(false);
+  const [packingTemplates, setPackingTemplates] = useState([]);
+  const [packingRefreshKey, setPackingRefreshKey] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const canManageList = useCallback(
-    (list) => canArchiveList(list, user?.uid, isSuperAdmin),
-    [isSuperAdmin, user?.uid],
-  );
+  const uiTheme = resolveUiTheme(profile, user?.uid);
+  const initialDesktopIndex = useMemo(() => {
+    if (location.state?.homeDesktop) {
+      return homeDesktopToIndex(location.state.homeDesktop);
+    }
+    return homeDesktopToIndex(settings.defaultHomeDesktop);
+  }, [settings.defaultHomeDesktop, location.state?.homeDesktop]);
 
   const loadLists = useCallback(async () => {
     if (!user?.uid || !familyId) return;
@@ -159,6 +173,10 @@ export default function HomePage() {
         const ownFamily = familiesMap[familyId];
         if (ownFamily) {
           syncGuestFamilySnapshotOnLists(familyId, {
+            familyName: ownFamily.name,
+            familyAvatarUrl: ownFamily.avatarUrl || null,
+          }).catch(() => {});
+          syncGuestFamilySnapshotOnPackingLists(familyId, {
             familyName: ownFamily.name,
             familyAvatarUrl: ownFamily.avatarUrl || null,
           }).catch(() => {});
@@ -266,6 +284,49 @@ export default function HomePage() {
     setCreateSheetOpen(true);
   };
 
+  const handleOpenCreatePacking = async () => {
+    setCreatePackingOpen(true);
+    if (!familyId) return;
+    try {
+      const all = await getFamilyPackingLists(familyId);
+      setPackingTemplates(all.filter((list) => list.isTemplate && !isPackingListArchived(list)));
+    } catch {
+      setPackingTemplates([]);
+    }
+  };
+
+  const handleCreatePackingConfirm = async ({ title, templateId, travelDate }) => {
+    if (!user?.uid || !familyId || packingBusy) return;
+    setPackingBusy(true);
+    try {
+      let familyMemberIds = [];
+      try {
+        const familyMembers = await getFamilyMembers(familyId);
+        familyMemberIds = familyMembers.map((member) => member.id);
+      } catch {
+        familyMemberIds = [user.uid];
+      }
+
+      const id = await createPackingList({
+        title,
+        familyId,
+        createdBy: user.uid,
+        isTemplate: false,
+        templateId,
+        isPublic: true,
+        familyMemberIds,
+        travelDate,
+      });
+      setCreatePackingOpen(false);
+      setPackingRefreshKey((key) => key + 1);
+      navigate(`/packing/${id}`, { state: { fromTravelDesktop: true } });
+    } catch (err) {
+      toast.error(err?.message || 'Не удалось создать список сборов');
+    } finally {
+      setPackingBusy(false);
+    }
+  };
+
   const handleCreateListConfirm = ({ type, scheduledFor, description = '' }) => {
     clearRepeatDraft();
     setCreateSheetOpen(false);
@@ -278,48 +339,6 @@ export default function HomePage() {
     navigate(`/list/new?${params.toString()}`, {
       state: description.trim() ? { description: description.trim() } : undefined,
     });
-  };
-
-  const handleArchiveRequest = (list) => {
-    if (!user?.uid || !list) return;
-
-    if (!canArchiveList(list, user.uid, isSuperAdmin)) {
-      setArchiveAccessList(list);
-      return;
-    }
-
-    setArchiveConfirmTarget(list);
-  };
-
-  const handleConfirmArchive = async () => {
-    const list = archiveConfirmTarget;
-    if (!list?.id || !user?.uid || busyId) return;
-
-    if (!canArchiveList(list, user.uid, isSuperAdmin)) {
-      setArchiveConfirmTarget(null);
-      setArchiveAccessList(list);
-      return;
-    }
-
-    const listId = list.id;
-    setBusyId(listId);
-    setLists((prev) => prev.filter((item) => item.id !== listId));
-    setListProgress((prev) => {
-      const next = { ...prev };
-      delete next[listId];
-      return next;
-    });
-
-    try {
-      await archiveList(listId, user.uid);
-      await cancelListReminder(listId);
-      setArchiveConfirmTarget(null);
-    } catch (err) {
-      toast.error(err?.message || 'Не удалось отправить список в архив');
-      await loadLists();
-    } finally {
-      setBusyId(null);
-    }
   };
 
   const activeLists = sortActiveListsBySchedule(
@@ -349,21 +368,27 @@ export default function HomePage() {
   const hasFilteredActiveLists = filteredMyActiveLists.length > 0 || filteredSharedActiveLists.length > 0;
   const showListFilter = !loading && !profileLoading && lists.length > 0;
 
-  const renderActiveSectionHeader = (title, { showFilter = false, className = 'mb-2' } = {}) => (
-    <div className={`flex w-full items-center justify-between gap-2 pl-1 ${className}`}>
-      <h3 className="shrink-0 text-xs font-medium text-slate-500">{title}</h3>
-      {showFilter && (
+  const renderDesktopTitle = () => (
+    <div className="flex items-center justify-between gap-2 pl-1">
+      <h2 id="shopping-desktop-title" className="text-sm font-semibold text-slate-800">
+        Списки покупок и запасов
+      </h2>
+      {showListFilter && (
         <ListFilterSegmentedControl value={listFilter} onChange={setListFilter} />
       )}
     </div>
   );
 
-  const renderActiveListGroup = (groupLists, subtitle, { isFirst = false, showFilter = false } = {}) => {
+  const renderActiveSectionHeader = (title, { className = 'mb-2' } = {}) => (
+    <h3 className={`pl-1 text-xs font-medium text-slate-500 ${className}`}>{title}</h3>
+  );
+
+  const renderActiveListGroup = (groupLists, subtitle, { isFirst = false } = {}) => {
     if (groupLists.length === 0) return null;
 
     return (
-      <div className={isFirst ? 'mt-2' : 'mt-5'}>
-        {renderActiveSectionHeader(subtitle, { showFilter })}
+      <div className={isFirst ? 'mt-4' : 'mt-5'}>
+        {renderActiveSectionHeader(subtitle)}
         <ul className="space-y-2.5">
           {groupLists.map((list) => (
             <li key={list.id}>{renderListCard(list)}</li>
@@ -374,7 +399,6 @@ export default function HomePage() {
   };
 
   const renderListCard = (list, { dimmed = false, showCompletionDate = false } = {}) => {
-    const manageable = canManageList(list);
     const listWithAuthor = {
       ...list,
       author: authorsById[list.createdBy],
@@ -388,12 +412,8 @@ export default function HomePage() {
         familiesById={familiesById}
         viewerFamilyId={familyId}
         currentUserId={user?.uid}
-        busy={busyId === list.id}
         dimmed={dimmed}
         showCompletionDate={showCompletionDate}
-        canArchive={manageable}
-        onArchive={handleArchiveRequest}
-        onArchiveDenied={handleArchiveRequest}
       />
     );
   };
@@ -404,56 +424,79 @@ export default function HomePage() {
         <AppHeader variant="embedded" />
       </ScreenTopPanel>
 
-      <section className="mt-2">
-        {loadError && (
-          <p className={`mt-2 ${HINT_TEXT} text-red-500`}>{loadError}</p>
-        )}
+      <HomeDesktopPager
+        initialIndex={initialDesktopIndex}
+        onIndexChange={setDesktopIndex}
+      >
+        <section className="mt-2 min-h-full" aria-labelledby="shopping-desktop-title">
+          {renderDesktopTitle()}
 
-        {loading || profileLoading ? (
-          <div className="mt-6 flex justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
-          </div>
-        ) : lists.length === 0 && !loadError ? (
-          <p className={`mt-4 ${HINT_TEXT}`}>
-            Пока нет списков — создайте первый
-          </p>
-        ) : lists.length > 0 ? (
-          <>
-            {hasFilteredActiveLists ? (
-              <>
-                {renderActiveListGroup(filteredMyActiveLists, 'Мои актуальные', {
-                  isFirst: true,
-                  showFilter: showListFilter,
-                })}
-                {renderActiveListGroup(filteredSharedActiveLists, 'Доступные актуальные', {
-                  isFirst: filteredMyActiveLists.length === 0,
-                  showFilter: showListFilter && filteredMyActiveLists.length === 0,
-                })}
-              </>
-            ) : filteredCompletedLists.length === 0 ? (
-              <>
-                {showListFilter && renderActiveSectionHeader('Мои актуальные', { className: 'mb-3' })}
-                <ListFilterEmptyState
-                  filterLabel={listFilter !== HOME_LIST_FILTER.ALL ? 'Все' : null}
+          {loadError && (
+            <p className={`mt-2 ${HINT_TEXT} text-red-500`}>{loadError}</p>
+          )}
+
+          {loading || profileLoading ? (
+            <div className="mt-6 flex justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+            </div>
+          ) : lists.length === 0 && !loadError ? (
+            <p className={`mt-4 pl-1 ${HINT_TEXT}`}>
+              Пока нет списков — создайте первый
+            </p>
+          ) : lists.length > 0 ? (
+            <>
+              {hasFilteredActiveLists ? (
+                <>
+                  {renderActiveListGroup(filteredMyActiveLists, 'Мои актуальные', {
+                    isFirst: true,
+                  })}
+                  {renderActiveListGroup(filteredSharedActiveLists, 'Доступные актуальные', {
+                    isFirst: filteredMyActiveLists.length === 0,
+                  })}
+                </>
+              ) : filteredCompletedLists.length === 0 ? (
+                <div className="mt-4">
+                  {renderActiveSectionHeader('Мои актуальные', { className: 'mb-3' })}
+                  <ListFilterEmptyState
+                    filterLabel={listFilter !== HOME_LIST_FILTER.ALL ? 'Все' : null}
+                  />
+                </div>
+              ) : null}
+
+              {filteredCompletedLists.length > 0 && (
+                <CompletedListsSection
+                  key={location.key}
+                  lists={filteredCompletedLists}
+                  groupByDate={settings.groupByDate}
+                  renderListCard={(list) => renderListCard(list, { dimmed: true, showCompletionDate: true })}
                 />
-              </>
-            ) : (
-              showListFilter && renderActiveSectionHeader('Мои актуальные', { className: 'mb-0' })
-            )}
+              )}
+            </>
+          ) : null}
+        </section>
 
-            {filteredCompletedLists.length > 0 && (
-              <CompletedListsSection
-                key={location.key}
-                lists={filteredCompletedLists}
-                groupByDate={settings.groupByDate}
-                renderListCard={(list) => renderListCard(list, { dimmed: true, showCompletionDate: true })}
-              />
-            )}
-          </>
-        ) : null}
-      </section>
+        <TravelListsDesktop
+          familyId={familyId}
+          currentUserId={user?.uid}
+          isFamilyAdmin={isFamilyAdmin}
+          authorsById={authorsById}
+          familiesById={familiesById}
+          uiTheme={uiTheme}
+          refreshKey={packingRefreshKey}
+        />
+      </HomeDesktopPager>
 
-      <CreateListFab onClick={handleOpenCreateSheet} disabled={loading || profileLoading} />
+      {desktopIndex === 0 && (
+        <CreateListFab onClick={handleOpenCreateSheet} disabled={loading || profileLoading} />
+      )}
+      {desktopIndex === 1 && (
+        <CreateListFab
+          onClick={handleOpenCreatePacking}
+          disabled={profileLoading || !familyId}
+          label="Создать список сборов"
+          tone="packing"
+        />
+      )}
 
       <CreateListSheet
         open={createSheetOpen}
@@ -466,36 +509,18 @@ export default function HomePage() {
         }}
       />
 
+      <CreatePackingListSheet
+        open={createPackingOpen}
+        onClose={() => !packingBusy && setCreatePackingOpen(false)}
+        onConfirm={handleCreatePackingConfirm}
+        templates={packingTemplates}
+        accentClassName="bg-indigo-600"
+        busy={packingBusy}
+      />
+
       <RequestCustomTypeModal
         open={requestCustomOpen}
         onClose={() => setRequestCustomOpen(false)}
-      />
-
-      <ArchiveListConfirmModal
-        open={Boolean(archiveConfirmTarget)}
-        listTitle={archiveConfirmTarget?.title}
-        creatorName={
-          archiveConfirmTarget
-            ? authorsById[archiveConfirmTarget.createdBy]?.displayName
-              || authorsById[archiveConfirmTarget.createdBy]?.email?.split('@')[0]
-              || null
-            : null
-        }
-        adminArchivingOthers={Boolean(
-          archiveConfirmTarget
-          && isSuperAdmin
-          && archiveConfirmTarget.createdBy
-          && archiveConfirmTarget.createdBy !== user?.uid,
-        )}
-        archiving={Boolean(archiveConfirmTarget && busyId === archiveConfirmTarget.id)}
-        onConfirm={handleConfirmArchive}
-        onCancel={() => !busyId && setArchiveConfirmTarget(null)}
-      />
-
-      <ArchiveAccessModal
-        open={Boolean(archiveAccessList)}
-        contacts={archiveAccessList ? getListArchiveAdmins(archiveAccessList, authorsById) : []}
-        onClose={() => setArchiveAccessList(null)}
       />
 
       <OnboardingModal

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { ClipboardPaste, Sparkles, Sword, Wand2, Briefcase } from 'lucide-react';
-import { parseProductsWithAI } from '../../services/aiService';
+import { AI_PARSE_MODE, parsePackingItemsWithAI, parseProductsWithAI } from '../../services/aiService';
 import { getAiUsageStatus, recordAiUsage } from '../../services/aiUsageService';
 import { getFamily } from '../../services/familiesService';
 import { addItemsBatch, getProductHistoryUnit } from '../../services/listsService';
@@ -67,7 +67,12 @@ export default forwardRef(function AiInput({
   userId = null,
   footerReservePx = 0,
   disabled = false,
+  /** Переопределение плейсхолдера (например, для списков сборов). */
+  placeholder = null,
+  /** shopping — продукты; packing — вещи и дела для сборов. */
+  mode = AI_PARSE_MODE.SHOPPING,
 }, ref) {
+  const isPackingMode = mode === AI_PARSE_MODE.PACKING;
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -115,13 +120,20 @@ export default forwardRef(function AiInput({
   const showUsageBadge = !isUnlimitedAiUser(profile);
   const uiTheme = useMemo(() => resolveUiTheme(profile, user?.uid), [profile, user?.uid]);
   const aiTheme = useMemo(() => getAiInputTheme(uiTheme), [uiTheme]);
-  const textareaPlaceholder = useMemo(() => aiTheme.placeholder, [aiTheme.placeholder]);
+  const textareaPlaceholder = useMemo(
+    () => (typeof placeholder === 'string' && placeholder.trim()
+      ? placeholder
+      : aiTheme.placeholder),
+    [placeholder, aiTheme.placeholder],
+  );
 
   useCustomProductsDictionary();
 
   useEffect(() => {
+    if (isPackingMode) return undefined;
     ensureDictionaryLoaded().catch(() => {});
-  }, []);
+    return undefined;
+  }, [isPackingMode]);
 
   const focusTextareaForManualPaste = () => {
     const textarea = textareaRef.current;
@@ -264,16 +276,25 @@ export default forwardRef(function AiInput({
         }
       }
 
-      await ensureDictionaryLoaded();
-      const customDictionary = Object.values(getDictionaryCache());
-      let products = await parseProductsWithAI(text, { customDictionary });
+      let products;
 
-      products = applyAdultContentFilter(products, profile, () => {
-        toast.themed(ADULT_CONTENT_TOAST);
-      });
+      if (isPackingMode) {
+        products = await parsePackingItemsWithAI(text);
+      } else {
+        await ensureDictionaryLoaded();
+        const customDictionary = Object.values(getDictionaryCache());
+        products = await parseProductsWithAI(text, { customDictionary });
+        products = applyAdultContentFilter(products, profile, () => {
+          toast.themed(ADULT_CONTENT_TOAST);
+        });
+      }
 
       if (products.length === 0) {
-        setError('Не удалось распознать подходящие продукты');
+        setError(
+          isPackingMode
+            ? 'Не удалось распознать вещи или дела для сборов'
+            : 'Не удалось распознать подходящие продукты',
+        );
         return;
       }
 
@@ -282,12 +303,14 @@ export default forwardRef(function AiInput({
       }
       reloadProfile();
 
-      products = await enrichProductsForAi(products, {
-        listItems,
-        userId,
-        isDraft,
-        getProductHistoryUnit,
-      });
+      if (!isPackingMode) {
+        products = await enrichProductsForAi(products, {
+          listItems,
+          userId,
+          isDraft,
+          getProductHistoryUnit,
+        });
+      }
 
       const withIds = products.map((p, i) => ({ ...p, _previewId: `preview-${i}` }));
       setPreviewItems(withIds);
@@ -320,6 +343,10 @@ export default forwardRef(function AiInput({
   const toggleCategoryPreview = (category, selectAll) => {
     const ids = previewItems
       .filter((p) => {
+        if (isPackingMode) {
+          const scope = p.scope === 'personal' ? 'personal' : 'common';
+          return scope === category;
+        }
         const cat = p.category && CATEGORY_ORDER.includes(p.category) ? p.category : 'Прочее';
         return cat === category;
       })
@@ -335,7 +362,16 @@ export default forwardRef(function AiInput({
     });
   };
 
-  const handleConfirmAdd = async () => {
+  const handleChangePackingScope = (fromScope, toScope) => {
+    if (!isPackingMode || fromScope === toScope) return;
+    setPreviewItems((prev) => prev.map((item) => (
+      item.scope === fromScope
+        ? { ...item, scope: toScope }
+        : item
+    )));
+  };
+
+  const handleConfirmAdd = async (packingPlacement) => {
     const selected = previewItems.filter((p) => selectedIds.has(p._previewId));
     if (selected.length === 0 || disabled) return;
 
@@ -343,6 +379,33 @@ export default forwardRef(function AiInput({
     setError('');
 
     try {
+      if (isPackingMode) {
+        const useSection = packingPlacement?.placement === 'section';
+        const sectionCategory = useSection ? String(packingPlacement?.category || '').trim() : '';
+        const sectionIcon = useSection ? String(packingPlacement?.categoryIcon || '').trim() : '';
+
+        const packingItems = selected.map(({ name, type, scope }) => ({
+          name,
+          type,
+          scope,
+          category: sectionCategory,
+          categoryIcon: sectionCategory ? sectionIcon : '',
+        }));
+
+        if (isDraft) {
+          await onDraftAdd?.(packingItems);
+        }
+
+        setPreviewItems([]);
+        setSelectedIds(new Set());
+        setSuccess(
+          sectionCategory
+            ? `Добавлено ${packingItems.length} в «${sectionCategory}»`
+            : `Добавлено ${packingItems.length} позиций`,
+        );
+        return;
+      }
+
       let products = selected.map(({ name, quantity, category }) => ({
         name,
         quantity,
@@ -382,7 +445,9 @@ export default forwardRef(function AiInput({
           : `Добавлено ${products.length} позиций`,
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Не удалось добавить товары';
+      const message = err instanceof Error
+        ? err.message
+        : (isPackingMode ? 'Не удалось добавить пункты' : 'Не удалось добавить товары');
       setError(message);
     } finally {
       setAdding(false);
@@ -502,10 +567,12 @@ export default forwardRef(function AiInput({
         onToggleItem={togglePreviewItem}
         onToggleAll={toggleAllPreview}
         onToggleCategory={toggleCategoryPreview}
+        onChangePackingScope={handleChangePackingScope}
         onConfirm={handleConfirmAdd}
         onClose={handleDismissPreview}
         adding={adding}
         uiTheme={uiTheme}
+        mode={mode}
       />
 
       <AiLimitModal

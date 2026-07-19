@@ -103,6 +103,8 @@ flowchart TD
 
 \* Жена может менять только поля, разрешённые правилами (например, `viewedBy`), но не метаданные владельца.
 
+Архив списка покупок: кнопка «Отправить в архив» в **настройках списка** (`CreateListSheet` mode=settings). Права: владелец, `admins[]`, `super_admin` (`canArchiveList`). Без прав — `ArchiveAccessModal` с контактами, кто может архивировать.
+
 ### D. Сводная таблица «кто видит что»
 
 | Сценарий | Денис | Жена | Дочка | Ричард |
@@ -125,6 +127,43 @@ npm run test   # Vitest + Firestore Emulator (нужна Java 11+)
 ```
 
 Файл: `tests/firestore/listAccess.rules.test.js`
+
+---
+
+## Списки сборов (`packing_lists`)
+
+Отдельная коллекция для поездок/шаблонов. Доступ:
+
+| Условие | Read / Update items |
+|---|---|
+| `isPublic: true` (или нет поля `members` — legacy) в своей семье | ✅ |
+| `isPublic: false` + `members: [uids]` | ✅ uid в `members` (в т.ч. из другой семьи) |
+| `sharedWithFamilyIds` содержит семью зрителя | ✅ кросс-семейный гость |
+| Активный `shareInviteToken` (чужой тенант, до join) | ✅ только чтение для принятия ссылки |
+| `family_admin` / `super_admin` (своя семья) | ✅ |
+| Чужой тенант без members / share | ❌ 403 |
+
+Удаление — автор (своя семья) или `super_admin`.
+
+Поле `members` — явный список uid с доступом; при тумблере «Для всей семьи» туда пишутся все члены семьи.
+
+Внешний шеринг (как у `lists`): владелец создаёт `shareInviteToken` → ссылка `#/packing/{id}?share=…` → гость через `acceptPackingListShare` попадает в `sharedWithFamilyIds` и видит поездку на столе сборов в «Общие».
+
+Метаданные поездки: `tripType`, `travelDate`, `tripStartDate`, `tripEndDate`, `description` — правятся в `PackingListSettingsModal` / задаются при создании в `CreatePackingListSheet`. Чекбокс «Сохранить как шаблон» создаёт копию в `packing_lists` с `isTemplate: true` (блок «Мои шаблоны»).
+
+Архив: автор поездки в настройках может «Отправить в архив» (`archived: true`, `status: 'archived'`). Архивные списки не показываются на рабочем столе сборов (`getTravelDesktopPackingLists`).
+
+Загрузка на рабочем столе: `familyId == текущая` ∪ `members` array-contains uid ∪ `sharedWithFamilyIds` array-contains familyId (без `archived`).
+
+**Общие вещи и дела** (`scope: common`) — общий чек-лист семьи с полем `assignedTo` (кто отвечает).
+
+**Мой рюкзак** (`scope: personal` + `ownerId`) — личный список каждого участника; в UI видны только пункты с `ownerId == текущий uid`. Чужой рюкзак не показывается.
+
+| Операция | С доступом | Без доступа / чужой тенант |
+|---|---|---|
+| Read | ✅ | ❌ 403 |
+| Update (items, statusMap, members) | ✅ | ❌ 403 |
+| Delete | ✅ автор / super_admin | ❌ 403 |
 
 ---
 

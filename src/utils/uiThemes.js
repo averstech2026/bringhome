@@ -284,6 +284,20 @@ export function getNeutralExitLabel(themeId) {
   }
 }
 
+/** Плейсхолдеры ИИ-ввода для списков сборов / путешествий. */
+const PACKING_AI_PLACEHOLDERS = {
+  default: 'Например: едем в Териберку / купить билеты, зарядка, аптечка',
+  hogwarts: 'Например: едем в Хогвартс / мантия-невидимка, волшебная палочка, купить билет на Хогвартс-экспресс',
+  star_wars: 'Например: летим на Татуин / световой меч, сухой паёк, забронировать гиперпространственный прыжок',
+  paddington:
+    'Например: едем в Лондон / бутерброд с мармеладом, красная шляпа, забронировать отель',
+};
+
+export function getPackingAiPlaceholder(themeId) {
+  const id = resolveThemeId(themeId);
+  return PACKING_AI_PLACEHOLDERS[id] || PACKING_AI_PLACEHOLDERS.default;
+}
+
 export function getThemeAccent(themeId) {
   const chrome = getThemeChrome(themeId);
   return {

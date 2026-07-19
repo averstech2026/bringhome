@@ -64,6 +64,29 @@ import { getStorage } from 'firebase/storage';
  *   isRead, statusSeenByAuthor?, createdAt
  * }
  *
+ * packing_lists: {
+ *   id, title, familyId, createdBy, isTemplate, isPublic?,
+ *   members?: string[],  // uid с доступом; при isPublic — вся семья
+ *   tripType?: "car"|"plane"|"mountains"|"sea",
+ *   travelDate?: Timestamp,  // дата поездки для названия / ИИ
+ *   tripStartDate?: Timestamp, tripEndDate?: Timestamp, description?: string,
+ *   archived?: boolean, status?: "active"|"archived",
+ *   archivedAt?, archivedBy?,
+ *   shareInviteToken?, shareInviteCreatedAt?, shareInviteCreatedBy?,
+ *   ownerFamilyName?, ownerFamilyAvatarUrl?,
+ *   sharedWithFamilyIds?: string[], externalFamilies?: { ... },
+ *   items: [{
+ *     id, name, scope ("common" | "personal"), type ("item" | "todo"),
+ *     category?: string, categoryIcon?: string,  // тема активности из ИИ
+ *     assignedTo?: string|null,  // ответственный (только common)
+ *     ownerId?: string|null,     // владелец личного рюкзака (только personal)
+ *     checked?: boolean, statusMap?: { [uid]: boolean },  // statusMap — legacy
+ *     checkedBy?, checkedByUid?, checkedByPhotoUrl?,
+ *     bookingUrl?, note?
+ *   }],
+ *   createdAt, updatedAt?, creationNotifiedAt?
+ * }
+ *
  * config/setup: { initialized, adminUid, createdAt }
  */
 
@@ -119,6 +142,7 @@ export const COLLECTIONS = {
   INVITES: 'invites',
   FEEDBACKS: 'feedbacks',
   ANNOUNCEMENTS: 'announcements',
+  PACKING_LISTS: 'packing_lists',
 };
 
 export default app;

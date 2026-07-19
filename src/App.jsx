@@ -12,6 +12,7 @@ import FamilyAdminRoute from './components/auth/FamilyAdminRoute';
 import AiBadge from './components/layout/AiBadge';
 import HomePage from './pages/HomePage';
 import ListPage from './pages/ListPage';
+import PackingListPage from './pages/PackingListPage';
 import AdminSetupPage from './pages/AdminSetupPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminGroupListsPage from './pages/AdminGroupListsPage';
@@ -133,6 +134,7 @@ function AppRoutes() {
       <Route path="/settings/feedbacks" element={<MyFeedbacksPage />} />
       <Route path="/settings/notifications" element={<NotificationsPage />} />
       <Route path="/list/:listId" element={<ListPage />} />
+      <Route path="/packing/:listId" element={<PackingListPage />} />
       <Route
         path="/admin/users"
         element={
@@ -185,6 +187,7 @@ function AppShell() {
   const hideHeader =
     location.pathname === '/' ||
     location.pathname.startsWith('/list/') ||
+    location.pathname.startsWith('/packing/') ||
     location.pathname.startsWith('/settings') ||
     location.pathname.startsWith('/admin/') ||
     location.pathname.startsWith('/family/');

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_WIDE } from '../ui/AppModal';
 import ScheduleCalendar from '../list/ScheduleCalendar';
 import ListExternalShareSection from '../list/ListExternalShareSection';
+import ArchiveListConfirmModal from './ArchiveListConfirmModal';
 import { PRIMARY_BTN } from '../list/cardStyles';
 import { sanitizeCustomTypeName } from '../../utils/listTypes';
 import {
@@ -103,6 +104,12 @@ export default function CreateListSheet({
   open,
   onClose,
   onConfirm,
+  onArchive = null,
+  onArchiveDenied = null,
+  canArchive = false,
+  archiving = false,
+  archiveCreatorName = null,
+  adminArchivingOthers = false,
   canCreateCustom = false,
   onRequestCustom,
   mode = 'create',
@@ -125,6 +132,7 @@ export default function CreateListSheet({
   const [customMode, setCustomMode] = useState(false);
   const [customName, setCustomName] = useState('');
   const [description, setDescription] = useState('');
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const inputRef = useRef(null);
   const customFormRef = useRef(null);
 
@@ -153,12 +161,14 @@ export default function CreateListSheet({
 
   useEffect(() => {
     if (!open) {
+      setArchiveConfirmOpen(false);
       if (mode === 'create') resetCreateState();
       return;
     }
 
     if (mode === 'settings') {
       hydrateSettingsState();
+      setArchiveConfirmOpen(false);
     }
   }, [open, mode, initialType, initialScheduledFor, initialDescription, today]);
 
@@ -270,6 +280,23 @@ export default function CreateListSheet({
     ? 'Тип, дата покупок и заметка'
     : 'Выберите тип списка и дату';
   const submitLabel = readOnly ? 'Закрыть' : isSettings ? 'Сохранить' : 'Создать список';
+  const showArchive = Boolean(
+    isSettings
+    && !readOnly
+    && list
+    && !list.archived
+    && list.status !== 'archived'
+    && (onArchive || onArchiveDenied),
+  );
+
+  const handleArchiveClick = () => {
+    if (archiving) return;
+    if (canArchive) {
+      setArchiveConfirmOpen(true);
+      return;
+    }
+    onArchiveDenied?.(list);
+  };
 
   return (
     <AppModal
@@ -417,9 +444,30 @@ export default function CreateListSheet({
             currentUserId={currentUserId}
             ownerFamilyName={ownerFamilyName}
             ownerFamilyAvatarUrl={ownerFamilyAvatarUrl}
-            disabled={readOnly}
+            disabled={readOnly || archiving}
             onAccessChanged={onExternalShareChanged}
           />
+        )}
+
+        {showArchive && (
+          <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-3">
+            <p className="text-sm font-medium text-amber-900">Архив</p>
+            <p className="mt-1 text-xs text-amber-800/80">
+              Список исчезнет с главного экрана у всей семьи.
+            </p>
+            <button
+              type="button"
+              disabled={archiving}
+              onClick={handleArchiveClick}
+              className={`mt-3 w-full rounded-full border border-amber-200 bg-white py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50 ${
+                canArchive
+                  ? 'text-amber-700 hover:bg-amber-50'
+                  : 'text-amber-700/50 hover:bg-amber-50/80'
+              }`}
+            >
+              Отправить в архив
+            </button>
+          </div>
         )}
       </div>
 
@@ -427,7 +475,7 @@ export default function CreateListSheet({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!readOnly && !canSubmit}
+          disabled={(!readOnly && !canSubmit) || archiving}
           className={`${PRIMARY_BTN} disabled:cursor-not-allowed`}
         >
           {submitLabel}
@@ -436,12 +484,23 @@ export default function CreateListSheet({
           <button
             type="button"
             onClick={onClose}
-            className="mt-3 w-full rounded-full border border-gray-200 py-3.5 text-[15px] font-semibold text-gray-500 transition hover:bg-gray-50 active:scale-[0.98]"
+            disabled={archiving}
+            className="mt-3 w-full rounded-full border border-gray-200 py-3.5 text-[15px] font-semibold text-gray-500 transition hover:bg-gray-50 active:scale-[0.98] disabled:opacity-50"
           >
             Отмена
           </button>
         )}
       </div>
+
+      <ArchiveListConfirmModal
+        open={archiveConfirmOpen}
+        listTitle={list?.title}
+        creatorName={archiveCreatorName}
+        adminArchivingOthers={adminArchivingOthers}
+        archiving={archiving}
+        onCancel={() => !archiving && setArchiveConfirmOpen(false)}
+        onConfirm={() => onArchive?.(list)}
+      />
     </AppModal>
   );
 }

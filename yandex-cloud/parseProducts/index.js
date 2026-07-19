@@ -1,4 +1,4 @@
-import { callYandexGpt } from './yandexGpt.js';
+import { callYandexGpt, normalizeParseMode, PARSE_MODE } from './yandexGpt.js';
 
 function corsHeaders(event) {
   const headers = event.headers || {};
@@ -42,6 +42,7 @@ export async function handler(event) {
   try {
     const body = parseBody(event);
     const text = String(body.text || '').trim();
+    const mode = normalizeParseMode(body.mode);
     const customDictionary = Array.isArray(body.customDictionary) ? body.customDictionary : [];
 
     if (!text) {
@@ -52,16 +53,25 @@ export async function handler(event) {
       };
     }
 
-    const products = await callYandexGpt(text, {
+    const parsed = await callYandexGpt(text, {
       apiKey: process.env.YANDEX_API_KEY,
       folderId: process.env.YANDEX_FOLDER_ID,
-      customDictionary,
+      customDictionary: mode === PARSE_MODE.PACKING ? [] : customDictionary,
+      mode,
     });
+
+    if (mode === PARSE_MODE.PACKING) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ items: parsed, mode }),
+      };
+    }
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ products }),
+      body: JSON.stringify({ products: parsed, mode }),
     };
   } catch (err) {
     return {

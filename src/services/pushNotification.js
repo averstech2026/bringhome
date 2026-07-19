@@ -322,14 +322,26 @@ export async function onForegroundPush(handler) {
 
 /**
  * Есть ли у пользователя доступ к списку. Логика совпадает с firestore.rules:
- * явный доступ (allowedUsers) ИЛИ публичный список внутри той же семьи.
+ * явный доступ (allowedUsers / members) ИЛИ публичный список внутри той же семьи.
  */
 function userCanAccessList(userData, uid, list) {
   const allowedUsers = Array.isArray(list?.allowedUsers) ? list.allowedUsers : [];
   if (allowedUsers.includes(uid)) return true;
+  const members = Array.isArray(list?.members) ? list.members : [];
+  if (members.includes(uid)) return true;
   const listFamily = list?.familyId || list?.groupId;
   const userFamily = userData?.familyId || userData?.groupId;
   if (list?.isPublic === true && userFamily && userFamily === listFamily) {
+    return true;
+  }
+  // Legacy packing_lists без members — вся семья
+  if (
+    listFamily
+    && userFamily
+    && userFamily === listFamily
+    && !Object.prototype.hasOwnProperty.call(list || {}, 'members')
+    && !Object.prototype.hasOwnProperty.call(list || {}, 'allowedUsers')
+  ) {
     return true;
   }
   return false;
@@ -512,6 +524,10 @@ function listLink(listId) {
   return listId ? `/list/${listId}` : '/';
 }
 
+function packingListLink(listId) {
+  return listId ? `/packing/${listId}` : '/';
+}
+
 /** Сценарий А: создан новый список — всем участникам с доступом, кроме автора. */
 export async function notifyListCreated({ list, author }) {
   const excluded = toExcludeSet(author?.uid);
@@ -533,6 +549,30 @@ export async function notifyListCreated({ list, author }) {
     body,
     ...authorImages(author),
     data: { type: 'list_created', listId: list?.id || '' },
+  });
+}
+
+/** Создан список сборов — участникам из members (кроме автора). */
+export async function notifyPackingListCreated({ list, author }) {
+  const excluded = toExcludeSet(author?.uid);
+  const users = await getAccessibleUsers(list);
+  const targetUids = users.filter((u) => !excluded.has(u.uid)).map((u) => u.uid);
+  const tokens = targetUids.flatMap((uid) => users.find((u) => u.uid === uid)?.tokens || []);
+
+  const body = `🧳 ${resolveAuthorName(author)} создал(а) сборы «${resolveListTitle(list)}»`;
+  const link = packingListLink(list?.id);
+
+  createNotificationsForUsers(targetUids, {
+    type: 'packing_list_created',
+    title: 'КупиДомой',
+    body,
+    link,
+  }).catch((err) => console.warn('[notifications] Не удалось сохранить уведомления', err));
+
+  return postToProxy(tokens, {
+    body,
+    ...authorImages(author),
+    data: { type: 'packing_list_created', listId: list?.id || '', link },
   });
 }
 

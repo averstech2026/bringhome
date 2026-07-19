@@ -4,7 +4,7 @@ import AppModal, { MODAL_OVERLAY_SHEET, MODAL_PANEL_WIDE } from '../ui/AppModal'
 import { FamilyToggle } from '../list/accessControls';
 import { PRIMARY_BTN } from '../list/cardStyles';
 import { getHintById } from '../../utils/hintsContent';
-import { DEFAULT_AI_INPUT_PLACEHOLDER } from '../../utils/uiThemes';
+import { DEFAULT_AI_INPUT_PLACEHOLDER, getPackingAiPlaceholder } from '../../utils/uiThemes';
 
 const SLIDE_HEIGHT = 'h-[14rem]';
 const FOOTER_HEIGHT = 'h-[7.5rem]';
@@ -127,6 +127,66 @@ function StepVisuals({ step }) {
             {theme.label}
           </span>
         ))}
+      </div>
+    );
+  }
+
+  if (step.showHomeDesktopDemo) {
+    return (
+      <div className="mt-2 space-y-2">
+        <div className="flex gap-1.5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/80 p-1.5">
+          <div className="min-w-0 flex-1 rounded-xl border border-emerald-200 bg-white px-2.5 py-2 shadow-sm">
+            <p className="text-[11px] font-semibold text-emerald-700">Покупки</p>
+            <p className="mt-0.5 truncate text-[10px] text-slate-400">Список на сегодня</p>
+          </div>
+          <div className="w-10 shrink-0 rounded-xl border border-sky-200/80 bg-sky-50/70 px-1.5 py-2">
+            <p className="truncate text-[10px] font-semibold text-sky-700">Сборы</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-center gap-1.5" aria-hidden>
+          <span className="h-1.5 w-5 rounded-full bg-emerald-500" />
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+        </div>
+      </div>
+    );
+  }
+
+  if (step.showPackingAiDemo) {
+    return (
+      <div className="mt-1.5 rounded-2xl border border-indigo-200/80 bg-gradient-to-b from-indigo-50/80 to-white p-2">
+        <div className="flex items-center gap-1.5 text-xs font-medium text-indigo-700">
+          <Sparkles className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+          ИИ-ввод сборов
+        </div>
+        <p className="mt-1.5 text-xs leading-snug text-slate-400">
+          {getPackingAiPlaceholder('default')}
+        </p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <span className="inline-flex items-center rounded-full border border-indigo-200 bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-indigo-700">
+            Вещи и дела
+          </span>
+          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
+            Новый раздел
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (step.showPackingBackpackDemo) {
+    return (
+      <div className="mt-2 space-y-1.5">
+        <div className="flex gap-1.5">
+          <span className="inline-flex flex-1 items-center justify-center gap-1 rounded-full bg-indigo-500 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm">
+            🌍 Общие
+          </span>
+          <span className="inline-flex flex-1 items-center justify-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600">
+            👤 Мой рюкзак
+          </span>
+        </div>
+        <p className="px-0.5 text-[11px] leading-snug text-slate-400">
+          Общие — для всех · Личный рюкзак — только ваш
+        </p>
       </div>
     );
   }

@@ -11,6 +11,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -245,5 +246,187 @@ describe('Multi-tenancy & internal list access (Firestore rules)', () => {
       const db = userContext(testEnv, 'daughter').firestore();
       await expectPermissionDenied(getDoc(listRef(db)));
     });
+  });
+});
+
+describe('Packing lists (packing_lists) — family scope', () => {
+  /** @type {import('@firebase/rules-unit-testing').RulesTestEnvironment} */
+  let testEnv;
+  const PACKING_ID = 'denis-packing-trip';
+
+  function packingRef(db) {
+    return doc(db, 'packing_lists', PACKING_ID);
+  }
+
+  beforeAll(async () => {
+    testEnv = await initializeTestEnvironment({
+      projectId: `${PROJECT_ID}-packing`,
+      firestore: {
+        rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await testEnv.cleanup();
+  });
+
+  beforeEach(async () => {
+    await testEnv.clearFirestore();
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+
+      await setDoc(doc(db, 'config', 'setup'), {
+        initialized: true,
+        adminUid: '__no_platform_admin__',
+      });
+
+      for (const [uid, profile] of Object.entries(USERS)) {
+        await setDoc(doc(db, 'users', uid), {
+          email: `${uid}@test.local`,
+          displayName: uid,
+          ...profile,
+        });
+      }
+
+      await setDoc(packingRef(db), {
+        title: 'Сочи',
+        familyId: FAMILIES.DENIS,
+        createdBy: 'denis',
+        isTemplate: false,
+        items: [
+          {
+            id: 'passport',
+            name: 'Паспорт',
+            scope: 'common',
+            type: 'item',
+            assignedTo: 'denis',
+            checked: false,
+            statusMap: {},
+          },
+        ],
+        createdAt: new Date(),
+      });
+    });
+  });
+
+  it('allows same-family member to read packing list', async () => {
+    const db = userContext(testEnv, 'wife').firestore();
+    await assertSucceeds(getDoc(packingRef(db)));
+  });
+
+  it('allows same-family member to update personal statusMap', async () => {
+    const db = userContext(testEnv, 'wife').firestore();
+    await assertSucceeds(
+      updateDoc(packingRef(db), {
+        items: [
+          {
+            id: 'passport',
+            name: 'Паспорт',
+            scope: 'personal',
+            type: 'item',
+            assignedTo: null,
+            checked: false,
+            statusMap: { wife: true },
+          },
+        ],
+      }),
+    );
+  });
+
+  it('denies other tenant from reading packing list', async () => {
+    const db = userContext(testEnv, 'richard').firestore();
+    await expectPermissionDenied(getDoc(packingRef(db)));
+  });
+
+  it('denies other tenant from updating packing list', async () => {
+    const db = userContext(testEnv, 'richard').firestore();
+    await expectPermissionDenied(
+      updateDoc(packingRef(db), { title: 'Взлом' }),
+    );
+  });
+
+  it('allows owner to delete packing list', async () => {
+    const db = userContext(testEnv, 'denis').firestore();
+    await assertSucceeds(deleteDoc(packingRef(db)));
+  });
+
+  it('denies non-owner family member from deleting packing list', async () => {
+    const db = userContext(testEnv, 'wife').firestore();
+    await expectPermissionDenied(deleteDoc(packingRef(db)));
+  });
+
+  it('denies family member not in members when list is private', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(packingRef(context.firestore()), {
+        title: 'Секретная поездка',
+        familyId: FAMILIES.DENIS,
+        createdBy: 'denis',
+        isTemplate: false,
+        isPublic: false,
+        members: ['denis'],
+        items: [],
+        createdAt: new Date(),
+      });
+    });
+
+    const db = userContext(testEnv, 'wife').firestore();
+    await expectPermissionDenied(getDoc(packingRef(db)));
+  });
+
+  it('allows family member listed in members to read private packing list', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(packingRef(context.firestore()), {
+        title: 'Вдвоём',
+        familyId: FAMILIES.DENIS,
+        createdBy: 'denis',
+        isTemplate: false,
+        isPublic: false,
+        members: ['denis', 'wife'],
+        items: [],
+        createdAt: new Date(),
+      });
+    });
+
+    const db = userContext(testEnv, 'wife').firestore();
+    await assertSucceeds(getDoc(packingRef(db)));
+  });
+
+  it('allows external user in members to read packing list', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(packingRef(context.firestore()), {
+        title: 'Совместный выезд',
+        familyId: FAMILIES.DENIS,
+        createdBy: 'denis',
+        isTemplate: false,
+        isPublic: false,
+        members: ['denis', 'richard'],
+        items: [],
+        createdAt: new Date(),
+      });
+    });
+
+    const db = userContext(testEnv, 'richard').firestore();
+    await assertSucceeds(getDoc(packingRef(db)));
+  });
+
+  it('allows guest family via sharedWithFamilyIds to read packing list', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(packingRef(context.firestore()), {
+        title: 'Общий выезд семей',
+        familyId: FAMILIES.DENIS,
+        createdBy: 'denis',
+        isTemplate: false,
+        isPublic: true,
+        members: ['denis', 'wife'],
+        sharedWithFamilyIds: [FAMILIES.RICHARD],
+        items: [],
+        createdAt: new Date(),
+      });
+    });
+
+    const db = userContext(testEnv, 'richard').firestore();
+    await assertSucceeds(getDoc(packingRef(db)));
   });
 });

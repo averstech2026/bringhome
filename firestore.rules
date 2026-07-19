@@ -289,6 +289,103 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && canAccessList(resource.data.listId);
     }
 
+    /** Списки сборов / путешествий — семья + members + кросс-семейный шеринг. */
+    function packingMembers(list) {
+      return list.get('members', []);
+    }
+
+    function hasActivePackingShareInvite(list) {
+      return list.get('shareInviteToken', null) != null;
+    }
+
+    function canReadPackingList(list) {
+      return isSuperAdmin()
+        || request.auth.uid in packingMembers(list)
+        || userFamilyId() in list.get('sharedWithFamilyIds', [])
+        || (
+          isSignedIn()
+          && hasActivePackingShareInvite(list)
+          && !sameFamily(list.familyId)
+        )
+        || (
+          sameFamily(list.familyId) && (
+            isFamilyAdmin()
+            || list.get('isPublic', true) == true
+            || list.createdBy == request.auth.uid
+            // Legacy: документы без поля members — вся семья
+            || !('members' in list)
+          )
+        );
+    }
+
+    function isPackingShareInviteTokenUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'shareInviteToken', 'shareInviteCreatedAt', 'shareInviteCreatedBy',
+        'ownerFamilyName', 'ownerFamilyAvatarUrl', 'updatedAt'
+      ])
+      && request.resource.data.shareInviteToken is string
+      && request.resource.data.shareInviteToken.size() > 0;
+    }
+
+    function isPackingExternalFamilyJoinUpdate() {
+      return !(userFamilyId() in listSharedWithFamilyIds(resource.data))
+        && userFamilyId() in listSharedWithFamilyIds(request.resource.data)
+        && userFamilyId() != resource.data.familyId
+        && resource.data.shareInviteToken != null
+        && request.resource.data.shareInviteToken == resource.data.shareInviteToken
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'sharedWithFamilyIds', 'externalFamilies', 'updatedAt'
+        ]);
+    }
+
+    function isPackingExternalFamilyRevokeUpdate() {
+      return resource.data.createdBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['sharedWithFamilyIds', 'externalFamilies', 'updatedAt'])
+        && listSharedWithFamilyIds(request.resource.data).size()
+          < listSharedWithFamilyIds(resource.data).size();
+    }
+
+    match /packing_lists/{listId} {
+      allow read: if isSignedIn() && canReadPackingList(resource.data);
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && sameFamily(request.resource.data.familyId)
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.isTemplate is bool
+        && request.resource.data.items is list
+        && request.resource.data.members is list
+        && request.auth.uid in request.resource.data.members;
+      allow update: if isSignedIn() && (
+        isSuperAdmin()
+        || (
+          sameFamily(resource.data.familyId)
+          && (
+            resource.data.createdBy == request.auth.uid
+            || request.auth.uid in packingMembers(resource.data)
+            || (
+              resource.data.createdBy == request.auth.uid
+              && isPackingShareInviteTokenUpdate()
+            )
+            || (
+              resource.data.createdBy == request.auth.uid
+              && isPackingExternalFamilyRevokeUpdate()
+            )
+            || canReadPackingList(resource.data)
+          )
+        )
+        || isPackingExternalFamilyJoinUpdate()
+      );
+      allow delete: if isSignedIn() && (
+        isSuperAdmin()
+        || (
+          sameFamily(resource.data.familyId)
+          && resource.data.createdBy == request.auth.uid
+        )
+      );
+    }
+
     match /product_history/{docId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
