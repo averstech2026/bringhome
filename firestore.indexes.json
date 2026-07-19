@@ -9,6 +9,14 @@
       ]
     },
     {
+      "collectionGroup": "packing_lists",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "familyId", "order": "ASCENDING" },
+        { "fieldPath": "isPublic", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "lists",
       "queryScope": "COLLECTION",
       "fields": [

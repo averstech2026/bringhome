@@ -55,7 +55,7 @@ import { HOME_DESKTOP, homeDesktopToIndex } from '../utils/homeDesktops';
 import { resolveUiTheme } from '../utils/uiThemes';
 import {
   createPackingList,
-  getFamilyPackingLists,
+  getTravelDesktopPackingLists,
   isPackingListArchived,
 } from '../services/packingListsService';
 
@@ -286,9 +286,11 @@ export default function HomePage() {
 
   const handleOpenCreatePacking = async () => {
     setCreatePackingOpen(true);
-    if (!familyId) return;
+    if (!familyId || !user?.uid) return;
     try {
-      const all = await getFamilyPackingLists(familyId);
+      const all = await getTravelDesktopPackingLists(user.uid, familyId, {
+        isFamilyAdmin: isFamilyAdmin || isSuperAdmin,
+      });
       setPackingTemplates(all.filter((list) => list.isTemplate && !isPackingListArchived(list)));
     } catch {
       setPackingTemplates([]);

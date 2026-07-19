@@ -66,6 +66,22 @@ export async function getFamilyPackingLists(familyId) {
     });
 }
 
+/**
+ * Публичные сборы семьи (query-safe для не-админов).
+ * Нельзя запрашивать все familyId сразу: приватный список без доступа → permission-denied на весь query.
+ */
+export async function getPublicFamilyPackingLists(familyId) {
+  if (!familyId) return [];
+  const snapshot = await getDocs(
+    query(
+      packingListsCol(),
+      where('familyId', '==', familyId),
+      where('isPublic', '==', true),
+    ),
+  );
+  return snapshot.docs.map((docSnap) => mapPackingListDoc(docSnap)).filter(Boolean);
+}
+
 /** Сборы, где пользователь явно в members (в т.ч. совместные выезды). */
 export async function getPackingListsForMember(userId) {
   if (!userId) return [];
@@ -89,8 +105,8 @@ export function isPackingListArchived(list) {
 }
 
 /**
- * Списки для рабочего стола «Путешествия»:
- * своя familyId ∪ members∋uid ∪ sharedWithFamilyIds∋familyId.
+ * Списки для рабочего стола «Путешествия».
+ * Как getHomePageLists: админ — весь familyId; иначе public ∪ members ∪ sharedWithFamilyIds.
  */
 export async function getTravelDesktopPackingLists(
   userId,
@@ -99,14 +115,27 @@ export async function getTravelDesktopPackingLists(
 ) {
   if (!userId || !familyId) return [];
 
-  const [byFamily, byMember, byShared] = await Promise.all([
-    getFamilyPackingLists(familyId),
-    getPackingListsForMember(userId),
-    getExternalSharedPackingLists(familyId),
-  ]);
+  const externalPromise = getExternalSharedPackingLists(familyId);
 
+  let familyLists = [];
+  if (isFamilyAdmin) {
+    familyLists = await getFamilyPackingLists(familyId);
+  } else {
+    const [publicLists, memberLists] = await Promise.all([
+      getPublicFamilyPackingLists(familyId),
+      getPackingListsForMember(userId),
+    ]);
+    const byId = new Map();
+    for (const list of [...publicLists, ...memberLists]) {
+      if (!list?.id) continue;
+      byId.set(list.id, list);
+    }
+    familyLists = [...byId.values()];
+  }
+
+  const externalLists = await externalPromise;
   const byId = new Map();
-  for (const list of [...byFamily, ...byMember, ...byShared]) {
+  for (const list of [...familyLists, ...externalLists]) {
     if (!list?.id) continue;
     byId.set(list.id, list);
   }

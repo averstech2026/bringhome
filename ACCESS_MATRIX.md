@@ -153,7 +153,11 @@ npm run test   # Vitest + Firestore Emulator (нужна Java 11+)
 
 Архив: автор поездки в настройках может «Отправить в архив» (`archived: true`, `status: 'archived'`). Архивные списки не показываются на рабочем столе сборов (`getTravelDesktopPackingLists`).
 
-Загрузка на рабочем столе: `familyId == текущая` ∪ `members` array-contains uid ∪ `sharedWithFamilyIds` array-contains familyId (без `archived`).
+Загрузка на рабочем столе (query-safe, как у `lists`):
+- `family_admin` / `super_admin` — `familyId == текущая`
+- остальные — `isPublic == true` (+ `familyId`) ∪ `members` array-contains uid ∪ `sharedWithFamilyIds` array-contains familyId
+
+Нельзя для обычного члена семьи запрашивать все `packing_lists` только по `familyId`: приватный список без доступа в результате → `permission-denied` на весь query (как жёлтая зона у `lists`).
 
 **Общие вещи и дела** (`scope: common`) — общий чек-лист семьи с полем `assignedTo` (кто отвечает).
 

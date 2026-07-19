@@ -9,9 +9,12 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
+  query,
   setDoc,
   updateDoc,
   deleteDoc,
+  where,
 } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -428,5 +431,90 @@ describe('Packing lists (packing_lists) — family scope', () => {
 
     const db = userContext(testEnv, 'richard').firestore();
     await assertSucceeds(getDoc(packingRef(db)));
+  });
+
+  it('denies familyId-only query when private packing list exists (yellow zone)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'packing_lists', 'public-trip'), {
+        title: 'Публичная',
+        familyId: FAMILIES.DENIS,
+        createdBy: 'denis',
+        isTemplate: false,
+        isPublic: true,
+        members: ['denis', 'wife', 'daughter'],
+        items: [],
+        createdAt: new Date(),
+      });
+      await setDoc(doc(db, 'packing_lists', 'private-trip'), {
+        title: 'Секретная',
+        familyId: FAMILIES.DENIS,
+        createdBy: 'denis',
+        isTemplate: false,
+        isPublic: false,
+        members: ['denis'],
+        items: [],
+        createdAt: new Date(),
+      });
+    });
+
+    const db = userContext(testEnv, 'wife').firestore();
+    await expectPermissionDenied(
+      getDocs(query(collection(db, 'packing_lists'), where('familyId', '==', FAMILIES.DENIS))),
+    );
+  });
+
+  it('allows query-safe packing list queries for non-admin family member', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'packing_lists', 'public-trip'), {
+        title: 'Публичная',
+        familyId: FAMILIES.DENIS,
+        createdBy: 'denis',
+        isTemplate: false,
+        isPublic: true,
+        members: ['denis', 'wife', 'daughter'],
+        items: [],
+        createdAt: new Date(),
+      });
+      await setDoc(doc(db, 'packing_lists', 'private-trip'), {
+        title: 'Секретная',
+        familyId: FAMILIES.DENIS,
+        createdBy: 'denis',
+        isTemplate: false,
+        isPublic: false,
+        members: ['denis'],
+        items: [],
+        createdAt: new Date(),
+      });
+      await setDoc(doc(db, 'packing_lists', 'shared-with-wife'), {
+        title: 'С женой',
+        familyId: FAMILIES.DENIS,
+        createdBy: 'denis',
+        isTemplate: false,
+        isPublic: false,
+        members: ['denis', 'wife'],
+        items: [],
+        createdAt: new Date(),
+      });
+    });
+
+    const db = userContext(testEnv, 'wife').firestore();
+    const publicSnap = await assertSucceeds(
+      getDocs(query(
+        collection(db, 'packing_lists'),
+        where('familyId', '==', FAMILIES.DENIS),
+        where('isPublic', '==', true),
+      )),
+    );
+    const memberSnap = await assertSucceeds(
+      getDocs(query(
+        collection(db, 'packing_lists'),
+        where('members', 'array-contains', 'wife'),
+      )),
+    );
+
+    expect(publicSnap.docs.map((d) => d.id)).toEqual(['public-trip']);
+    expect(memberSnap.docs.map((d) => d.id).sort()).toEqual(['public-trip', 'shared-with-wife']);
   });
 });
