@@ -180,7 +180,16 @@ export async function createPackingList({
   if (!createdBy) throw new Error('Не удалось определить пользователя');
 
   let nextItems = Array.isArray(items)
-    ? items.map((item) => normalizePackingItem(item)).filter((item) => item.name)
+    ? items
+      .map((item) => {
+        const normalized = normalizePackingItem(item);
+        // Личные пункты без ownerId не видны ни в «Общих», ни в «Моём рюкзаке».
+        if (normalized.scope === PACKING_SCOPE.PERSONAL && !normalized.ownerId) {
+          return { ...normalized, ownerId: createdBy };
+        }
+        return normalized;
+      })
+      .filter((item) => item.name)
     : [];
 
   if (templateId) {

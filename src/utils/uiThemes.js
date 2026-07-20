@@ -195,6 +195,11 @@ const THEME_CHROME = {
     placeholder: DEFAULT_AI_INPUT_PLACEHOLDER,
     label: 'Распознать ИИ',
     loadingLabel: 'Распознаём…',
+    createPackingLabel: 'Сгенерировать список с ИИ',
+    createPackingLoadingLabel: 'Генерируем…',
+    createPackingEmptyLabel: 'Опишите поездку, чтобы сгенерировать список',
+    createPackingConfirmLabel: 'Все отлично, создать',
+    createPackingConfirmLoadingLabel: 'Создаём…',
     limitExhaustedLabel: 'Лимит исчерпан',
     limitExhaustedDisabled: true,
     limitExhaustedMessage:
@@ -211,6 +216,11 @@ const THEME_CHROME = {
     placeholder: 'Например: сливочное пиво 4 шт, тыквенный сок, лакричные палочки, сахарные перья',
     label: '✨ Акцио, списочек!',
     loadingLabel: 'Колдуем…',
+    createPackingLabel: '✨ Акцио, сборы!',
+    createPackingLoadingLabel: 'Колдуем над рюкзаком…',
+    createPackingEmptyLabel: 'Опишите поездку — и произнесём заклинание',
+    createPackingConfirmLabel: 'Шалость удалась — создать! 🪄',
+    createPackingConfirmLoadingLabel: 'Зачаровываем список…',
     limitExhaustedLabel: 'Палочка перегрелась! 🪄',
     limitExhaustedDisabled: true,
     limitExhaustedMessage:
@@ -228,6 +238,11 @@ const THEME_CHROME = {
     placeholder: 'Например: синие наггетсы 1 уп, сухой паёк 3 шт, кореллианский эль, космо-чечевица',
     label: 'Да прибудет с нами Сила! ⚔️',
     loadingLabel: 'Сканируем галактику…',
+    createPackingLabel: 'Да прибудет с нами Сила! ⚔️',
+    createPackingLoadingLabel: 'Собираем гиперпрыжок…',
+    createPackingEmptyLabel: 'Опишите миссию, чтобы собрать рюкзак',
+    createPackingConfirmLabel: 'Список готов — в путь! ⚔️',
+    createPackingConfirmLoadingLabel: 'Готовим к гиперпрыжку…',
     limitExhaustedLabel: 'Исчерпана Сила твоя! ⚔️',
     limitExhaustedDisabled: true,
     limitExhaustedMessage:
@@ -245,6 +260,11 @@ const THEME_CHROME = {
     placeholder: 'Например: апельсины для мармелада 3кг, какао, хрустящие булочки, чашка чая',
     label: 'Проверить чемоданчик 💼',
     loadingLabel: 'Сортируем по карманам…',
+    createPackingLabel: 'Собрать чемоданчик 💼',
+    createPackingLoadingLabel: 'Сортируем по карманам…',
+    createPackingEmptyLabel: 'Опишите поездку для чемоданчика',
+    createPackingConfirmLabel: 'Чемоданчик готов! 💼',
+    createPackingConfirmLoadingLabel: 'Закрываем чемоданчик…',
     limitExhaustedLabel: 'Чемоданчик пуст 💼',
     limitExhaustedDisabled: true,
     limitExhaustedMessage:
@@ -353,6 +373,22 @@ export function getAiInputTheme(themeId) {
     ...chrome,
     buttonClass: getActiveSurfaceClass(themeId),
     placeholder: chrome.placeholder ?? DEFAULT_AI_INPUT_PLACEHOLDER,
+  };
+}
+
+/** Тема CTA создания списка сборов через ИИ. */
+export function getPackingCreateAiTheme(themeId) {
+  const chrome = getThemeChrome(themeId);
+  return {
+    icon: chrome.icon || 'sparkles',
+    buttonClass: getActiveSurfaceClass(themeId),
+    label: chrome.createPackingLabel || 'Сгенерировать список с ИИ',
+    loadingLabel: chrome.createPackingLoadingLabel || chrome.loadingLabel || 'Генерируем…',
+    emptyLabel: chrome.createPackingEmptyLabel || 'Опишите поездку, чтобы сгенерировать список',
+    confirmLabel: chrome.createPackingConfirmLabel || 'Все отлично, создать',
+    confirmLoadingLabel: chrome.createPackingConfirmLoadingLabel || 'Создаём…',
+    accentBorderClassName: chrome.accentBorderClassName,
+    accentRingClassName: chrome.accentRingClassName,
   };
 }
 

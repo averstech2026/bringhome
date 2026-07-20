@@ -84,9 +84,12 @@ export default function PackingCategoryGroup({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const inputRef = useRef(null);
+  const wasCompleteRef = useRef(null);
 
   const label = formatPackingActivityLabel(activity, activityIcon);
+  const totalCount = items.length;
   const checkedCount = items.filter((item) => item.checked).length;
+  const isComplete = totalCount > 0 && checkedCount === totalCount;
   const canRename = typeof onRenameActivity === 'function';
   const isMain = isPackingMainActivity(activity);
 
@@ -97,6 +100,20 @@ export default function PackingCategoryGroup({
   // Подзаголовки категорий — только если тумблер включён и есть хотя бы одна категория.
   const showCategoryHeaders = groupByCategory
     && categoryGroups.some((group) => Boolean(group.category));
+
+  // Авто-сворачивание, когда раздел только что стал полностью собранным.
+  useEffect(() => {
+    if (wasCompleteRef.current === null) {
+      wasCompleteRef.current = isComplete;
+      if (isComplete) setOpen(false);
+      return;
+    }
+    const wasComplete = wasCompleteRef.current;
+    wasCompleteRef.current = isComplete;
+    if (isComplete && !wasComplete) {
+      setOpen(false);
+    }
+  }, [isComplete]);
 
   useEffect(() => {
     if (!editing) return undefined;
@@ -218,8 +235,15 @@ export default function PackingCategoryGroup({
                 {label}
               </span>
             </button>
-            <span className={`shrink-0 text-[11px] font-medium tabular-nums ${metaClass}`}>
-              {checkedCount}/{items.length}
+            <span
+              className={`inline-flex shrink-0 items-center gap-1 text-[11px] font-medium tabular-nums ${
+                isComplete ? 'text-emerald-600' : metaClass
+              }`}
+            >
+              {isComplete ? (
+                <Check className="h-3 w-3" strokeWidth={2.5} aria-hidden />
+              ) : null}
+              {checkedCount}/{totalCount}
             </span>
             <button
               type="button"

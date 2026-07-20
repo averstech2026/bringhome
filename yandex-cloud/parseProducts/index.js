@@ -23,6 +23,10 @@ function parseBody(event) {
   return raw ? JSON.parse(raw) : {};
 }
 
+function isPackingMode(mode) {
+  return mode === PARSE_MODE.PACKING || mode === PARSE_MODE.PACKING_CREATE;
+}
+
 export async function handler(event) {
   const headers = corsHeaders(event);
   const method = (event.httpMethod || 'GET').toUpperCase();
@@ -56,9 +60,17 @@ export async function handler(event) {
     const parsed = await callYandexGpt(text, {
       apiKey: process.env.YANDEX_API_KEY,
       folderId: process.env.YANDEX_FOLDER_ID,
-      customDictionary: mode === PARSE_MODE.PACKING ? [] : customDictionary,
+      customDictionary: isPackingMode(mode) ? [] : customDictionary,
       mode,
     });
+
+    if (mode === PARSE_MODE.PACKING_CREATE) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ list: parsed, mode }),
+      };
+    }
 
     if (mode === PARSE_MODE.PACKING) {
       return {

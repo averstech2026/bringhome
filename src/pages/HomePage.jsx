@@ -58,6 +58,7 @@ import {
   getTravelDesktopPackingLists,
   isPackingListArchived,
 } from '../services/packingListsService';
+import { MODE_AI } from '../components/packing/CreatePackingListSheet';
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -298,12 +299,14 @@ export default function HomePage() {
   };
 
   const handleCreatePackingConfirm = async ({
+    mode,
     title,
     templateId,
     travelDate,
     description = '',
     tripTransport,
     tripPurpose,
+    items = [],
   }) => {
     if (!user?.uid || !familyId || packingBusy) return;
     setPackingBusy(true);
@@ -316,18 +319,23 @@ export default function HomePage() {
         familyMemberIds = [user.uid];
       }
 
+      const isAi = mode === MODE_AI;
+      const nextItems = isAi && Array.isArray(items) ? items : [];
+      const nextTemplateId = isAi ? null : templateId;
+
       const id = await createPackingList({
         title,
         familyId,
         createdBy: user.uid,
         isTemplate: false,
-        templateId,
+        templateId: nextTemplateId,
+        items: nextItems,
         isPublic: true,
         familyMemberIds,
         travelDate,
         description,
-        tripTransport,
-        tripPurpose,
+        tripTransport: isAi ? null : tripTransport,
+        tripPurpose: isAi ? null : tripPurpose,
       });
       setCreatePackingOpen(false);
       setPackingRefreshKey((key) => key + 1);
@@ -534,6 +542,7 @@ export default function HomePage() {
         templates={packingTemplates}
         accentClassName="bg-indigo-600"
         busy={packingBusy}
+        uiTheme={uiTheme}
       />
 
       <RequestCustomTypeModal

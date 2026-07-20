@@ -6,7 +6,7 @@ import {
   CARD_BADGE,
   CARD_PRESS,
 } from '../list/cardStyles';
-import { getListProgressClass, getListTypeBadgeProps, isBuiltinListType } from '../../utils/listTypes';
+import { getListTypeBadgeProps, isBuiltinListType } from '../../utils/listTypes';
 import { formatCompletedListDateLabel } from '../../utils/groupCompletedLists';
 import { getListScheduleBadgeProps, shouldShowScheduleBadge } from '../../utils/listSchedule';
 import { isListUnviewedByUser } from '../../utils/listPermissions';
@@ -14,13 +14,8 @@ import { isCrossFamilySharedList, isExternalGuestList, isListOwnerFamily, getExt
 import { getListFamilyId } from '../../utils/familyGroup';
 import { FamilyAvatarBadge } from '../list/ListExternalShareSection';
 import { Link2 } from 'lucide-react';
+import { SHOPPING_ACCENT } from '../../utils/contextAccents';
 import ListAccessIcon from './ListAccessIcon';
-
-const TYPE_PROGRESS = {
-  home: 'bg-emerald-500',
-  cottage: 'bg-amber-500',
-  trip: 'bg-sky-500',
-};
 
 const PARTICIPANT_AVATAR_CLASS = 'h-5 w-5';
 const LIST_META_COLUMN = 'w-28';
@@ -338,12 +333,12 @@ function ListTopMeta({
   );
 }
 
-function ListProgressRow({ list, progress }) {
+function ListProgressRow({ progress }) {
   const { total = 0, checked = 0 } = progress || {};
 
   return (
     <div className="mt-1.5 flex items-center">
-      <ListProgress progress={progress} listType={list.type} className="flex-1" />
+      <ListProgress progress={progress} className="flex-1" />
       <ListProgressCounter checked={checked} total={total} />
     </div>
   );
@@ -405,11 +400,8 @@ function ListTitle({ title, showUnread, completionDateLabel, list }) {
   );
 }
 
-function ListProgress({ progress, listType, className = '' }) {
+function ListProgress({ progress, className = '' }) {
   const { total = 0, checked = 0, percent = 0 } = progress || {};
-  const fillClass = isBuiltinListType(listType)
-    ? TYPE_PROGRESS[listType] || TYPE_PROGRESS.home
-    : getListProgressClass(listType);
   const fillPercent = total > 0 ? percent : 0;
 
   return (
@@ -422,7 +414,7 @@ function ListProgress({ progress, listType, className = '' }) {
       aria-label={`Куплено ${checked} из ${total}`}
     >
       <div
-        className={`h-full rounded-full transition-all duration-500 ease-out ${fillClass}`}
+        className={`h-full rounded-full transition-all duration-500 ease-out ${SHOPPING_ACCENT.bar}`}
         style={{ width: `${fillPercent}%` }}
       />
     </div>
@@ -519,7 +511,7 @@ export default function ListCard({
               creatorOnly={creatorOnly}
             />
           </div>
-          <ListProgressRow list={list} progress={progress} />
+          <ListProgressRow progress={progress} />
         </Link>
       )}
 

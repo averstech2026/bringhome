@@ -1,6 +1,8 @@
 export const PARSE_MODE = {
   SHOPPING: 'shopping',
   PACKING: 'packing',
+  /** Полная генерация списка сборов по описанию поездки (title + sections + items). */
+  PACKING_CREATE: 'packing-create',
 };
 
 const AI_CATEGORIES = [
@@ -12,6 +14,16 @@ const AI_CATEGORIES = [
   'Заморозка',
   'К чаю / Сладости',
   'Бытовая химия',
+  'Прочее',
+];
+
+const PACKING_ITEM_CATEGORIES = [
+  'Документы',
+  'Одежда',
+  'Аптечка',
+  'Техника',
+  'Снаряжение',
+  'Перекус',
   'Прочее',
 ];
 
@@ -44,11 +56,63 @@ categoryIcon: один эмодзи, подходящий к category (🌊 дл
 
 Выводи только чистый JSON-массив, без markdown-разметки, без пояснений и лишних символов.`;
 
+export const YANDEX_PACKING_CREATE_SYSTEM_PROMPT =
+  `ТЫ — ИИ-ассистент для создания полного списка сборов в путешествие по свободному описанию пользователя.
+
+ГЛАВНОЕ ПРАВИЛО РАЗДЕЛОВ (ОБЯЗАТЕЛЬНО):
+Ты ОБЯЗАН анализировать маршрут, этапы и места в тексте пользователя и РАЗБИВАТЬ вещи по тематическим разделам (поле activity).
+Нельзя сваливать всё в один «Основной список», если в описании есть несколько мест, этапов или активностей.
+
+Пример: «Сначала Анталия, потом отель на море» → минимум 3 раздела:
+- «Основной список» — документы, билеты, аптечка, общие дела на всю поездку
+- «Анталия» — городская одежда, обувь для прогулок, карта/навигация по городу
+- «Отель на море» — купальник, пляжные вещи, SPF, пляжная обувь
+
+Верни строго один JSON-объект следующей структуры:
+{
+  "title": "Короткое название списка",
+  "sections": ["Основной список", "Анталия", "Отель на море"],
+  "items": [
+    {
+      "text": "Название вещи или дела",
+      "type": "item" или "todo",
+      "scope": "common" или "personal",
+      "activity": "Название раздела из sections",
+      "activityIcon": "один эмодзи раздела или пустая строка",
+      "category": "Категория вещи",
+      "categoryIcon": "один эмодзи категории или пустая строка"
+    }
+  ]
+}
+
+title: короткое название поездки/направления (1–4 слова), например «Турция», «Сочи», «Териберка». Без даты.
+sections: массив названий разделов. Всегда начинай с «Основной список». Затем добавь отдельный раздел на КАЖДОЕ место/этап/активность из текста (города, отели, экскурсии, «на море», «в горы»). Обычно 2–5 разделов. Если в тексте одно место без этапов — достаточно «Основной список» + 1 тематический раздел.
+items: 15–40 пунктов. У КАЖДОГО пункта activity = ТОЧНОЕ имя из sections (без опечаток и другого регистра).
+
+type: item — физическая вещь; todo — действие/задача.
+scope: всегда "common" (общие вещи и дела списка). Не используй "personal".
+activity: раздел списка. Универсальное (паспорт, виза, билеты, аптечка, зарядка) → «Основной список». Всё, что относится к конкретному месту/этапу → в соответствующий раздел, НЕ в основной.
+activityIcon: эмодзи раздела (🏙 Анталия, 🏖 отель на море). Для «Основной список» — "".
+category: строго одно из: ${PACKING_ITEM_CATEGORIES.join(', ')}.
+categoryIcon: эмодзи категории (🪪 Документы, 👗 Одежда, 💊 Аптечка, 🔌 Техника, 🏕 Снаряжение, 🍔 Перекус, 📦 Прочее).
+
+ПРАВИЛА:
+1. Сначала выпиши этапы/места из описания → заполни sections.
+2. Затем распредели пункты: в каждом кастомном разделе должно быть не меньше 3 релевантных вещей/дел.
+3. В «Основной список» — только общее на всю поездку (документы, билеты, аптечка, техника, общие брони).
+4. Добавь и вещи (item), и дела (todo).
+5. Не дублируй одинаковые пункты в разных разделах без необходимости.
+6. ЗАПРЕЩЕНО: вернуть только «Основной список», если пользователь упомянул 2+ места или этапа.
+
+Выводи только чистый JSON-объект, без markdown-разметки, без пояснений и лишних символов.`;
+
 /** @deprecated используйте buildYandexSystemPrompt */
 export const YANDEX_SYSTEM_PROMPT = YANDEX_SYSTEM_PROMPT_BASE;
 
 export function normalizeParseMode(mode) {
-  return mode === PARSE_MODE.PACKING ? PARSE_MODE.PACKING : PARSE_MODE.SHOPPING;
+  if (mode === PARSE_MODE.PACKING) return PARSE_MODE.PACKING;
+  if (mode === PARSE_MODE.PACKING_CREATE) return PARSE_MODE.PACKING_CREATE;
+  return PARSE_MODE.SHOPPING;
 }
 
 export function buildYandexSystemPrompt(customDictionary = []) {
@@ -69,7 +133,11 @@ ${lines}`;
 }
 
 export function resolveSystemPrompt(mode, customDictionary = []) {
-  if (normalizeParseMode(mode) === PARSE_MODE.PACKING) {
+  const parseMode = normalizeParseMode(mode);
+  if (parseMode === PARSE_MODE.PACKING_CREATE) {
+    return YANDEX_PACKING_CREATE_SYSTEM_PROMPT;
+  }
+  if (parseMode === PARSE_MODE.PACKING) {
     return YANDEX_PACKING_SYSTEM_PROMPT;
   }
   return buildYandexSystemPrompt(customDictionary);
@@ -78,7 +146,21 @@ export function resolveSystemPrompt(mode, customDictionary = []) {
 const YANDEX_COMPLETION_URL =
   'https://llm.api.cloud.yandex.net/foundationModels/v1/completion';
 
-export function parseYandexJsonResponse(text) {
+function isPackingMode(mode) {
+  const parseMode = normalizeParseMode(mode);
+  return parseMode === PARSE_MODE.PACKING || parseMode === PARSE_MODE.PACKING_CREATE;
+}
+
+export function parseYandexJsonResponse(text, { expectObject = false } = {}) {
+  if (expectObject) {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('YandexGPT вернул не объект');
+    }
+    return parsed;
+  }
+
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
 
@@ -104,8 +186,10 @@ export async function callYandexGpt(userText, {
 
   const parseMode = normalizeParseMode(mode);
   const systemPrompt = resolveSystemPrompt(parseMode, customDictionary);
-  const temperature = parseMode === PARSE_MODE.PACKING ? 0.3 : 0.1;
-  const maxTokens = parseMode === PARSE_MODE.PACKING ? '4000' : '2000';
+  const temperature = isPackingMode(parseMode) ? 0.3 : 0.1;
+  const maxTokens = parseMode === PARSE_MODE.PACKING_CREATE
+    ? '6000'
+    : (parseMode === PARSE_MODE.PACKING ? '4000' : '2000');
 
   const response = await fetch(YANDEX_COMPLETION_URL, {
     method: 'POST',
@@ -140,7 +224,9 @@ export async function callYandexGpt(userText, {
     throw new Error('Пустой ответ от YandexGPT');
   }
 
-  return parseYandexJsonResponse(content);
+  return parseYandexJsonResponse(content, {
+    expectObject: parseMode === PARSE_MODE.PACKING_CREATE,
+  });
 }
 
 function readJsonBody(req) {
@@ -195,13 +281,15 @@ export function createYandexParseHandler(getConfig) {
       const parsed = await callYandexGpt(text, {
         apiKey,
         folderId,
-        customDictionary: mode === PARSE_MODE.PACKING ? [] : customDictionary,
+        customDictionary: isPackingMode(mode) ? [] : customDictionary,
         mode,
       });
 
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');
-      if (mode === PARSE_MODE.PACKING) {
+      if (mode === PARSE_MODE.PACKING_CREATE) {
+        res.end(JSON.stringify({ list: parsed, mode }));
+      } else if (mode === PARSE_MODE.PACKING) {
         res.end(JSON.stringify({ items: parsed, mode }));
       } else {
         res.end(JSON.stringify({ products: parsed, mode }));

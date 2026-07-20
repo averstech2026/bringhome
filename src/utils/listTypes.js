@@ -59,12 +59,6 @@ const BUILTIN_CARD_BADGE = {
   trip: 'text-sky-600/80',
 };
 
-const BUILTIN_PROGRESS = {
-  home: 'bg-emerald-500',
-  cottage: 'bg-amber-500',
-  trip: 'bg-sky-500',
-};
-
 const BUILTIN_BADGE = {
   home: { label: 'Домашний', className: 'bg-blue-50 text-blue-600' },
   cottage: { label: 'Дачный', className: 'bg-amber-50 text-amber-700' },
@@ -135,11 +129,6 @@ export function getCustomTypePalette(type) {
 export function getListCardBadgeClass(type) {
   if (isBuiltinListType(type)) return BUILTIN_CARD_BADGE[type] || 'text-slate-400';
   return getCustomTypePalette(type)?.cardBadge || 'text-slate-500';
-}
-
-export function getListProgressClass(type) {
-  if (isBuiltinListType(type)) return BUILTIN_PROGRESS[type] || BUILTIN_PROGRESS.home;
-  return getCustomTypePalette(type)?.progress || 'bg-slate-400';
 }
 
 export function getListTypeBadgeProps(type) {

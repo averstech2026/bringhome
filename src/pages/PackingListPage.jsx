@@ -323,7 +323,14 @@ export default function PackingListPage() {
     && !packingEditableSnapshotsEqual(baselineSnapshot, currentSnapshot),
   );
   const isListEmpty = !list?.items?.length;
-  const isNewEmptyList = isListEmpty && (baselineSnapshot?.items?.length ?? 0) === 0;
+  // Пустой список «отменить создание» можно только автору: иначе delete → permission-denied.
+  const isNewEmptyList = Boolean(
+    isListEmpty
+    && (baselineSnapshot?.items?.length ?? 0) === 0
+    && list?.createdBy
+    && user?.uid
+    && list.createdBy === user.uid,
+  );
   const isArchivedList = Boolean(list?.archived || list?.status === 'archived');
   const showAccessControls = Boolean(
     list
@@ -552,11 +559,11 @@ export default function PackingListPage() {
   const handleFooterExit = async () => {
     if (exiting || syncingCount > 0) return;
 
-    // Новый пустой список — отмена без сохранения.
+    // Новый пустой список автора — отмена без сохранения (delete только createdBy).
     if (isNewEmptyList) {
       setExiting(true);
       try {
-        if (list?.id) {
+        if (list?.id && list.createdBy === user?.uid) {
           await deletePackingList(list.id);
         }
         handleBack();

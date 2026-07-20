@@ -354,11 +354,11 @@ export function isKnownPackingCategory(category) {
 }
 
 export function isPackingMainActivity(activity) {
-  const key = String(activity || '').trim();
+  const key = String(activity || '').trim().toLowerCase();
   return !key
     || key === PACKING_ACTIVITY_MAIN
-    || key === PACKING_MAIN_LIST_LABEL
-    || key === PACKING_UNCATEGORIZED_LABEL;
+    || key === PACKING_MAIN_LIST_LABEL.toLowerCase()
+    || key === PACKING_UNCATEGORIZED_LABEL.toLowerCase();
 }
 
 export function normalizePackingActivity(raw) {
