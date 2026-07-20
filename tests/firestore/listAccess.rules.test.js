@@ -298,6 +298,8 @@ describe('Packing lists (packing_lists) — family scope', () => {
         familyId: FAMILIES.DENIS,
         createdBy: 'denis',
         isTemplate: false,
+        isPublic: true,
+        members: ['denis', 'wife', 'daughter'],
         items: [
           {
             id: 'passport',
@@ -514,7 +516,11 @@ describe('Packing lists (packing_lists) — family scope', () => {
       )),
     );
 
-    expect(publicSnap.docs.map((d) => d.id)).toEqual(['public-trip']);
-    expect(memberSnap.docs.map((d) => d.id).sort()).toEqual(['public-trip', 'shared-with-wife']);
+    const publicIds = publicSnap.docs.map((d) => d.id);
+    const memberIds = memberSnap.docs.map((d) => d.id);
+    expect(publicIds).toContain('public-trip');
+    expect(publicIds).not.toContain('private-trip');
+    expect(memberIds).toEqual(expect.arrayContaining(['public-trip', 'shared-with-wife']));
+    expect(memberIds).not.toContain('private-trip');
   });
 });

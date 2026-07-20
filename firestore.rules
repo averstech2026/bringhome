@@ -295,29 +295,42 @@ service cloud.firestore {
       return list.get('members', []);
     }
 
+    function packingFamilyId(list) {
+      return list.get('familyId', '');
+    }
+
     function hasActivePackingShareInvite(list) {
       return list.get('shareInviteToken', null) != null;
     }
 
     function canReadPackingList(list) {
+      // Как canReadList: members/isPublic только внутри sameFamily (или явный
+      // внешний доступ). Иначе familyId-only query проходит анализ правил
+      // (жёлтая зона: private + members без uid → permission-denied на весь query).
+      // isPublic: default false (не true) — иначе familyId-only снова «открывается».
       return isSuperAdmin()
-        || request.auth.uid in packingMembers(list)
-        || userFamilyId() in list.get('sharedWithFamilyIds', [])
+        || (
+          sameFamily(packingFamilyId(list)) && (
+            isFamilyAdmin()
+            || list.get('isPublic', false) == true
+            || list.createdBy == request.auth.uid
+            || request.auth.uid in packingMembers(list)
+          )
+        )
+        || (
+          // Внешний участник, явно добавленный в members
+          isSignedIn()
+          && packingFamilyId(list) != userFamilyId()
+          && request.auth.uid in packingMembers(list)
+        )
+        || (
+          userFamilyId() in list.get('sharedWithFamilyIds', [])
+          && packingFamilyId(list) != userFamilyId()
+        )
         || (
           isSignedIn()
           && hasActivePackingShareInvite(list)
-          && !sameFamily(list.familyId)
-        )
-        || (
-          sameFamily(list.familyId) && (
-            isFamilyAdmin()
-            // Без default true: иначе familyId-only query проходит анализ правил
-            // (отсутствующее поле ≠ публичный доступ).
-            || list.isPublic == true
-            || list.createdBy == request.auth.uid
-            // Legacy: документы без поля members — вся семья
-            || !('members' in list)
-          )
+          && packingFamilyId(list) != userFamilyId()
         );
     }
 

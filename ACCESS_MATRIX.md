@@ -136,7 +136,7 @@ npm run test   # Vitest + Firestore Emulator (нужна Java 11+)
 
 | Условие | Read / Update items |
 |---|---|
-| `isPublic: true` (или нет поля `members` — legacy) в своей семье | ✅ |
+| `isPublic: true` в своей семье | ✅ |
 | `isPublic: false` + `members: [uids]` | ✅ uid в `members` (в т.ч. из другой семьи) |
 | `sharedWithFamilyIds` содержит семью зрителя | ✅ кросс-семейный гость |
 | Активный `shareInviteToken` (чужой тенант, до join) | ✅ только чтение для принятия ссылки |
