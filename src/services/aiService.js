@@ -11,17 +11,153 @@ import {
   PACKING_SCOPE,
 } from '../utils/packingLists';
 import { lookupPopularPackingItem } from '../utils/packingAutocomplete';
+import { BUILTIN_TYPES, getListTypeLabel } from '../utils/listTypes';
 
 export const AI_PARSE_MODE = {
   SHOPPING: 'shopping',
+  SHOPPING_CREATE: 'shopping-create',
   PACKING: 'packing',
   PACKING_CREATE: 'packing-create',
 };
 
+const SHOPPING_TYPE_BY_LABEL = {
+  домой: 'home',
+  дача: 'cottage',
+  'на дачу': 'cottage',
+  'в дорогу': 'trip',
+  дорогу: 'trip',
+  home: 'home',
+  cottage: 'cottage',
+  trip: 'trip',
+};
+
+/** Человекочитаемое назначение для плашки превью. */
+export const SHOPPING_PURPOSE_LABELS = {
+  home: 'Домой',
+  cottage: 'На дачу',
+  trip: 'В дорогу',
+};
+
+export function resolveShoppingCreateType(rawType) {
+  const key = String(rawType || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+  if (SHOPPING_TYPE_BY_LABEL[key]) return SHOPPING_TYPE_BY_LABEL[key];
+  if (BUILTIN_TYPES[key]) return key;
+  return 'home';
+}
+
+/** Эвристика назначения по тексту, если API не вернул type (старый режим shopping). */
+export function inferShoppingTypeFromText(text) {
+  const value = String(text || '').toLowerCase();
+  if (/(на\s+дач|на\s+участок|в\s+огород|\bдач[ауеы]?\b)/.test(value)) {
+    return 'cottage';
+  }
+  if (/(в\s+дорогу|в\s+поездк|в\s+машин|дорожн)/.test(value)) {
+    return 'trip';
+  }
+  if (/(домой|для\s+дома|в\s+квартир)/.test(value)) {
+    return 'home';
+  }
+  return 'home';
+}
+
+function formatShoppingCreateDateLabel(date = new Date()) {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${day}.${month}`;
+}
+
+export function buildDefaultShoppingCreateTitle(type = 'home', date = new Date()) {
+  const dateLabel = formatShoppingCreateDateLabel(date);
+  if (type === 'cottage') return `Продукты на дачу (${dateLabel})`;
+  if (type === 'trip') return `В дорогу (${dateLabel})`;
+  return `Продукты Домой (${dateLabel})`;
+}
+
+/**
+ * Нормализация ответа режима shopping-create:
+ * { type, title, items[] } с category / quantity у каждого пункта.
+ * Также принимает legacy `{ products: [] }` и массив продуктов.
+ */
+export function normalizeShoppingCreateResponse(raw = {}, { today = new Date(), sourceText = '' } = {}) {
+  const payload = Array.isArray(raw)
+    ? { items: raw }
+    : (raw && typeof raw === 'object' ? raw : {});
+
+  const rawItems = Array.isArray(payload.items)
+    ? payload.items
+    : (Array.isArray(payload.products) ? payload.products : []);
+
+  const hasExplicitType = Boolean(String(payload.type || '').trim());
+  const type = hasExplicitType
+    ? resolveShoppingCreateType(payload.type)
+    : inferShoppingTypeFromText(sourceText);
+
+  const dateLabel = formatShoppingCreateDateLabel(today);
+
+  let title = String(payload.title || '').trim()
+    .replace(/\(ДД\.ММ\)/gi, `(${dateLabel})`)
+    .replace(/\bДД\.ММ\b/gi, dateLabel);
+  if (!title) {
+    title = buildDefaultShoppingCreateTitle(type, today);
+  } else if (!/\(\d{1,2}\.\d{1,2}\)/.test(title) && !/\d{1,2}\.\d{1,2}/.test(title)) {
+    title = `${title} (${dateLabel})`;
+  }
+
+  const items = rawItems
+    .map((item) => normalizeYandexProduct(item))
+    .filter((item) => item.name);
+
+  return {
+    type,
+    typeLabel: getListTypeLabel(type),
+    purposeLabel: SHOPPING_PURPOSE_LABELS[type] || getListTypeLabel(type),
+    title,
+    items,
+  };
+}
+
+/** Достаёт структуру списка из ответа API (новый shopping-create или legacy shopping). */
+export function extractShoppingCreatePayload(data) {
+  if (!data || typeof data !== 'object') return null;
+
+  if (data.list && typeof data.list === 'object' && !Array.isArray(data.list)) {
+    return data.list;
+  }
+
+  if (Array.isArray(data.products)) {
+    return { products: data.products };
+  }
+
+  if (Array.isArray(data.items)) {
+    return { items: data.items, type: data.type, title: data.title };
+  }
+
+  if (Array.isArray(data)) {
+    return { items: data };
+  }
+
+  if (Array.isArray(data.list)) {
+    return { items: data.list };
+  }
+
+  if (typeof data === 'object' && (data.items || data.products || data.type || data.title)) {
+    return data;
+  }
+
+  return null;
+}
+
 function normalizeYandexProduct(item) {
-  const name = String(item.name || '')
+  const name = String(item?.name || item?.text || item?.product || '')
     .trim()
     .toLowerCase();
+
+  if (!name) {
+    return { name: '', quantity: '1 шт', category: 'Прочее' };
+  }
 
   let quantity = '1 шт';
 
@@ -257,6 +393,89 @@ export async function parsePackingItemsWithAI(text) {
   return parsed
     .map(normalizeYandexPackingItem)
     .filter((item) => item.name);
+}
+
+/**
+ * Полная генерация списка покупок по тексту из чата/заметок.
+ * @returns {{ type: string, typeLabel: string, purposeLabel: string, title: string, items: Array }}
+ */
+export async function generateShoppingListWithAI(text, { customDictionary = [], today = new Date() } = {}) {
+  const sourceText = String(text || '').trim();
+  const dateLabel = formatShoppingCreateDateLabel(today);
+  const requestText = `Сегодняшняя дата: ${dateLabel}\n\n${sourceText}`;
+  const dictionary = Array.isArray(customDictionary)
+    ? customDictionary
+    : Object.values(customDictionary || {});
+
+  let normalized = { items: [] };
+  let createError = null;
+
+  try {
+    const data = await postYandexParse({
+      text: requestText,
+      mode: AI_PARSE_MODE.SHOPPING_CREATE,
+      customDictionary: dictionary,
+    });
+    const rawList = extractShoppingCreatePayload(data);
+    normalized = normalizeShoppingCreateResponse(rawList || {}, {
+      today,
+      sourceText,
+    });
+  } catch (err) {
+    createError = err;
+    normalized = { items: [] };
+  }
+
+  // Старый Cloud Function / пустой ответ — режим shopping (извлечение).
+  if (normalized.items.length === 0) {
+    try {
+      const data = await postYandexParse({
+        text: sourceText,
+        mode: AI_PARSE_MODE.SHOPPING,
+        customDictionary: dictionary,
+      });
+      const rawList = extractShoppingCreatePayload(data);
+      normalized = normalizeShoppingCreateResponse(rawList || {}, {
+        today,
+        sourceText,
+      });
+    } catch (err) {
+      if (!createError) createError = err;
+    }
+  }
+
+  // Концептуальный запрос («для шашлыка») без явного списка — shopping часто
+  // возвращает []. Подсказка в user-тексте помогает даже на старом CF.
+  if (normalized.items.length === 0) {
+    const hinted = [
+      'Составь типичный список продуктов по запросу ниже.',
+      'Верни конкретные товары (мясо, овощи, уголь и т.п.), не общие слова.',
+      '',
+      sourceText,
+    ].join('\n');
+    try {
+      const data = await postYandexParse({
+        text: hinted,
+        mode: AI_PARSE_MODE.SHOPPING,
+        customDictionary: dictionary,
+      });
+      const rawList = extractShoppingCreatePayload(data);
+      normalized = normalizeShoppingCreateResponse(rawList || {}, {
+        today,
+        sourceText,
+      });
+    } catch (err) {
+      if (!createError) createError = err;
+    }
+  }
+
+  if (normalized.items.length === 0) {
+    throw new Error(
+      createError?.message || 'ИИ не смог распознать продукты в этом тексте',
+    );
+  }
+
+  return normalized;
 }
 
 /**

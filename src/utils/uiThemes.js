@@ -200,6 +200,11 @@ const THEME_CHROME = {
     createPackingEmptyLabel: 'Опишите поездку, чтобы сгенерировать список',
     createPackingConfirmLabel: 'Все отлично, создать',
     createPackingConfirmLoadingLabel: 'Создаём…',
+    createShoppingLabel: 'Сгенерировать список с ИИ',
+    createShoppingLoadingLabel: 'Распознаём…',
+    createShoppingEmptyLabel: 'Вставьте список из чата или заметок',
+    createShoppingConfirmLabel: 'Создать список продуктов',
+    createShoppingConfirmLoadingLabel: 'Создаём…',
     limitExhaustedLabel: 'Лимит исчерпан',
     limitExhaustedDisabled: true,
     limitExhaustedMessage:
@@ -221,6 +226,11 @@ const THEME_CHROME = {
     createPackingEmptyLabel: 'Опишите поездку — и произнесём заклинание',
     createPackingConfirmLabel: 'Шалость удалась — создать! 🪄',
     createPackingConfirmLoadingLabel: 'Зачаровываем список…',
+    createShoppingLabel: '✨ Акцио, списочек!',
+    createShoppingLoadingLabel: 'Колдуем…',
+    createShoppingEmptyLabel: 'Вставьте список — и произнесём заклинание',
+    createShoppingConfirmLabel: 'Шалость удалась — создать! 🪄',
+    createShoppingConfirmLoadingLabel: 'Зачаровываем список…',
     limitExhaustedLabel: 'Палочка перегрелась! 🪄',
     limitExhaustedDisabled: true,
     limitExhaustedMessage:
@@ -243,6 +253,11 @@ const THEME_CHROME = {
     createPackingEmptyLabel: 'Опишите миссию, чтобы собрать рюкзак',
     createPackingConfirmLabel: 'Список готов — в путь! ⚔️',
     createPackingConfirmLoadingLabel: 'Готовим к гиперпрыжку…',
+    createShoppingLabel: 'Да прибудет с нами Сила! ⚔️',
+    createShoppingLoadingLabel: 'Сканируем галактику…',
+    createShoppingEmptyLabel: 'Передайте список миссии',
+    createShoppingConfirmLabel: 'Список готов — в путь! ⚔️',
+    createShoppingConfirmLoadingLabel: 'Готовим к гиперпрыжку…',
     limitExhaustedLabel: 'Исчерпана Сила твоя! ⚔️',
     limitExhaustedDisabled: true,
     limitExhaustedMessage:
@@ -265,6 +280,11 @@ const THEME_CHROME = {
     createPackingEmptyLabel: 'Опишите поездку для чемоданчика',
     createPackingConfirmLabel: 'Чемоданчик готов! 💼',
     createPackingConfirmLoadingLabel: 'Закрываем чемоданчик…',
+    createShoppingLabel: 'Проверить чемоданчик 💼',
+    createShoppingLoadingLabel: 'Сортируем по карманам…',
+    createShoppingEmptyLabel: 'Вставьте список для чемоданчика',
+    createShoppingConfirmLabel: 'Корзинка готова! 💼',
+    createShoppingConfirmLoadingLabel: 'Собираем корзинку…',
     limitExhaustedLabel: 'Чемоданчик пуст 💼',
     limitExhaustedDisabled: true,
     limitExhaustedMessage:
@@ -387,6 +407,38 @@ export function getPackingCreateAiTheme(themeId) {
     emptyLabel: chrome.createPackingEmptyLabel || 'Опишите поездку, чтобы сгенерировать список',
     confirmLabel: chrome.createPackingConfirmLabel || 'Все отлично, создать',
     confirmLoadingLabel: chrome.createPackingConfirmLoadingLabel || 'Создаём…',
+    accentBorderClassName: chrome.accentBorderClassName,
+    accentRingClassName: chrome.accentRingClassName,
+  };
+}
+
+/** Тема CTA создания списка покупок через ИИ. */
+export function getShoppingCreateAiTheme(themeId) {
+  const chrome = getThemeChrome(themeId);
+  const id = resolveThemeId(themeId);
+  // Плашка «С ИИ» — узнаваемый акцент темы (середина AI-градиента), без shimmer.
+  const tabSolidByTheme = {
+    default: 'bg-[#7c3aed]',
+    hogwarts: 'bg-[#991b1b]',
+    star_wars: 'bg-[#2563eb]',
+    paddington: 'bg-[#1e3a8a]',
+  };
+  const tabIdleByTheme = {
+    default: 'border-violet-100 bg-violet-50/60 text-slate-700 hover:bg-violet-50',
+    hogwarts: 'border-red-100 bg-amber-50/60 text-slate-700 hover:bg-amber-50',
+    star_wars: 'border-indigo-100 bg-indigo-50/60 text-slate-700 hover:bg-indigo-50',
+    paddington: 'border-blue-100 bg-blue-50/60 text-slate-700 hover:bg-blue-50',
+  };
+  return {
+    icon: chrome.icon || 'sparkles',
+    buttonClass: getActiveSurfaceClass(themeId),
+    tabClass: tabSolidByTheme[id] || tabSolidByTheme.default,
+    tabIdleClass: tabIdleByTheme[id] || tabIdleByTheme.default,
+    label: chrome.createShoppingLabel || 'Сгенерировать список с ИИ',
+    loadingLabel: chrome.createShoppingLoadingLabel || chrome.loadingLabel || 'Распознаём…',
+    emptyLabel: chrome.createShoppingEmptyLabel || 'Вставьте список из чата или заметок',
+    confirmLabel: chrome.createShoppingConfirmLabel || 'Создать список продуктов',
+    confirmLoadingLabel: chrome.createShoppingConfirmLoadingLabel || 'Создаём…',
     accentBorderClassName: chrome.accentBorderClassName,
     accentRingClassName: chrome.accentRingClassName,
   };

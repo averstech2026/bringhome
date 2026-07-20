@@ -8,6 +8,7 @@ import {
   normalizeRole,
 } from '../utils/roles';
 import { getFamilyId } from '../utils/familyGroup';
+import { DEFAULT_HOME_DESKTOP_CHANGE_EVENT } from '../utils/homeDesktops';
 
 export function useUserProfile(user) {
   const [profile, setProfile] = useState(null);
@@ -16,6 +17,16 @@ export function useUserProfile(user) {
   const [reloadKey, setReloadKey] = useState(0);
 
   const reload = useCallback(() => setReloadKey((key) => key + 1), []);
+
+  useEffect(() => {
+    const onDesktopChange = (event) => {
+      if (event.detail?.userId === user?.uid) {
+        reload();
+      }
+    };
+    window.addEventListener(DEFAULT_HOME_DESKTOP_CHANGE_EVENT, onDesktopChange);
+    return () => window.removeEventListener(DEFAULT_HOME_DESKTOP_CHANGE_EVENT, onDesktopChange);
+  }, [user?.uid, reload]);
 
   useEffect(() => {
     let active = true;

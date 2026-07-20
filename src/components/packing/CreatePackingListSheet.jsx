@@ -162,7 +162,7 @@ export default function CreatePackingListSheet({
   const needsTemplate = isTemplateMode && !templateId;
   const canSubmitForm = isAiMode
     ? hasAiPrompt && !locked
-    : hasTitle && !locked && !needsTemplate;
+    : !locked && !needsTemplate;
 
   const selectMode = (nextMode) => {
     if (locked || isPreview) return;
@@ -208,13 +208,6 @@ export default function CreatePackingListSheet({
     } finally {
       setGenerating(false);
     }
-  };
-
-  const handleBackToForm = () => {
-    if (locked) return;
-    setStep(STEP_FORM);
-    setAiPreview(null);
-    setSelectedIds(new Set());
   };
 
   const togglePreviewItem = (id) => {
@@ -274,7 +267,8 @@ export default function CreatePackingListSheet({
       return;
     }
 
-    const resolvedTitle = appendDateToPackingTitle(title, travelDate);
+    const rawTitle = title.trim() || 'Поездка';
+    const resolvedTitle = appendDateToPackingTitle(rawTitle, travelDate);
     onConfirm?.({
       mode,
       title: resolvedTitle,
@@ -308,7 +302,7 @@ export default function CreatePackingListSheet({
     if (needsTemplate) return 'Выберите шаблон';
     return hasTitle
       ? 'Создать список 🚀'
-      : 'Чтобы создать список, введите название';
+      : `Создать «Поездка ${formatPackingDateLabel(travelDate)}» 🚀`;
   })();
 
   const primaryClassName = (() => {
@@ -316,7 +310,7 @@ export default function CreatePackingListSheet({
       if (!hasAiPrompt && !generating) return CREATE_BTN_DISABLED;
       return `relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full py-3.5 text-[15px] font-semibold text-white transition-all duration-300 hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none disabled:active:scale-100 ${aiTheme.buttonClass}`;
     }
-    return hasTitle && !needsTemplate ? PACKING_ACCENT.primaryBtn : CREATE_BTN_DISABLED;
+    return !needsTemplate ? PACKING_ACCENT.primaryBtn : CREATE_BTN_DISABLED;
   })();
 
   const showAiThemeIcon = isAiMode && (hasAiPrompt || generating);
@@ -580,7 +574,8 @@ export default function CreatePackingListSheet({
                 autoFocus
               />
               <p className="mt-1.5 text-[11px] text-slate-400">
-                Если даты нет в названии, добавим «{formatPackingDateLabel(travelDate)}» при создании
+                Можно оставить пустым — будет «Поездка {formatPackingDateLabel(travelDate)}».
+                Если даты нет в названии, добавим её при создании
               </p>
             </label>
 
@@ -664,34 +659,24 @@ export default function CreatePackingListSheet({
 
       <div className="shrink-0 border-t border-gray-100 bg-white px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
         {isPreview ? (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={locked}
-              onClick={handleBackToForm}
-              className="flex-1 rounded-full border border-slate-200 bg-white py-3.5 text-[15px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-            >
-              Назад
-            </button>
-            <button
-              type="button"
-              disabled={locked || selectedCount === 0}
-              onClick={handleConfirmPreview}
-              className={`relative inline-flex flex-[1.4] items-center justify-center gap-2 overflow-hidden rounded-full py-3.5 text-[15px] font-semibold text-white transition-all duration-300 hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none disabled:active:scale-100 ${aiTheme.buttonClass}`}
-            >
-              <AiThemeIcon
-                icon={aiTheme.icon}
-                className={`relative z-10 h-4 w-4 shrink-0 ${busy ? 'animate-spin' : ''}`}
-              />
-              <span className="relative z-10">
-                {busy
-                  ? aiTheme.confirmLoadingLabel
-                  : selectedCount > 0
-                    ? `${aiTheme.confirmLabel} (+${selectedCount})`
-                    : 'Выберите пункты'}
-              </span>
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={locked || selectedCount === 0}
+            onClick={handleConfirmPreview}
+            className={`relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full py-3.5 text-[15px] font-semibold text-white transition-all duration-300 hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none disabled:active:scale-100 ${aiTheme.buttonClass}`}
+          >
+            <AiThemeIcon
+              icon={aiTheme.icon}
+              className={`relative z-10 h-4 w-4 shrink-0 ${busy ? 'animate-spin' : ''}`}
+            />
+            <span className="relative z-10">
+              {busy
+                ? aiTheme.confirmLoadingLabel
+                : selectedCount > 0
+                  ? `${aiTheme.confirmLabel} (+${selectedCount})`
+                  : 'Выберите пункты'}
+            </span>
+          </button>
         ) : (
           <button
             type="button"

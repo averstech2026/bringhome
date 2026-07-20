@@ -1,5 +1,7 @@
 export const PARSE_MODE = {
   SHOPPING: 'shopping',
+  /** Полная генерация списка покупок из текста (type + title + items). */
+  SHOPPING_CREATE: 'shopping-create',
   PACKING: 'packing',
   /** Полная генерация списка сборов по описанию поездки (title + sections + items). */
   PACKING_CREATE: 'packing-create',
@@ -29,6 +31,48 @@ const PACKING_ITEM_CATEGORIES = [
 
 export const YANDEX_SYSTEM_PROMPT_BASE =
   `Ты — строгое API для парсинга списка покупок. Извлеки продукты из текста сообщения и верни ответ СТРОГО в формате JSON-массива объектов. Каждая покупка должна быть объектом со следующими ключами: 'name' (название продукта в правильном литературном русском, строка, с маленькой буквы), 'quantity' (число или строка, если указано количество), 'unit' (единица измерения: шт, кг, л, уп, пачка, пучок, бутылка, десяток, или пустая строка ''), 'category' (строго одно из значений: ${AI_CATEGORIES.join(', ')}). Обязательно автоматически исправляй явные орфографические и грамматические ошибки в названиях товаров на правильный русский язык (например, если в исходном тексте написано 'малако', в JSON-ответ должно пойти 'молоко'; если написано 'кифир' — должно быть 'кефир'). При этом сохраняй оригинальный смысл, вкусы и бренды, если они узнаваемы. Зелень (укроп, петрушка, салат) — категория «Овощи и фрукты». Яйца — «Бакалея». Квас, сок, вода — «Напитки». Если количество не указано, запиши в quantity значение null. Выводи только чистый JSON-массив, без markdown-разметки, без пояснений и лишних символов.`;
+
+export const YANDEX_SHOPPING_CREATE_SYSTEM_PROMPT =
+  `ТЫ — ИИ-ассистент для создания списка покупок из свободного текста (чат, заметки, голосовая расшифровка).
+
+Верни строго один JSON-объект следующей структуры:
+{
+  "type": "Домой" | "Дача" | "В дорогу",
+  "title": "Название списка",
+  "items": [
+    {
+      "name": "название продукта",
+      "quantity": число или null,
+      "unit": "шт" | "кг" | "л" | "уп" | "пак." | "пачка" | "пучок" | "бутылка" | "десяток" | "",
+      "category": "одна из категорий"
+    }
+  ]
+}
+
+type — назначение списка. Определяй по явным триггерам в тексте:
+- «на дачу», «дача», «в огород», «на участок» → «Дача»
+- «в дорогу», «в поездку», «в машину», «в дорожный», «на пикник в дороге» → «В дорогу»
+- «домой», «для дома», «в квартиру» → «Домой»
+
+FALLBACK, ЕСЛИ НАЗНАЧЕНИЕ НЕ УКАЗАНО:
+1. Если в тексте НЕТ явных триггеров дачи или дороги — type ОБЯЗАТЕЛЬНО «Домой».
+2. title по умолчанию: «Продукты Домой (ДД.ММ)», где ДД.ММ — сегодняшняя дата из сообщения пользователя (если дата не передана — используй плейсхолдер «сегодня»).
+3. АЛЬТЕРНАТИВА ПО КОНТЕКСТУ: если состав продуктов явно намекает на узкую тему (только овощи/фрукты, только мясо и угли для шашлыка, только молочка и т.п.), можешь предложить более точное title, например «Покупки: Овощи/Фрукты (ДД.ММ)» или «Шашлык (ДД.ММ)». Но type всё равно остаётся «Домой», пока нет триггеров дачи или дороги.
+
+Если type = «Дача» или «В дорогу», title формируй кратко с датой, например «Продукты на дачу (ДД.ММ)» / «В дорогу (ДД.ММ)».
+
+items — массив продуктов. Правила наполнения:
+1. Если пользователь ПЕРЕЧИСЛИЛ товары («молоко, хлеб, яйца») — извлеки их все, не добавляй лишнего.
+2. Если описал ЗАДАЧУ без списка («нужны продукты для шашлыка», «набор для борща», «закупка на неделю») — СОСТАВЬ типичный набор из 6–15 позиций под эту задачу.
+3. Можно комбинировать: явные товары из текста + недостающее для понятной задачи (шашлык → мясо, уголь, овощи и т.п.).
+
+name: правильный литературный русский, с маленькой буквы; исправляй опечатки («малако» → «молоко»).
+quantity: число, если указано (в т.ч. «2 пакета» → quantity: 2, unit: «пак.»); иначе null.
+unit: единица измерения; для «пакет/пакета/пакетов» используй «пак.»; если не указана — "".
+category: строго одно из: ${AI_CATEGORIES.join(', ')}.
+Зелень — «Овощи и фрукты». Яйца — «Бакалея». Квас, сок, вода — «Напитки». Угли, фольга, пакеты, губки — «Бытовая химия» (хозтовары).
+
+Выводи только чистый JSON-объект, без markdown-разметки, без пояснений и лишних символов.`;
 
 export const YANDEX_PACKING_SYSTEM_PROMPT =
   `ТЫ — ИИ-ассистент для сборов в путешествия и поездки. Твоя задача — распарсить текст пользователя ИЛИ сгенерировать базовый список сборов с нуля, если пользователь просто указал направление (например, "мы едем в Териберку").
@@ -112,6 +156,7 @@ export const YANDEX_SYSTEM_PROMPT = YANDEX_SYSTEM_PROMPT_BASE;
 export function normalizeParseMode(mode) {
   if (mode === PARSE_MODE.PACKING) return PARSE_MODE.PACKING;
   if (mode === PARSE_MODE.PACKING_CREATE) return PARSE_MODE.PACKING_CREATE;
+  if (mode === PARSE_MODE.SHOPPING_CREATE) return PARSE_MODE.SHOPPING_CREATE;
   return PARSE_MODE.SHOPPING;
 }
 
@@ -140,6 +185,9 @@ export function resolveSystemPrompt(mode, customDictionary = []) {
   if (parseMode === PARSE_MODE.PACKING) {
     return YANDEX_PACKING_SYSTEM_PROMPT;
   }
+  if (parseMode === PARSE_MODE.SHOPPING_CREATE) {
+    return YANDEX_SHOPPING_CREATE_SYSTEM_PROMPT;
+  }
   return buildYandexSystemPrompt(customDictionary);
 }
 
@@ -151,24 +199,118 @@ function isPackingMode(mode) {
   return parseMode === PARSE_MODE.PACKING || parseMode === PARSE_MODE.PACKING_CREATE;
 }
 
+function isObjectCreateMode(mode) {
+  const parseMode = normalizeParseMode(mode);
+  return parseMode === PARSE_MODE.PACKING_CREATE || parseMode === PARSE_MODE.SHOPPING_CREATE;
+}
+
+function stripMarkdownFence(text) {
+  return String(text || '')
+    .replace(/^\s*```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+}
+
+/** Достаёт первую сбалансированную JSON-скобку, учитывая строки. */
+function extractBalancedJson(text, openChar, closeChar) {
+  const start = text.indexOf(openChar);
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === openChar) depth += 1;
+    else if (ch === closeChar) {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+
+  return null;
+}
+
+function tryJsonParse(raw) {
+  try {
+    return { ok: true, value: JSON.parse(raw) };
+  } catch (err) {
+    return { ok: false, error: err };
+  }
+}
+
+/**
+ * Разбор ответа YandexGPT: объект (create-режимы) или массив (parse-режимы).
+ * Устойчив к markdown-ограждениям и «болтливому» тексту вокруг JSON.
+ */
 export function parseYandexJsonResponse(text, { expectObject = false } = {}) {
+  const cleaned = stripMarkdownFence(text);
+  let parsed;
+  let lastError;
+
+  const direct = tryJsonParse(cleaned);
+  if (direct.ok) {
+    parsed = direct.value;
+  } else {
+    lastError = direct.error;
+    const candidates = expectObject
+      ? [
+        extractBalancedJson(cleaned, '{', '}'),
+        extractBalancedJson(cleaned, '[', ']'),
+      ]
+      : [
+        extractBalancedJson(cleaned, '[', ']'),
+        extractBalancedJson(cleaned, '{', '}'),
+      ];
+
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const result = tryJsonParse(candidate);
+      if (result.ok) {
+        parsed = result.value;
+        break;
+      }
+      lastError = result.error;
+    }
+  }
+
+  if (parsed === undefined) {
+    const detail = lastError?.message ? `: ${lastError.message}` : '';
+    throw new Error(`Не удалось разобрать ответ ИИ${detail}`);
+  }
+
   if (expectObject) {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    // Иногда модель возвращает массив продуктов вместо { type, title, items }.
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    if (!parsed || typeof parsed !== 'object') {
       throw new Error('YandexGPT вернул не объект');
     }
     return parsed;
   }
 
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-  const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
-
-  if (!Array.isArray(parsed)) {
-    throw new Error('YandexGPT вернул не массив');
-  }
-
-  return parsed;
+  if (Array.isArray(parsed)) return parsed;
+  if (Array.isArray(parsed?.products)) return parsed.products;
+  if (Array.isArray(parsed?.items)) return parsed.items;
+  throw new Error('YandexGPT вернул не массив');
 }
 
 export async function callYandexGpt(userText, {
@@ -186,10 +328,14 @@ export async function callYandexGpt(userText, {
 
   const parseMode = normalizeParseMode(mode);
   const systemPrompt = resolveSystemPrompt(parseMode, customDictionary);
-  const temperature = isPackingMode(parseMode) ? 0.3 : 0.1;
+  const temperature = isPackingMode(parseMode) || parseMode === PARSE_MODE.SHOPPING_CREATE
+    ? 0.3
+    : 0.1;
   const maxTokens = parseMode === PARSE_MODE.PACKING_CREATE
     ? '6000'
-    : (parseMode === PARSE_MODE.PACKING ? '4000' : '2000');
+    : (parseMode === PARSE_MODE.PACKING || parseMode === PARSE_MODE.SHOPPING_CREATE
+      ? '4000'
+      : '2000');
 
   const response = await fetch(YANDEX_COMPLETION_URL, {
     method: 'POST',
@@ -224,9 +370,22 @@ export async function callYandexGpt(userText, {
     throw new Error('Пустой ответ от YandexGPT');
   }
 
-  return parseYandexJsonResponse(content, {
-    expectObject: parseMode === PARSE_MODE.PACKING_CREATE,
+  let parsed = parseYandexJsonResponse(content, {
+    expectObject: isObjectCreateMode(parseMode),
   });
+
+  // shopping-create: массив продуктов → оборачиваем в ожидаемый объект.
+  if (parseMode === PARSE_MODE.SHOPPING_CREATE && Array.isArray(parsed)) {
+    parsed = { type: 'Домой', title: '', items: parsed };
+  }
+
+  if (isObjectCreateMode(parseMode)) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('YandexGPT вернул не объект');
+    }
+  }
+
+  return parsed;
 }
 
 function readJsonBody(req) {
@@ -287,7 +446,7 @@ export function createYandexParseHandler(getConfig) {
 
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');
-      if (mode === PARSE_MODE.PACKING_CREATE) {
+      if (mode === PARSE_MODE.PACKING_CREATE || mode === PARSE_MODE.SHOPPING_CREATE) {
         res.end(JSON.stringify({ list: parsed, mode }));
       } else if (mode === PARSE_MODE.PACKING) {
         res.end(JSON.stringify({ items: parsed, mode }));

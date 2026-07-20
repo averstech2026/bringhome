@@ -25,6 +25,11 @@ import { compressImageToDataUrl } from '../utils/compressImage';
 import { DEFAULT_GROUP_ID, getFamilyId } from '../utils/familyGroup';
 import { DEFAULT_AI_LIMITS, deriveAiLimitsFromMonthly } from '../utils/aiLimits';
 import { UI_THEME_IDS, setCachedUiTheme } from '../utils/uiThemes';
+import {
+  DEFAULT_HOME_DESKTOP_CHANGE_EVENT,
+  normalizeHomeDesktop,
+  setCachedDefaultHomeDesktop,
+} from '../utils/homeDesktops';
 import { ROLES, normalizeRole, isSuperAdmin, PLATFORM_OWNER_EMAIL } from '../utils/roles';
 import { createFamily } from './familiesService';
 import { createWelcomeHintForUser } from './notificationsService';
@@ -331,6 +336,15 @@ export async function updateOwnUiTheme(userId, uiTheme) {
   const normalized = UI_THEME_IDS.includes(uiTheme) ? uiTheme : 'default';
   await updateDoc(doc(db, COLLECTIONS.USERS, userId), { uiTheme: normalized });
   setCachedUiTheme(userId, normalized);
+}
+
+export async function updateOwnDefaultHomeDesktop(userId, desktopId) {
+  const normalized = normalizeHomeDesktop(desktopId);
+  await updateDoc(doc(db, COLLECTIONS.USERS, userId), { defaultHomeDesktop: normalized });
+  setCachedDefaultHomeDesktop(userId, normalized);
+  window.dispatchEvent(new CustomEvent(DEFAULT_HOME_DESKTOP_CHANGE_EVENT, {
+    detail: { userId, desktopId: normalized },
+  }));
 }
 
 export async function updateUserAvatar(user, file) {

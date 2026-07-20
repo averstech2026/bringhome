@@ -64,7 +64,7 @@ export async function handler(event) {
       mode,
     });
 
-    if (mode === PARSE_MODE.PACKING_CREATE) {
+    if (mode === PARSE_MODE.PACKING_CREATE || mode === PARSE_MODE.SHOPPING_CREATE) {
       return {
         statusCode: 200,
         headers,

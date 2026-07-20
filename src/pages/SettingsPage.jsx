@@ -83,11 +83,24 @@ function getAvatarErrorMessage(err) {
   return message || 'Не удалось сохранить фото';
 }
 
+function getHomeDesktopErrorMessage(err) {
+  const code = err?.code || '';
+  const message = err?.message || '';
+
+  if (code.includes('permission-denied')) {
+    return 'Нет прав на сохранение настройки. Задеплойте firestore.rules: firebase deploy --only firestore:rules';
+  }
+  if (code.includes('unauthenticated')) {
+    return 'Сессия истекла. Выйдите и войдите снова.';
+  }
+  return message || 'Не удалось сохранить стартовый экран';
+}
+
 export default function SettingsPage() {
   const toast = useToast();
   const { user, signOut, reloadUser } = useAuth();
-  const { settings, updateSetting } = useAppSettings();
   const { profile, isSuperAdmin, isFamilyAdmin, familyId, reload, loading: profileLoading } = useUserProfile(user);
+  const { settings, updateSetting } = useAppSettings({ user, profile });
   const { unreadCount } = useNotifications(user?.uid, { familyId, profile });
   const { unreadCount: feedbackUnreadCount } = useUnreadFeedbacks(isSuperAdmin);
   const { unseenCount: feedbackStatusUnseenCount } = useUnseenFeedbackStatuses(
@@ -521,7 +534,14 @@ export default function SettingsPage() {
                     type="button"
                     role="radio"
                     aria-checked={selected}
-                    onClick={() => updateSetting('defaultHomeDesktop', option.id)}
+                    onClick={async () => {
+                      if (selected) return;
+                      try {
+                        await updateSetting('defaultHomeDesktop', option.id);
+                      } catch (err) {
+                        toast.error(getHomeDesktopErrorMessage(err));
+                      }
+                    }}
                     className={`${CHIP_BUTTON_SURFACE} flex-1 ${
                       selected
                         ? isTravel

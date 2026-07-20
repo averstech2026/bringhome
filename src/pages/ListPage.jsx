@@ -932,7 +932,7 @@ export default function ListPage() {
     }
   };
 
-  const handleSaveSettings = async ({ type, scheduledFor, description }) => {
+  const handleSaveSettings = async ({ type, scheduledFor, description, title = null }) => {
     setSettingsOpen(false);
 
     if (isDraft) {
@@ -957,11 +957,15 @@ export default function ListPage() {
     const resolvedType = normalizeListTypeForCreate(type);
     const scheduledDate = scheduledFor ? startOfDay(scheduledFor) : null;
     const trimmedDescription = description.trim();
-    const nextTitle = formatListTitle(resolvedType, scheduledDate || new Date());
+    const nextTitle = (typeof title === 'string' && title.trim()
+      ? title.trim()
+      : formatListTitle(resolvedType, scheduledDate || new Date())
+    ).slice(0, 80);
     const remindOnDay = Boolean(scheduledDate && list.remindOnDay);
 
     const unchanged = resolvedType === (list.type || 'home')
       && trimmedDescription === (list.description || '').trim()
+      && nextTitle === (list.title || '').trim()
       && (scheduledDate?.getTime() || null) === (parseListScheduledFor(list)?.getTime() || null);
 
     if (unchanged) return;
@@ -1389,6 +1393,7 @@ export default function ListPage() {
         initialType={settingsListType}
         initialScheduledFor={listScheduledFor}
         initialDescription={listDescription}
+        initialTitle={isDraft ? formatListTitle(listType, draftScheduledFor || new Date()) : (list?.title || '')}
         readOnly={isReadOnlyView}
         listId={listId}
         list={list}

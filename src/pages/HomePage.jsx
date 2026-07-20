@@ -7,6 +7,7 @@ import {
   getHomePageLists,
   getItemsProgressByListIds,
   updateList,
+  createActualList,
 } from '../services/listsService';
 import { getFamilyMembers, setOnboardingCompleted, markAnnouncementsAsRead } from '../services/usersService';
 import {
@@ -14,7 +15,7 @@ import {
   getUnreadAnnouncements,
 } from '../services/announcementsService';
 import CreateListFab from '../components/home/CreateListFab';
-import CreateListSheet from '../components/home/CreateListSheet';
+import CreateListSheet, { MODE_AI as MODE_SHOPPING_AI } from '../components/home/CreateListSheet';
 import RequestCustomTypeModal from '../components/home/RequestCustomTypeModal';
 import HomeDesktopPager from '../components/home/HomeDesktopPager';
 import TravelListsDesktop from '../components/home/TravelListsDesktop';
@@ -59,11 +60,12 @@ import {
   isPackingListArchived,
 } from '../services/packingListsService';
 import { MODE_AI } from '../components/packing/CreatePackingListSheet';
+import { notifyListCreated } from '../services/pushNotification';
 
 export default function HomePage() {
   const { user } = useAuth();
-  const { settings } = useAppSettings();
   const { isSuperAdmin, isFamilyAdmin, loading: profileLoading, familyId, profile, reload } = useUserProfile(user);
+  const { settings } = useAppSettings({ user, profile });
   const toast = useToast();
   const [lists, setLists] = useState([]);
   const [authorsById, setAuthorsById] = useState({});
@@ -84,6 +86,7 @@ export default function HomePage() {
   const [packingBusy, setPackingBusy] = useState(false);
   const [packingTemplates, setPackingTemplates] = useState([]);
   const [packingRefreshKey, setPackingRefreshKey] = useState(0);
+  const [shoppingBusy, setShoppingBusy] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -347,7 +350,65 @@ export default function HomePage() {
     }
   };
 
-  const handleCreateListConfirm = ({ type, scheduledFor, description = '' }) => {
+  const handleCreateListConfirm = async ({
+    mode,
+    type,
+    scheduledFor,
+    description = '',
+    items = [],
+    title = null,
+  }) => {
+    if (mode === MODE_SHOPPING_AI) {
+      if (!user?.uid || !familyId || shoppingBusy) return;
+      setShoppingBusy(true);
+      try {
+        let familyMemberIds = [user.uid];
+        try {
+          const familyMembers = await getFamilyMembers(familyId);
+          familyMemberIds = familyMembers.map((member) => member.id);
+        } catch {
+          familyMemberIds = [user.uid];
+        }
+
+        const listId = await createActualList({
+          type: type || 'home',
+          createdBy: user.uid,
+          items: Array.isArray(items) ? items : [],
+          description,
+          groupId: familyId,
+          familyId,
+          isPublic: true,
+          allowedUsers: familyMemberIds,
+          scheduledFor: null,
+          title,
+        });
+
+        setCreateSheetOpen(false);
+        notifyListCreated({
+          list: {
+            id: listId,
+            title: title || type,
+            isPublic: true,
+            allowedUsers: familyMemberIds,
+            familyId,
+            groupId: familyId,
+          },
+          author: {
+            uid: user.uid,
+            name: profile?.displayName || user.displayName || '',
+            photoUrl: user.photoURL || null,
+          },
+        }).catch((err) => console.warn('[push] Не удалось отправить уведомление', err));
+
+        navigate(`/list/${listId}`, { state: { highlightShareLink: true } });
+      } catch (err) {
+        toast.error(err?.message || 'Не удалось создать список');
+      } finally {
+        setShoppingBusy(false);
+      }
+      return;
+    }
+
     clearRepeatDraft();
     setCreateSheetOpen(false);
 
@@ -526,13 +587,15 @@ export default function HomePage() {
 
       <CreateListSheet
         open={createSheetOpen}
-        onClose={() => setCreateSheetOpen(false)}
+        onClose={() => !shoppingBusy && setCreateSheetOpen(false)}
         onConfirm={handleCreateListConfirm}
         canCreateCustom={isSuperAdmin}
         onRequestCustom={() => {
           setCreateSheetOpen(false);
           setRequestCustomOpen(true);
         }}
+        uiTheme={uiTheme}
+        busy={shoppingBusy}
       />
 
       <CreatePackingListSheet

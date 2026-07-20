@@ -55,6 +55,7 @@ export async function createList({
   allowedUsers,
   scheduledFor = null,
   remindOnDay = false,
+  title = null,
 }) {
   const resolvedType = normalizeListTypeForCreate(type);
   const resolvedFamilyId = familyId || groupId || DEFAULT_GROUP_ID;
@@ -74,8 +75,12 @@ export async function createList({
     // необязательный снимок для карточек гостей
   }
 
+  const resolvedTitle = typeof title === 'string' && title.trim()
+    ? title.trim().slice(0, 80)
+    : formatListTitle(resolvedType, scheduledDate || new Date());
+
   const ref = await addDoc(collection(db, COLLECTIONS.LISTS), {
-    title: formatListTitle(resolvedType, scheduledDate || new Date()),
+    title: resolvedTitle,
     description: description.trim() || '',
     type: resolvedType,
     isPublic,
@@ -610,6 +615,7 @@ export async function createActualList({
   allowedUsers,
   scheduledFor = null,
   remindOnDay = false,
+  title = null,
 }) {
   const resolvedFamilyId = familyId || groupId;
   const listId = await createList({
@@ -622,6 +628,7 @@ export async function createActualList({
     allowedUsers,
     scheduledFor,
     remindOnDay,
+    title,
   });
   if (items.length > 0) {
     await addItemsBatch(listId, items);
