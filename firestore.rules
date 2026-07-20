@@ -311,7 +311,9 @@ service cloud.firestore {
         || (
           sameFamily(list.familyId) && (
             isFamilyAdmin()
-            || list.get('isPublic', true) == true
+            // Без default true: иначе familyId-only query проходит анализ правил
+            // (отсутствующее поле ≠ публичный доступ).
+            || list.isPublic == true
             || list.createdBy == request.auth.uid
             // Legacy: документы без поля members — вся семья
             || !('members' in list)
