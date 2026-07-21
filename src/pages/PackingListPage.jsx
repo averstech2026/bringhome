@@ -55,6 +55,7 @@ import { getUserPhotoUrl } from '../utils/userPhoto';
 import {
   getNeutralExitLabel,
   getPackingAiPlaceholder,
+  getThemedPrimaryButtonClass,
   resolveUiTheme,
 } from '../utils/uiThemes';
 import { HOME_DESKTOP } from '../utils/homeDesktops';
@@ -350,15 +351,17 @@ export default function PackingListPage() {
           ? 'Готово, выйти! 👍'
           : getNeutralExitLabel(uiTheme);
   const footerClassName = isCloudSyncing
-    ? (isDirty || sessionTouched ? PACKING_ACCENT.primaryBtn : EXIT_BTN_NEUTRAL)
-    : isNewEmptyList || (!isDirty && !sessionTouched)
+    ? (isDirty
+      ? PACKING_ACCENT.primaryBtn
+      : sessionTouched
+        ? getThemedPrimaryButtonClass(uiTheme)
+        : EXIT_BTN_NEUTRAL)
+    : isNewEmptyList
       ? EXIT_BTN_NEUTRAL
-      : PACKING_ACCENT.primaryBtn;
-  const showNeutralExitIcon = !isDirty
-    && !sessionTouched
-    && !isNewEmptyList
-    && !exiting
-    && !isCloudSyncing;
+      : isDirty
+        ? PACKING_ACCENT.primaryBtn
+        : getThemedPrimaryButtonClass(uiTheme);
+  const showNeutralExitIcon = isNewEmptyList && !exiting && !isCloudSyncing;
   const canCloudSyncChecks = Boolean(
     list?.id && !isArchivedList && !list.isTemplate,
   );

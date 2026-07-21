@@ -332,6 +332,14 @@ export function getProfileThemeButtonClass(themeId, active) {
   return `${PROFILE_THEME_BUTTON_BASE} border-0 ${activeClass}`;
 }
 
+const THEMED_PRIMARY_BTN_BASE =
+  'relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full border-0 py-3.5 text-[15px] font-semibold text-white transition-all duration-300 hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:active:scale-100';
+
+/** Активная CTA-кнопка в цвете UI-темы (выход «Готово», ИИ и т.п.). */
+export function getThemedPrimaryButtonClass(themeId) {
+  return `${THEMED_PRIMARY_BTN_BASE} ${getActiveSurfaceClass(themeId)}`;
+}
+
 export function resolveUiTheme(profile, userId) {
   if (profile) {
     const resolved = resolveUiThemeFromProfile(profile);
@@ -347,17 +355,18 @@ export function resolveUiTheme(profile, userId) {
   return 'default';
 }
 
-/** Текст нейтральной кнопки выхода из списка без изменений. */
+/** Текст нейтральной кнопки выхода из списка без несохранённых правок.
+ * Должен быть понятным действием («выйти»), без загадочных тематических фраз. */
 export function getNeutralExitLabel(themeId) {
   switch (resolveThemeId(themeId)) {
     case 'star_wars':
-      return 'Всё спокойно в Галактике';
+      return 'Готово, выйти! ⚔️';
     case 'paddington':
-      return 'Мармелад цел, я назад 🧸';
+      return 'Готово, выйти! 🧸';
     case 'hogwarts':
-      return 'Шалость удалась, выхожу 🪄';
+      return 'Готово, выйти! 🪄';
     default:
-      return 'Ничего не менялось, назад';
+      return 'Готово, выйти';
   }
 }
 

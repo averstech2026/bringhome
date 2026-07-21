@@ -52,7 +52,7 @@ import { parseDateParam, formatDateParam, parseListScheduledFor, resolveSchedule
 import { normalizeListTypeForCreate } from '../utils/listTypes';
 import { useVisualViewportFixedTop } from '../hooks/useVisualViewportFixedTop';
 import { useElementHeight } from '../hooks/useElementHeight';
-import { getNeutralExitLabel, resolveUiTheme } from '../utils/uiThemes';
+import { getNeutralExitLabel, getThemedPrimaryButtonClass, resolveUiTheme } from '../utils/uiThemes';
 import {
   scheduleListReminder,
   cancelListReminder,
@@ -1046,12 +1046,16 @@ export default function ListPage() {
         ? 'Готово, выйти! 👍'
         : getNeutralExitLabel(uiTheme);
   const exitButtonClassName = isCloudSyncing
-    ? (hasSessionActivity || isDirty ? PRIMARY_BTN : EXIT_BTN_NEUTRAL)
-    : isDirty || hasSessionActivity
+    ? (isDirty
       ? PRIMARY_BTN
-      : EXIT_BTN_NEUTRAL;
+      : hasSessionActivity
+        ? getThemedPrimaryButtonClass(uiTheme)
+        : EXIT_BTN_NEUTRAL)
+    : isDirty
+      ? PRIMARY_BTN
+      : getThemedPrimaryButtonClass(uiTheme);
   const exitButtonDisabled = isCloudSyncing || savingChanges;
-  const showNeutralExitIcon = !isDirty && !hasSessionActivity && !isCloudSyncing;
+  const showNeutralExitIcon = false;
   const isDraftEmpty = isDraft && draftItems.length === 0;
   const saveBusy = persisting || savingChanges;
   const draftCreateDisabled = saveBusy;
