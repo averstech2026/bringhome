@@ -930,39 +930,24 @@ export default function CreateListSheet({
 
       <div className="shrink-0 border-t border-gray-100 bg-white px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
         {isPreview ? (
-          <div className="flex gap-2.5">
-            <button
-              type="button"
-              disabled={locked}
-              onClick={() => {
-                setStep(STEP_FORM);
-                setAiPreview(null);
-                setPreviewTitle('');
-                setSelectedIds(new Set());
-              }}
-              className="inline-flex shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-3.5 text-[15px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-            >
-              Назад
-            </button>
-            <button
-              type="button"
-              disabled={locked || selectedCount === 0}
-              onClick={handleConfirmPreview}
-              className={`relative inline-flex min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden rounded-full py-3.5 text-[15px] font-semibold text-white transition-all duration-300 hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none disabled:active:scale-100 ${aiTheme.buttonClass}`}
-            >
-              <AiThemeIcon
-                icon={aiTheme.icon}
-                className={`relative z-10 h-4 w-4 shrink-0 ${busy ? 'animate-spin' : ''}`}
-              />
-              <span className="relative z-10 truncate">
-                {busy
-                  ? aiTheme.confirmLoadingLabel
-                  : selectedCount > 0
-                    ? `${aiTheme.confirmLabel} (+${selectedCount})`
-                    : 'Выберите товары'}
-              </span>
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={locked || selectedCount === 0}
+            onClick={handleConfirmPreview}
+            className={`relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full py-3.5 text-[15px] font-semibold text-white transition-all duration-300 hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none disabled:active:scale-100 ${aiTheme.buttonClass}`}
+          >
+            <AiThemeIcon
+              icon={aiTheme.icon}
+              className={`relative z-10 h-4 w-4 shrink-0 ${busy ? 'animate-spin' : ''}`}
+            />
+            <span className="relative z-10">
+              {busy
+                ? aiTheme.confirmLoadingLabel
+                : selectedCount > 0
+                  ? `${aiTheme.confirmLabel} (+${selectedCount})`
+                  : 'Выберите товары'}
+            </span>
+          </button>
         ) : (
           <button
             type="button"
